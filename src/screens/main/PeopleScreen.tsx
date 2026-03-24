@@ -73,8 +73,8 @@ export default function PeopleScreen() {
       if (result.api_status === '200' && result.users) {
         setUsers(result.users);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('Failed to load users list:', err);
     }
   }, [userId, sessionId]);
 
@@ -101,8 +101,8 @@ export default function PeopleScreen() {
       if (result.api_status === '200' && result.users) {
         setUsers(result.users);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('Failed to search users:', err);
     } finally {
       setSearching(false);
     }

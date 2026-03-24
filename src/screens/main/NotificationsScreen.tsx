@@ -44,8 +44,8 @@ export default function NotificationsScreen() {
       if (result.api_status === '200' && result.notifications) {
         setNotifications(result.notifications);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
     }
   }, [userId, sessionId]);
 

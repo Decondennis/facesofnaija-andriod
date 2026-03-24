@@ -32,8 +32,8 @@ export default function HomeScreen() {
       if (result.api_status === '200' && result.posts) {
         setPosts(result.posts);
       }
-    } catch {
-      // silently fail on background refresh
+    } catch (err) {
+      console.error('Failed to load posts:', err);
     }
   }, [userId, sessionId]);
 

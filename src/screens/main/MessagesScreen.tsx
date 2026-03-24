@@ -47,8 +47,8 @@ export default function MessagesScreen() {
       if (result.api_status === '200' && result.messages) {
         setMessages(result.messages);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('Failed to load messages:', err);
     }
   }, [userId, sessionId]);
 

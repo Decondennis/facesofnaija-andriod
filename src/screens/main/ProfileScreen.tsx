@@ -28,8 +28,8 @@ export default function ProfileScreen() {
       if (result.api_status === '200' && result.userData) {
         setProfile(result.userData);
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('Failed to load profile:', err);
     }
   }, [userId, sessionId]);
 
