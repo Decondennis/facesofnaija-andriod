@@ -3,6 +3,7 @@ import apiClient from '../config/api';
 export interface Post {
   id: string;
   user_id: string;
+  // Note: 'Orginaltext' is the exact field name returned by the WoWonder API (intentional spelling)
   Orginaltext?: string;
   postFile?: string;
   time: string;
