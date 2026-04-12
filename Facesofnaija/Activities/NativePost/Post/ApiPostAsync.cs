@@ -372,8 +372,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             {
                 case NativeFeedType.Global:
                     (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
-
-                    if (offset == "0" && (apiStatus != 200 || respond is not PostObject directFirstPage || !HasRenderablePosts(directFirstPage)))
+                    if (apiStatus != 200 || respond is not PostObject firstPage || !HasRenderablePosts(firstPage))
                         (apiStatus, respond) = await GetGlobalPostDirect("0", adId);
                     break;
                 case NativeFeedType.User:
@@ -458,7 +457,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                             Log.Warn("FON_TIMELINE", $"CurrentFeedOffset updated to {CurrentFeedOffset}");
                         }
                     }
-                    ActivityContext?.RunOnUiThread(() => LoadDataApi(apiStatus, postData, offset, typeRun));
+                    await Task.Run(() => LoadDataApi(apiStatus, postData, offset, typeRun)).ConfigureAwait(false);
                 }
             }
             }
@@ -991,13 +990,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 {
                     case NativeFeedType.Global:
                         var adId = NativeFeedAdapter.ListDiffer.LastOrDefault(a => a.TypeView == PostModelType.AdsPost && a.PostData.PostType == "ad")?.PostData?.Id ?? "";
-                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", NativeFeedAdapter.IdParameter, "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
-                        if (apiStatus != 200)
-                            (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
-
-                        // If first page is empty, force direct fallback before other feed types
-                        if (offset == "0" && (apiStatus != 200 || respond is not PostObject directCheck || directCheck.Data?.Count == 0))
-                            (apiStatus, respond) = await GetGlobalPostDirect("0", adId);
+                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
                         break;
                     default:
                         return;

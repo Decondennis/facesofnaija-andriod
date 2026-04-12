@@ -1118,7 +1118,7 @@ namespace Facesofnaija.Activities.Tabbes
                     TabAdapter.AddFragment(MoreTab, GetText(Resource.String.Lbl_More));
 
                     ViewPager.UserInputEnabled = false;
-                    ViewPager.OffscreenPageLimit = TabAdapter.ItemCount;
+                    ViewPager.OffscreenPageLimit = 1;
                     ViewPager.CurrentItem = 0;
 
                     ViewPager.Orientation = ViewPager2.OrientationHorizontal;

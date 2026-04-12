@@ -162,10 +162,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (item.Event?.EventClass != null)
                     return PostModelType.EventPost;
 
-                if (item.ColorId != "0")
+                if (!string.IsNullOrEmpty(item.ColorId) && item.ColorId != "0")
                     return PostModelType.ColorPost;
 
-                if (item.PollId != "0")
+                if (!string.IsNullOrEmpty(item.PollId) && item.PollId != "0")
                     return PostModelType.PollPost;
 
                 if (item.FundData?.FundDataClass != null)

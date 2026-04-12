@@ -196,7 +196,7 @@ try {
                 'is_liked' => false, 'color_id' => '0', 'poll_id' => '0',
                 'blog_id' => '0', 'fund_id' => '0', 'event_id' => '0',
                 'publisher' => $op_pub, 'user_data' => $op_pub,
-                'shared_info' => ['shared_post_id' => '', 'shared_post_info_class' => null],
+                'shared_info' => null,
             ];
         }
         $stmt->close();
@@ -299,10 +299,9 @@ try {
             // --- relations ---
             'publisher'          => $publisher,
             'user_data'          => $publisher,
-            'shared_info'        => [
-                'shared_post_id'         => ($p['postType'] === 'shared_post' && (int)$p['postShare'] > 0) ? (string)$p['postShare'] : '',
-                'shared_post_info_class' => ($p['postType'] === 'shared_post' && (int)$p['postShare'] > 0) ? ($original_posts_map[(int)$p['postShare']] ?? null) : null,
-            ],
+            'shared_info'        => ($p['postType'] === 'shared_post' && (int)$p['postShare'] > 0 && isset($original_posts_map[(int)$p['postShare']]))
+                                    ? $original_posts_map[(int)$p['postShare']]
+                                    : null,
             'reactions'          => $reaction_counts[$pid],
         ];
     }

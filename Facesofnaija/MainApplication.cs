@@ -73,36 +73,12 @@ namespace Facesofnaija
                 //======================================
                 if (AppSettings.TurnSecurityProtocolType3072On)
                 {
-                    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
-                    // Use custom handler that forces HTTP for local development (10.0.2.2)
-                    var client = new HttpClient(new Helpers.Utils.LocalHttpHandler());
                     ServicePointManager.Expect100Continue = true;
                     ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13 | SecurityProtocolType.SystemDefault;
-                    Console.WriteLine(client);
+                    ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
                 }
 
                 JsonConvert.DefaultSettings = () => UserDetails.JsonSettings;
-
-                // Configure HTTP client to force HTTP for local XAMPP testing
-                // Set custom DNS resolver that redirects HTTPS to HTTP for 10.0.2.2
-                if (AppSettings.TurnSecurityProtocolType3072On)
-                {
-                    try
-                    {
-                        // Create a custom service point for 10.0.2.2 that forces HTTP
-                        ServicePointManager.ServerCertificateValidationCallback = (sender, cert, chain, sslPolicyErrors) =>
-                        {
-                            // For local development, accept all certificates
-                            return true;
-                        };
-
-                        Console.WriteLine("[MainApplication] Configured for local HTTP testing");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[MainApplication] Configuration error: {ex.Message}");
-                    }
-                }
 
                 // Ensure API config is ready before any screen starts making requests
                 InitializeWoWonder.Initialize(AppSettings.TripleDesAppServiceProvider, PackageName, AppSettings.TurnSecurityProtocolType3072On, AppSettings.SetApisReportMode);

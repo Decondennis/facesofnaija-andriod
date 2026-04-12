@@ -339,8 +339,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 return vH;
                             }
 
-                            itemView = LayoutInflater.From(parent.Context)?.Inflate(Android.Resource.Layout.SimpleListItem1, parent, false);
-                            // TODO: Restore proper video layout: Resource.Layout.Post_Content_video_layout
+                            itemView = LayoutInflater.From(parent.Context)?.Inflate(Resource.Layout.Post_Content_video_layout, parent, false);
                             var vh = new AdapterHolders.PostVideoSectionViewHolder(itemView, this);
                             Console.WriteLine("WoLog: NativePostAdapter / OnCreateViewHolder  >>  PostModelType = VideoPost with dp=");
                             return vh;

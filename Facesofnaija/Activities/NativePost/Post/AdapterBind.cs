@@ -157,7 +157,8 @@ namespace Facesofnaija.Activities.NativePost.Post
             {
                 var itemPost = item.PostData;
 
-                UserDataObject publisher = itemPost.Publisher ?? itemPost.UserData;
+                UserDataObject publisher = itemPost?.Publisher ?? itemPost?.UserData;
+                if (publisher == null) return;
 
                 var glideRequestOptions2 = new RequestOptions().SkipMemoryCache(true).CenterCrop().CircleCrop().Format(Bumptech.Glide.Load.DecodeFormat.PreferRgb565)
                     .SetPriority(Priority.High)
@@ -190,7 +191,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 holder.TimeText.Text = itemPost.Time;
 
-                if (holder.PrivacyPostIcon != null && !string.IsNullOrEmpty(itemPost.PostPrivacy) && (publisher.UserId == UserDetails.UserId || AppSettings.ShowPostPrivacyForAllUser))
+                if (holder.PrivacyPostIcon != null && !string.IsNullOrEmpty(itemPost?.PostPrivacy) && (publisher.UserId == UserDetails.UserId || AppSettings.ShowPostPrivacyForAllUser))
                 {
                     switch (itemPost.PostPrivacy)
                     {
@@ -621,21 +622,15 @@ namespace Facesofnaija.Activities.NativePost.Post
                 //Image
                 if (holder.ItemViewType == 1 || holder.CommentImage != null)
                 {
-                    //if (!string.IsNullOrEmpty(item.CFile) && (item.CFile.Contains("file://") || item.CFile.Contains("content://") || item.CFile.Contains("storage") || item.CFile.Contains("/data/user/0/")))
-                    //{
-                    //    File file2 = new File(item.CFile);
-                    //    var photoUri = FileProvider.GetUriForFile(ActivityContext, ActivityContext.PackageName + ".fileprovider", file2);
-                    //    Glide.With(ActivityContext?.BaseContext).Load(photoUri).Apply(new RequestOptions()).Into(holder.CommentImage);
-
-                    //    //GlideImageLoader.LoadImage(ActivityContext,item.CFile, holder.CommentImage, ImageStyle.CenterCrop, ImagePlaceholders.Color);
-                    //}
-                    //else
-                    //{
-                    //    if (!item.CFile.Contains(InitializeWoWonder.WebsiteUrl))
-                    //        item.CFile = WoWonderTools.GetTheFinalLink(item.CFile);
-
-                    //    GlideImageLoader.LoadImage(ActivityContext, item.CFile, holder.CommentImage, ImageStyle.CenterCrop, ImagePlaceholders.Color);
-                    //}
+                    if (!string.IsNullOrEmpty(item.CFile))
+                    {
+                        holder.CommentImage.Visibility = ViewStates.Visible;
+                        GlideImageLoader.LoadImage(ActivityContext, item.CFile, holder.CommentImage, ImageStyle.CenterCrop, ImagePlaceholders.Color);
+                    }
+                    else if (holder.CommentImage != null)
+                    {
+                        holder.CommentImage.Visibility = ViewStates.Gone;
+                    }
                 }
 
                 //Voice
@@ -824,7 +819,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                         break;
                 }
                 if (imageUrl.Contains(".gif"))
-                    Glide.With(ActivityContext?.BaseContext).Load(imageUrl).Apply(new RequestOptions().Placeholder(Resource.Drawable.ImagePlacholder)).Into(holder.Image);
+                    LoadImage(imageUrl, holder.Image);
                 else
                     LoadImage(imageUrl, holder.Image);
 
@@ -994,9 +989,11 @@ namespace Facesofnaija.Activities.NativePost.Post
                         break;
                 }
 
+                imageUrl = GlideImageLoader.NormalizeImageUrl(imageUrl);
+                var videoUrl = GlideImageLoader.NormalizeImageUrl(item.PostData.PostFileFull);
 
                 holder.VideoImageUrl = imageUrl;
-                holder.VideoUrl = item.PostData.PostFileFull;
+                holder.VideoUrl = videoUrl;
 
                 var fullGlideRequestBuilder = Glide.With(holder.ItemView).Load(imageUrl).Thumbnail(Glide.With(holder.ItemView).Load(imageUrl).Apply(RequestOptions.SignatureOf(new ObjectKey(imageUrl + "VideoThumb"))).SetSizeMultiplier(0.1f).SetPriority(Priority.Immediate).Downsample(DownsampleStrategy.CenterInside).Override(50).AddListener(new GlideCustomRequestListener("AdapterBind Thumbnail"))).SetSizeMultiplier(0.95f).Apply(NativePostAdapter.GlideNormalOptions).Timeout(3000);
                 fullGlideRequestBuilder.DontTransform_T();
@@ -1052,7 +1049,8 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 if (item.PostData != null)
                 {
-                    holder.DesTextView.SetTextColor(Color.ParseColor(item.PostData.ColorBoxTextColor));
+                    var colorText = item.PostData.ColorBoxTextColor as string;
+                    holder.DesTextView.SetTextColor(string.IsNullOrEmpty(colorText) ? Color.White : Color.ParseColor(colorText));
 
                     switch (item.PostData.RegexFilterList != null & item.PostData.RegexFilterList?.Count > 0)
                     {

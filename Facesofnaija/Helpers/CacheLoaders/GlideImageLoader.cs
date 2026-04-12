@@ -52,6 +52,9 @@ namespace Facesofnaija.Helpers.CacheLoaders
                 if (imageUri.Contains("file://") || imageUri.Contains("content://") || imageUri.Contains("storage") || imageUri.Contains("/data/user/0/") || imageUri.Contains("user_anonymous"))
                     return imageUri;
 
+                if (imageUri == "no_profile_image" || imageUri.EndsWith("/no_profile_image"))
+                    return "http://172.236.19.52/assets/images/no_profile_image.png";
+
                 if (imageUri.StartsWith("//"))
                     return "http:" + imageUri;
 

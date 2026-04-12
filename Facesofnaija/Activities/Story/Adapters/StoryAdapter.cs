@@ -97,11 +97,8 @@ namespace Facesofnaija.Activities.Story.Adapters
                             {
                                 switch (item.Stories?.Count)
                                 {
-                                    case > 0 when item.Stories[0].Thumbnail.Contains("http"):
-                                        GlideImageLoader.LoadImage(ActivityContext, item.Stories[0]?.Thumbnail, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
-                                        break;
                                     case > 0:
-                                        Glide.With(ActivityContext?.BaseContext).Load(new File(item.Stories[0].Thumbnail)).Apply(new RequestOptions().Placeholder(Resource.Drawable.ImagePlacholder).Error(Resource.Drawable.ImagePlacholder)).Into(holder.RoundImage);
+                                        GlideImageLoader.LoadImage(ActivityContext, item.Stories[0]?.Thumbnail, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
                                         break;
                                 }
 
