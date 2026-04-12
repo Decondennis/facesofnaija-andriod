@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <!-- Base configuration for all domains -->
+  <base-config cleartextTrafficPermitted="true">
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </base-config>
+
+  <!-- Allow cleartext and any certificate for the main app domain -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="true">facesofnaija.com</domain>
+    <domain includeSubdomains="true">www.facesofnaija.com</domain>
+    <domain includeSubdomains="true">facesofnaija.net</domain>
+    <domain includeSubdomains="true">www.facesofnaija.net</domain>
+    <domain includeSubdomains="true">10.0.2.2</domain>
+    <domain includeSubdomains="true">localhost</domain>
+    <domain includeSubdomains="true">127.0.0.1</domain>
+    <domain includeSubdomains="true">172.236.19.52</domain>
+    <domain includeSubdomains="true">ip-api.com</domain> 
+    <domain includeSubdomains="true">cdn.weatherapi.com</domain> 
+    <domain includeSubdomains="true">openexchangerates.org</domain> 
+    <domain includeSubdomains="true">stipop.io</domain>
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </domain-config>
+
+  <!-- Debug configuration - allows all certificates in debug mode -->
+  <debug-overrides>
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </debug-overrides>
+</network-security-config>
