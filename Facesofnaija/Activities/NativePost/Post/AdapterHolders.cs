@@ -3698,6 +3698,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                     IconImageView = MainView.FindViewById<ImageView>(Resource.Id.IconImageview);
                     NormalImageView = MainView.FindViewById<ImageView>(Resource.Id.Imageview);
 
+                    // Enable marquee scrolling — must have Selected = true
+                    if (SubText != null)
+                        SubText.Selected = true;
+
                     ButtonView.SetOnClickListener(this);
                 }
                 catch (Exception e)
@@ -3726,6 +3730,12 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 case "Groups":
                                     intent.PutExtra("Key", "Random_Groups");
                                     break;
+                                case "Communities":
+                                    intent.PutExtra("Key", "Random_Communities");
+                                    break;
+                                case "Announcements":
+                                    // Announcements are informational — no navigation needed
+                                    return;
                             }
 
                             PostAdapter.ActivityContext.StartActivity(intent);

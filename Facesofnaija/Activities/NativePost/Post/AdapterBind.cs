@@ -1727,14 +1727,23 @@ namespace Facesofnaija.Activities.NativePost.Post
                             };
 
                             if (item.AlertModel?.ImageDrawable != null)
-                                holder.Image.SetImageResource(item.AlertModel.ImageDrawable);
+                                holder.Image?.SetImageResource(item.AlertModel.ImageDrawable);
 
-                            switch (string.IsNullOrEmpty(item.AlertModel?.LinerColor))
+                            // Accent strip color
+                            if (!string.IsNullOrEmpty(item.AlertModel?.LinerColor))
+                                holder.LineView?.SetBackgroundColor(Color.ParseColor(item.AlertModel.LinerColor));
+
+                            // Time-of-day gradient background
+                            switch (item.AlertModel?.TypeAlert)
                             {
-                                case false:
-                                    holder.LineView.SetBackgroundColor(Color.ParseColor(item.AlertModel?.LinerColor));
+                                case "Evening":
+                                    holder.MianAlert?.SetBackgroundResource(Resource.Drawable.Shape_Gradient_Linear);
+                                    break;
+                                default: // Morning / Afternoon
+                                    holder.MianAlert?.SetBackgroundResource(Resource.Drawable.Shape_Greeting_Bg);
                                     break;
                             }
+
                             break;
                         }
                     case PostModelType.AlertBoxAnnouncement:
@@ -1776,6 +1785,9 @@ namespace Facesofnaija.Activities.NativePost.Post
                     _ => holder.SubText.Text
                 };
 
+                // Re-assert marquee selection on every bind (RecyclerView clears it on recycle)
+                holder.SubText.Selected = true;
+
                 if (item.AlertModel?.ImageDrawable != null)
                     holder.NormalImageView.SetImageResource(item.AlertModel.ImageDrawable);
                 else
@@ -1789,10 +1801,26 @@ namespace Facesofnaija.Activities.NativePost.Post
                     case "Groups":
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Gradient_Linear);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_FindYourGroups);
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#5E35B1"));
                         break;
                     case "Pages":
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Gradient_Linear1);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_FindPopularPages);
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#C62828"));
+                        break;
+                    case "Communities":
+                        // Green gradient, communities-focused button
+                        holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Community_Bg);
+                        holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Btn_Join_Community);
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#1B5E20"));
+                        break;
+                    case "Announcements":
+                        // Red/alert gradient for breaking news
+                        holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Announcement_Bg);
+                        holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_Announcement);
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#B71C1C"));
+                        // Announcement subtext should be readable — keep selected for marquee
+                        holder.SubText.Selected = true;
                         break;
                 }
             }

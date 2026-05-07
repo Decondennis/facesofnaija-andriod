@@ -1291,24 +1291,26 @@ namespace Facesofnaija.Activities.NativePost.Extra
             }
         }
 
-        public async void AddCommunitiesAlertPostView()
+        public void AddCommunitiesAlertPostView(Action onAdded = null)
         {
             try
             {
-                var obj = await PostModelResolver.PrepareCommunitiesAlert();
-                if (obj is AdapterModelsClass item)
+                var item = new AdapterModelsClass
                 {
-                    switch (item)
+                    TypeView = PostModelType.AlertJoinBox,
+                    Id = 333333344,
+                    AlertModel = new AlertModelClass
                     {
-                        case null:
-                            return;
-                        default:
-                            PostList.Add(item);
-                            AddPostDivider();
-                            break;
+                        TitleHead = "Communities",
+                        SubText = "Connect with people who share your interests — join a community today!",
+                        LinerColor = "#1B5E20",
+                        ImageDrawable = Resource.Drawable.gif_globe,
+                        IconImage = Resource.Drawable.gif_globe,
+                        TypeAlert = "Communities"
                     }
-                }
-
+                };
+                PostList.Add(item);
+                AddPostDivider();
             }
             catch (Exception e)
             {
@@ -1316,25 +1318,26 @@ namespace Facesofnaija.Activities.NativePost.Extra
             }
         }
 
-        public async void AddAnnouncementAlertPostView()
+        public void AddAnnouncementAlertPostView(Action onAdded = null)
         {
             try
             {
-                var obj = await PostModelResolver.PrepareAnnouncementAlert();
-                if (obj is AdapterModelsClass item)
+                var item = new AdapterModelsClass
                 {
-                    switch (item)
+                    TypeView = PostModelType.AlertJoinBox,
+                    Id = 333333355,
+                    AlertModel = new AlertModelClass
                     {
-                        case null:
-                            return;
-                        default:
-                            //SetAnnouncementAlertView(item.AlertModel.SubText, item.AlertModel.LinerColor);
-                            PostList.Add(item);
-                            AddPostDivider();
-                            break;
+                        TitleHead = "Breaking News/Newspaper Review",
+                        SubText = "Stay informed — check back here for the latest breaking news and updates.",
+                        LinerColor = "#B71C1C",
+                        ImageDrawable = Resource.Drawable.news,
+                        IconImage = Resource.Drawable.news,
+                        TypeAlert = "Announcements"
                     }
-                }
-
+                };
+                PostList.Add(item);
+                AddPostDivider();
             }
             catch (Exception e)
             {

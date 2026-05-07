@@ -269,18 +269,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                 //combiner.AddPostBoxPostView("feed", -1);
 
-                var checkSectionAlertBox = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.AlertBox);
-                {
-                    PostFeedAdapter?.ListDiffer?.Remove(checkSectionAlertBox);
-                }
-
-                var checkSectionAlertJoinBox = PostFeedAdapter?.ListDiffer?.Where(a => a.TypeView == PostModelType.AlertJoinBox).ToList();
-                {
-                    foreach (var adapterModelsClass in checkSectionAlertJoinBox)
-                    {
-                        PostFeedAdapter?.ListDiffer?.Remove(adapterModelsClass);
-                    }
-                }
+                combiner.AddGreetingAlertPostView();
+                combiner.AddCommunitiesAlertPostView();
+                combiner.AddAnnouncementAlertPostView();
 
                 PostFeedAdapter?.NotifyDataSetChanged();
                 MainRecyclerView.MainScrollEvent.IsLoading = false;
@@ -322,7 +313,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                 Console.WriteLine("DEBUG LoadPost: Added CommunitiesAlertPostView");
 
                 combiner.AddAnnouncementAlertPostView();
-                Console.WriteLine("DEBUG LoadPost: Added GreetingAlertPostView");
+                Console.WriteLine("DEBUG LoadPost: Added AnnouncementAlertPostView");
 
                 combiner.AddGreetingAlertPostView();
                 Console.WriteLine("DEBUG LoadPost: Added GreetingAlertPostView");

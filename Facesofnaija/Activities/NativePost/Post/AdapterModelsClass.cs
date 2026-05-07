@@ -130,9 +130,9 @@ namespace Facesofnaija.Activities.NativePost.Post
         public string TitleHead { get; set; }
         public string SubText { get; set; }
         public string LinerColor { get; set; }
-
-
         public string TypeAlert { get; set; }
         public int IconImage { get; set; }
+        /// <summary>URL of the user avatar to display in the Greetings card.</summary>
+        public string AvatarUrl { get; set; }
     }
 }

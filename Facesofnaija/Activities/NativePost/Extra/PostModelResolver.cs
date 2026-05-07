@@ -900,81 +900,62 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
-                //afternoon_system
-                var afternoonSystem = ListUtils.SettingsSiteList?.AfternoonSystem;
-                switch (afternoonSystem)
+                var data = ListUtils.MyProfileList?.FirstOrDefault();
+                string name = data != null ? WoWonderTools.GetNameFinal(data) : UserDetails.Username;
+                var avatarUrl = data?.Avatar ?? "";
+
+                var alertModel = new AlertModelClass();
+
+                var timeOfDay = DateTime.Now.Hour;
+
+                switch (timeOfDay)
                 {
-                    case "1":
+                    case >= 0 and < 12:
+                        alertModel = new AlertModelClass
                         {
-                            var data = ListUtils.MyProfileList?.FirstOrDefault();
-                            string name = data != null ? WoWonderTools.GetNameFinal(data) : UserDetails.Username;
-
-                            var alertModel = new AlertModelClass();
-
-                            switch ((int)Build.VERSION.SdkInt)
-                            {
-                                case >= 24:
-                                    {
-#pragma warning disable 618
-                                        var locale = (int)Build.VERSION.SdkInt < 25 ? MainContext?.Resources?.Configuration?.Locale : MainContext?.Resources?.Configuration?.Locales?.Get(0) ?? MainContext?.Resources?.Configuration?.Locale;
-#pragma warning restore 618
-
-                                        var c = Calendar.GetInstance(locale);
-                                        var timeOfDay = c?.Get(CalendarField.HourOfDay);
-
-                                        switch (timeOfDay)
-                                        {
-                                            case >= 0 and < 12:
-                                                alertModel = new AlertModelClass
-                                                {
-                                                    TitleHead = MainContext.GetString(Resource.String.Lbl_GoodMorning) + ", " + name,
-                                                    SubText = RandomGreetings.GetMorningGreeting(), //MainContext.GetString(Resource.String.Lbl_GoodMorning_Text),
-                                                    LinerColor = "#ffc107",
-                                                    ImageDrawable = Resource.Drawable.ic_post_park
-                                                };
-                                                break;
-                                            case >= 12 and < 16:
-                                                alertModel = new AlertModelClass
-                                                {
-                                                    TitleHead = MainContext.GetString(Resource.String.Lbl_GoodAfternoon) + ", " + name,
-                                                    SubText = RandomGreetings.GetAfternoonGreeting(), //MainContext.GetString(Resource.String.Lbl_GoodAfternoon_Text),
-                                                    LinerColor = "#ffc107",
-                                                    ImageDrawable = Resource.Drawable.ic_post_desert
-                                                };
-                                                break;
-                                            case >= 16 and < 21:
-                                            case >= 21 and < 24:
-                                                alertModel = new AlertModelClass
-                                                {
-                                                    TitleHead = MainContext.GetString(Resource.String.Lbl_GoodEvening) + ", " + name,
-                                                    SubText = RandomGreetings.GetEveningGreeting(), //MainContext.GetString(Resource.String.Lbl_GoodEvening_Text),
-                                                    LinerColor = "#ffc107",
-                                                    ImageDrawable = Resource.Drawable.ic_post_sea
-                                                };
-                                                break;
-                                        }
-
-                                        TextToSpeech.SpeakAsync(name + " " + alertModel.SubText).ContinueWith((t) =>
-                                        {
-                                            Console.WriteLine("This is text to speech am waiting for. in this side.");
-                                            // Logic that will run after utterance finishes.
-
-                                        }, TaskScheduler.FromCurrentSynchronizationContext());
-
-                                        var alertBox = new AdapterModelsClass
-                                        {
-                                            TypeView = PostModelType.AlertBox,
-                                            AlertModel = alertModel,
-                                            Id = 333333333
-                                        };
-                                        return alertBox;
-                                    }
-                            }
-
-                            break;
-                        }
+                            TitleHead = MainContext.GetString(Resource.String.Lbl_GoodMorning) + ", " + name,
+                            SubText = RandomGreetings.GetMorningGreeting(),
+                            LinerColor = "#FF8C00",
+                            ImageDrawable = Resource.Drawable.ic_post_park,
+                            TypeAlert = "Morning",
+                            AvatarUrl = avatarUrl
+                        };
+                        break;
+                    case >= 12 and < 16:
+                        alertModel = new AlertModelClass
+                        {
+                            TitleHead = MainContext.GetString(Resource.String.Lbl_GoodAfternoon) + ", " + name,
+                            SubText = RandomGreetings.GetAfternoonGreeting(),
+                            LinerColor = "#FF8C00",
+                            ImageDrawable = Resource.Drawable.ic_post_desert,
+                            TypeAlert = "Afternoon",
+                            AvatarUrl = avatarUrl
+                        };
+                        break;
+                    default:
+                        alertModel = new AlertModelClass
+                        {
+                            TitleHead = MainContext.GetString(Resource.String.Lbl_GoodEvening) + ", " + name,
+                            SubText = RandomGreetings.GetEveningGreeting(),
+                            LinerColor = "#4A148C",
+                            ImageDrawable = Resource.Drawable.ic_post_sea,
+                            TypeAlert = "Evening",
+                            AvatarUrl = avatarUrl
+                        };
+                        break;
                 }
-                return null!;
+
+                TextToSpeech.SpeakAsync(name + " " + alertModel.SubText).ContinueWith((t) =>
+                {
+                    Console.WriteLine("This is text to speech am waiting for. in this side.");
+                }, TaskScheduler.FromCurrentSynchronizationContext());
+
+                return new AdapterModelsClass
+                {
+                    TypeView = PostModelType.AlertBox,
+                    AlertModel = alertModel,
+                    Id = 333333333
+                };
             }
             catch (Exception e)
             {
@@ -989,28 +970,28 @@ namespace Facesofnaija.Activities.NativePost.Extra
             {
                 var alertModel = new AlertModelClass();
 
-                var (apiStatus, respond) = await CustomRequests.GetCommunityNames();
-                if (apiStatus == 200 && respond is CommunityNames comNames)
-                {
-                    alertModel = new AlertModelClass
-                    {
-                        TitleHead = "Communities",
-                        SubText = comNames.Data,
-                        LinerColor = "#ffc107",
-                        ImageDrawable = Resource.Drawable.gif_globe,
-                        IconImage = Resource.Drawable.gif_globe,
-                        TypeAlert = "Communities"
-                    };
+                string subText = "Connect with people who share your interests — join a community today!";
 
-                    var alertBox = new AdapterModelsClass
-                    {
-                        TypeView = PostModelType.AlertJoinBox,
-                        AlertModel = alertModel,
-                        Id = 333333344
-                    };
-                    return (alertBox);
-                }
-                return null;
+                var (apiStatus, respond) = await CustomRequests.GetCommunityNames();
+                if (apiStatus == 200 && respond is CommunityNames comNames && !string.IsNullOrWhiteSpace(comNames.Data))
+                    subText = comNames.Data;
+
+                alertModel = new AlertModelClass
+                {
+                    TitleHead = "Communities",
+                    SubText = subText,
+                    LinerColor = "#1B5E20",
+                    ImageDrawable = Resource.Drawable.gif_globe,
+                    IconImage = Resource.Drawable.gif_globe,
+                    TypeAlert = "Communities"
+                };
+
+                return new AdapterModelsClass
+                {
+                    TypeView = PostModelType.AlertJoinBox,
+                    AlertModel = alertModel,
+                    Id = 333333344
+                };
             }
             catch (Exception e)
             {
@@ -1023,29 +1004,27 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
-                var alertModel = new AlertModelClass();
+                var announcement = await CustomRequests.GetAnnouncement();
+                string subText = !string.IsNullOrWhiteSpace(announcement)
+                    ? announcement.Replace("\n", " ")
+                    : "Stay informed — check back here for the latest news and updates.";
 
-                var annouoncement = await CustomRequests.GetAnnouncement();
-                if (annouoncement == "")
-                    return null;
-
-                alertModel = new AlertModelClass
+                var alertModel = new AlertModelClass
                 {
                     TitleHead = "Breaking News/Newspaper Review",
-                    SubText = annouoncement.Replace("\n", " "),
-                    LinerColor = "#ffc107",
+                    SubText = subText,
+                    LinerColor = "#B71C1C",
                     ImageDrawable = Resource.Drawable.news,
                     IconImage = Resource.Drawable.news,
                     TypeAlert = "Announcements"
                 };
 
-                var alertBox = new AdapterModelsClass
+                return new AdapterModelsClass
                 {
                     TypeView = PostModelType.AlertJoinBox,
                     AlertModel = alertModel,
                     Id = 333333355
                 };
-                return (alertBox);
             }
             catch (Exception e)
             {

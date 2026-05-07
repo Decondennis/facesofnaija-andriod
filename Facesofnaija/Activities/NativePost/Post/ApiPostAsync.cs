@@ -734,6 +734,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                         break;
                 }
 
+                combiner.AddGreetingAlertPostView();
+                combiner.AddCommunitiesAlertPostView();
+                combiner.AddAnnouncementAlertPostView();
+
                 switch (list.Count)
                 {
                     case > 0:
