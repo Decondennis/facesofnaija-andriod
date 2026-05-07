@@ -171,23 +171,50 @@ namespace Facesofnaija.Activities.NativePost.Post
         }
 
         int d = 0;
+        public override void OnViewDetachedFromWindow(Object holder)
+        {
+            // This fires on the EXACT holder instance that scrolled off screen — reliable for saving video state
+            if (holder is AdapterHolders.PostVideoSectionViewHolder videoHolder)
+            {
+                try
+                {
+                    WRecyclerView.GetInstance()?.RemoveVideoForHolder(videoHolder);
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+            }
+            base.OnViewDetachedFromWindow(holder);
+        }
+
         public override void OnViewAttachedToWindow(Object holder)
         {
-            if (holder != null)
+            if (holder is AdapterHolders.PostVideoSectionViewHolder videoHolder)
             {
-                // Console.WriteLine("WoLog: OnViewRecycled  ++ GetType " + holder.GetType());
-
-                //switch (holder)
-                //{
-                //    case AdapterHolders.PostImageSectionViewHolder viewHolder:
-
-                //        AdapterModelsClass item = ListDiffer[viewHolder.LayoutPosition];
-                //        //FullGlideRequestBuilder.Load(item.).Into(viewHolder.Image);
-                //        AdapterBind.ImagePostBind(viewHolder, item, "HightImage");
-                //        Console.WriteLine("WoLog: OnViewAttachedToWindow  ++ PostImageSectionViewHolder " + holder.GetType());
-
-                //        break;
-                //}
+                try
+                {
+                    var recycler = WRecyclerView.GetInstance();
+                    if (recycler != null &&
+                        recycler.ShouldAutoResume(videoHolder.VideoUrl) &&
+                        recycler.HasActiveVideo == false)
+                    {
+                        videoHolder.ItemView?.Post(() =>
+                        {
+                            var localRecycler = WRecyclerView.GetInstance();
+                            if (localRecycler != null &&
+                                localRecycler.ShouldAutoResume(videoHolder.VideoUrl) &&
+                                localRecycler.HasActiveVideo == false)
+                            {
+                                localRecycler.PlayVideo(videoHolder, false);
+                            }
+                        });
+                    }
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
             }
 
             base.OnViewAttachedToWindow(holder);
@@ -1802,7 +1829,14 @@ namespace Facesofnaija.Activities.NativePost.Post
                             Glide.With(ActivityContext?.BaseContext).Clear(viewHolder7.Image);
                             break;
                         case AdapterHolders.PostVideoSectionViewHolder viewHolder8:
+                            // RemoveVideoForHolder is now handled in OnViewDetachedFromWindow (fires earlier, correct holder)
+                            // Only clean up Glide and UI state here
                             Glide.With(ActivityContext?.BaseContext).Clear(viewHolder8.VideoImage);
+                            viewHolder8.VideoImage?.SetImageDrawable(null);
+                            if (viewHolder8.PlayButton != null)
+                                viewHolder8.PlayButton.Visibility = ViewStates.Visible;
+                            if (viewHolder8.VideoProgressBar != null)
+                                viewHolder8.VideoProgressBar.Visibility = ViewStates.Gone;
                             break;
                         case AdapterHolders.FundingPostViewHolder viewHolder9:
                             Glide.With(ActivityContext?.BaseContext).Clear(viewHolder9.Image);

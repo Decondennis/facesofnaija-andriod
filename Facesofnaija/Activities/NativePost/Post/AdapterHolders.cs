@@ -784,31 +784,20 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                     //itemView.SetLayerType(LayerType.Hardware, null);
 
-                    // TODO: These resource IDs were in the renamed video layout files
-                    // Temporarily using safe defaults until video layouts are recreated
+                    // Direct lookup — no reflection needed, all IDs exist in Post_Content_video_layout.xml
                     try
                     {
-                        // Use reflection to check if resource IDs exist
-                        var resourceIdType = typeof(Resource.Id);
-                        var mediaContainerField = resourceIdType.GetField("media_container");
-                        var playControlField = resourceIdType.GetField("Play_control");
-                        var progressBarField = resourceIdType.GetField("progressBar");
-
-                        if (mediaContainerField != null)
-                            MediaContainer = itemView.FindViewById<FrameLayout>((int)mediaContainerField.GetValue(null));
-
+                        Console.WriteLine($"DEBUG VIDEO HOLDER INIT: itemView type={itemView?.GetType()?.Name ?? "NULL"}, childCount={(itemView as Android.Views.ViewGroup)?.ChildCount}");
+                        MediaContainer = itemView.FindViewById<FrameLayout>(Resource.Id.media_container);
                         VideoImage = itemView.FindViewById<ImageView>(Resource.Id.image);
+                        PlayButton = itemView.FindViewById<ImageView>(Resource.Id.Play_control);
+                        VideoProgressBar = itemView.FindViewById<ProgressBar>(Resource.Id.progressBar);
 
-                        if (playControlField != null)
-                            PlayButton = itemView.FindViewById<ImageView>((int)playControlField.GetValue(null));
-
-                        if (progressBarField != null)
-                            VideoProgressBar = itemView.FindViewById<ProgressBar>((int)progressBarField.GetValue(null));
+                        Console.WriteLine($"DEBUG VIDEO HOLDER: MediaContainer={MediaContainer != null}, VideoImage={VideoImage != null}, PlayButton={PlayButton != null}, ProgressBar={VideoProgressBar != null}");
                     }
                     catch
                     {
-                        // Resource IDs not found - layouts need to be recreated
-                        // Create minimal views to prevent null reference exceptions
+                        // Fallback: create stub views to prevent null reference exceptions
                         MediaContainer = new FrameLayout(itemView.Context);
                         VideoImage = new ImageView(itemView.Context);
                         PlayButton = new ImageView(itemView.Context);
@@ -823,6 +812,10 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                     if (PlayButton != null)
                         PlayButton.SetOnClickListener(this);
+                    if (VideoImage != null)
+                        VideoImage.SetOnClickListener(this);
+                    if (MediaContainer != null)
+                        MediaContainer.SetOnClickListener(this);
                 }
                 catch (Exception e)
                 {
@@ -837,7 +830,9 @@ namespace Facesofnaija.Activities.NativePost.Post
                     {
                         var item = PostAdapter.ListDiffer[BindingAdapterPosition]?.PostData;
 
-                        if (v.Id == PlayButton.Id)
+                        if ((PlayButton != null && v.Id == PlayButton.Id) ||
+                            (VideoImage != null && v.Id == VideoImage.Id) ||
+                            (MediaContainer != null && v.Id == MediaContainer.Id))
                             WRecyclerView.GetInstance().PlayVideo(this, true);
                         //WRecyclerView.GetInstance()?.PlayVideo(!WRecyclerView.GetInstance().CanScrollVertically(1), this, item);
                     }

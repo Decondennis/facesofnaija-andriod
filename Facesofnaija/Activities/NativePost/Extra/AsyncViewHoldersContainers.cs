@@ -162,7 +162,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
 
                         for (int i = 0; i <= numberOfLoad; i++)
                         {
-                            var itemView = LayoutInflater.From(XRecyclerView.Context)?.Inflate(Android.Resource.Layout.SimpleListItem1 /* TODO: Restore Post_Content_video_layout */, (ViewGroup)XRecyclerView, false);
+                            var itemView = LayoutInflater.From(XRecyclerView.Context)?.Inflate(Resource.Layout.Post_Content_video_layout, (ViewGroup)XRecyclerView, false);
                             ListOfVideoholders.Add(new AdapterHolders.PostVideoSectionViewHolder(itemView, MainAdapter));
                         }
                     });
@@ -362,7 +362,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
 
                     for (int i = 0; i <= 6; i++)
                     {
-                        var itemView = LayoutInflater.From(XRecyclerView.Context)?.Inflate(Android.Resource.Layout.SimpleListItem1 /* TODO: Restore Post_Content_video_layout */, (ViewGroup)XRecyclerView, false);
+                        var itemView = LayoutInflater.From(XRecyclerView.Context)?.Inflate(Resource.Layout.Post_Content_video_layout, (ViewGroup)XRecyclerView, false);
                         var vh = new PostVideoSectionViewHolder(itemView, MainAdapter);
                         ListOfVideoholders.Add(vh);
                     }

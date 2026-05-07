@@ -23,6 +23,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.Comment.Adapters;
 using Facesofnaija.Activities.Comment.Fragment;
 using Facesofnaija.Activities.NativePost.Extra;
@@ -522,7 +523,13 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-                if (string.IsNullOrEmpty(item.PostData.Orginaltext) || string.IsNullOrWhiteSpace(item.PostData.Orginaltext))
+                var rawText = item?.PostData?.Orginaltext;
+                if (string.IsNullOrWhiteSpace(rawText))
+                    rawText = item?.PostData?.PostText;
+
+                rawText = Methods.FunString.DecodeString(rawText ?? string.Empty);
+
+                if (string.IsNullOrWhiteSpace(rawText))
                 {
                     if (holder.Description.Visibility != ViewStates.Gone)
                         holder.Description.Visibility = ViewStates.Gone;
@@ -542,13 +549,13 @@ namespace Facesofnaija.Activities.NativePost.Post
                             break;
                     }
 
-                    NativePostAdapter.ReadMoreOption.AddReadMoreTo(holder.Description, new String(item.PostData.Orginaltext));
+                    NativePostAdapter.ReadMoreOption.AddReadMoreTo(holder.Description, new String(rawText));
 
                     if (AppSettings.TextSizeDescriptionPost == WRecyclerView.VolumeState.On)
                     {
                         if (!string.IsNullOrEmpty(holder.Description.Text) && !string.IsNullOrWhiteSpace(holder.Description.Text) && holder.Description.Text?.Length <= 50)
                         {
-                            if (item.PostData.Orginaltext.Contains("http") || item.PostData.Orginaltext.Contains(ActivityContext.GetText(Resource.String.Lbl_ReadMore)) || item.PostData.Orginaltext.Contains(ActivityContext.GetText(Resource.String.Lbl_ReadLess)))
+                            if (rawText.Contains("http") || rawText.Contains(ActivityContext.GetText(Resource.String.Lbl_ReadMore)) || rawText.Contains(ActivityContext.GetText(Resource.String.Lbl_ReadLess)))
                                 holder.Description.SetTextSize(ComplexUnitType.Sp, 13f);
                             else
                                 holder.Description.SetTextSize(ComplexUnitType.Sp, 20f);
@@ -805,23 +812,32 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-                string imageUrl;
+                var imageUrl = string.Empty;
+
                 switch (item.PostData.PhotoAlbum?.Count)
                 {
                     case > 0:
                         {
                             var imagesList = item.PostData.PhotoAlbum;
-                            imageUrl = imagesList[0].Image;
+                            imageUrl = imagesList.FirstOrDefault()?.Image;
                             break;
                         }
                     default:
-                        imageUrl = !string.IsNullOrEmpty(item.PostData.PostSticker) ? item.PostData.PostSticker : item.PostData.PostFileFull;
+                        imageUrl = !string.IsNullOrEmpty(item.PostData.PostSticker)
+                            ? item.PostData.PostSticker
+                            : (!string.IsNullOrEmpty(item.PostData.PostFileFull) ? item.PostData.PostFileFull : item.PostData.PostFile);
                         break;
                 }
-                if (imageUrl.Contains(".gif"))
-                    LoadImage(imageUrl, holder.Image);
-                else
-                    LoadImage(imageUrl, holder.Image);
+
+                if (string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    holder.Image.SetImageDrawable(null);
+                    holder.Image.Visibility = ViewStates.Gone;
+                    return;
+                }
+
+                holder.Image.Visibility = ViewStates.Visible;
+                LoadImage(imageUrl, holder.Image);
 
             }
             catch (Exception e)
@@ -974,9 +990,7 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-                holder.VideoImage.Layout(0, 0, 0, 0);
-                //holder.ExoPlayer.Layout(0, 0, 0, 0);
-                // holder.MediaContainer.Layout(0, 0, 0, 0);
+                // Do NOT call holder.VideoImage.Layout(0,0,0,0) — that collapses the view
 
                 var imageUrl = "";
                 switch (string.IsNullOrEmpty(item.PostData.PostFileThumb))
@@ -985,22 +999,105 @@ namespace Facesofnaija.Activities.NativePost.Post
                         imageUrl = item.PostData.PostFileThumb;
                         break;
                     default:
-                        imageUrl = item.PostData.PostFileFull;
+                        imageUrl = !string.IsNullOrWhiteSpace(item.PostData.PostFileFull)
+                            ? item.PostData.PostFileFull
+                            : item.PostData.PostFile;
                         break;
                 }
 
                 imageUrl = GlideImageLoader.NormalizeImageUrl(imageUrl);
-                var videoUrl = GlideImageLoader.NormalizeImageUrl(item.PostData.PostFileFull);
+                var videoRaw = !string.IsNullOrWhiteSpace(item.PostData.PostFileFull)
+                    ? item.PostData.PostFileFull
+                    : item.PostData.PostFile;
+
+                var videoUrl = GlideImageLoader.NormalizeImageUrl(videoRaw);
+
+                Console.WriteLine($"DEBUG VIDEO BIND: postId={item.PostData?.PostId}, videoUrl={videoUrl}, imageUrl={imageUrl}, PlayButton={holder.PlayButton != null}, VideoImage={holder.VideoImage != null}");
+
+                if (string.IsNullOrWhiteSpace(videoUrl))
+                {
+                    Console.WriteLine($"DEBUG VIDEO BIND: EARLY RETURN — videoUrl is empty for postId={item.PostData?.PostId}");
+                    return;
+                }
+
+                if (holder.VideoImage != null)
+                    holder.VideoImage.Visibility = ViewStates.Visible;
+                if (holder.PlayButton != null)
+                    holder.PlayButton.Visibility = ViewStates.Visible;
+                if (holder.VideoProgressBar != null)
+                    holder.VideoProgressBar.Visibility = ViewStates.Gone;
 
                 holder.VideoImageUrl = imageUrl;
                 holder.VideoUrl = videoUrl;
 
-                var fullGlideRequestBuilder = Glide.With(holder.ItemView).Load(imageUrl).Thumbnail(Glide.With(holder.ItemView).Load(imageUrl).Apply(RequestOptions.SignatureOf(new ObjectKey(imageUrl + "VideoThumb"))).SetSizeMultiplier(0.1f).SetPriority(Priority.Immediate).Downsample(DownsampleStrategy.CenterInside).Override(50).AddListener(new GlideCustomRequestListener("AdapterBind Thumbnail"))).SetSizeMultiplier(0.95f).Apply(NativePostAdapter.GlideNormalOptions).Timeout(3000);
-                fullGlideRequestBuilder.DontTransform_T();
-                fullGlideRequestBuilder.Downsample(DownsampleStrategy.CenterInside).Transition(DrawableTransitionOptions.WithCrossFade(250));
-                fullGlideRequestBuilder.Apply(RequestOptions.SignatureOf(new ObjectKey(imageUrl))).Override(NativePostAdapter.ScreenWidthPixels, NativePostAdapter.ScreenHeightPixels).AddListener(new GlideCustomRequestListener("AdapterBind Video Normal")).Into(holder.VideoImage);
+                // Detect if imageUrl points to a video file (no separate thumbnail available)
+                bool imageIsVideoFile = !string.IsNullOrWhiteSpace(imageUrl) &&
+                    (imageUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                     imageUrl.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
+                     imageUrl.EndsWith(".mov", StringComparison.OrdinalIgnoreCase) ||
+                     imageUrl.EndsWith(".webm", StringComparison.OrdinalIgnoreCase) ||
+                     imageUrl.EndsWith(".avi", StringComparison.OrdinalIgnoreCase));
 
+                if (!imageIsVideoFile && !string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    // imageUrl is a real image — load normally with Glide
+                    var fullGlideRequestBuilder = Glide.With(holder.ItemView).Load(imageUrl).Thumbnail(Glide.With(holder.ItemView).Load(imageUrl).Apply(RequestOptions.SignatureOf(new ObjectKey(imageUrl + "VideoThumb"))).SetSizeMultiplier(0.1f).SetPriority(Priority.Immediate).Downsample(DownsampleStrategy.CenterInside).Override(50).AddListener(new GlideCustomRequestListener("AdapterBind Thumbnail"))).SetSizeMultiplier(0.95f).Apply(NativePostAdapter.GlideNormalOptions).Timeout(3000);
+                    fullGlideRequestBuilder.DontTransform_T();
+                    fullGlideRequestBuilder.Downsample(DownsampleStrategy.CenterInside).Transition(DrawableTransitionOptions.WithCrossFade(250));
+                    fullGlideRequestBuilder.Apply(RequestOptions.SignatureOf(new ObjectKey(imageUrl))).Override(NativePostAdapter.ScreenWidthPixels, NativePostAdapter.ScreenHeightPixels).AddListener(new GlideCustomRequestListener("AdapterBind Video Normal")).Into(holder.VideoImage);
+                }
+                else
+                {
+                    // No separate thumbnail — extract a frame from the video asynchronously
+                    var capturedHolder = holder;
+                    var capturedVideoUrl = videoUrl;
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            using var retriever = new Android.Media.MediaMetadataRetriever();
+                            retriever.SetDataSource(capturedVideoUrl, new Dictionary<string, string>());
+                            var bitmap = retriever.GetFrameAtTime(1_000_000L); // 1 second mark
+                            if (bitmap != null)
+                            {
+                                capturedHolder.ItemView.Post(() =>
+                                {
+                                    try
+                                    {
+                                        if (capturedHolder.VideoImage != null)
+                                            capturedHolder.VideoImage.SetImageBitmap(bitmap);
+                                    }
+                                    catch { }
+                                });
+                            }
+                        }
+                        catch { }
+                    });
+                }
 
+                // Auto-resume if this is the video that was playing before the user scrolled away
+                var recycler = WRecyclerView.GetInstance();
+                if (recycler != null &&
+                    recycler.ShouldAutoResume(videoUrl) &&
+                    recycler.HasActiveVideo == false)
+                {
+                    holder.ItemView.Post(() =>
+                    {
+                        try
+                        {
+                            var localRecycler = WRecyclerView.GetInstance();
+                            if (localRecycler != null &&
+                                localRecycler.ShouldAutoResume(holder.VideoUrl) &&
+                                localRecycler.HasActiveVideo == false)
+                            {
+                                localRecycler.PlayVideo(holder, false);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    });
+                }
 
             }
             catch (Exception e)

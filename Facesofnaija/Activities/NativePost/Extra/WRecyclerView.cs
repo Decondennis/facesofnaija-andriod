@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Graphics;
+using Android.Media;
 using Android.OS;
 using Android.Runtime;
 using Android.Util;
@@ -44,6 +45,13 @@ namespace Facesofnaija.Activities.NativePost.Extra
 
         public ApiPostAsync ApiPostAsync;
         public ExoMediaController ExoMediaController { get; set; }
+
+        private VideoView ActiveVideoView;
+        private AdapterHolders.PostVideoSectionViewHolder ActiveVideoHolder;
+        private string ActiveVideoUrl;
+        public string LastPlayedVideoUrl { get; private set; }
+        public int LastPlayedPositionMs { get; private set; }
+        public bool HasActiveVideo => ActiveVideoView != null;
 
         protected WRecyclerView(IntPtr javaReference, JniHandleOwnership transfer) : base(javaReference, transfer)
         {
@@ -95,35 +103,241 @@ namespace Facesofnaija.Activities.NativePost.Extra
             return Instance;
         }
 
-        // Stub methods for video playback
+        // In-feed video playback (single active player to avoid multiple videos playing while scrolling)
         public void PlayVideo(bool isEndOfList = false, string url = null, object holder = null)
         {
-            // TODO: Implement MediaPlayer video playback
+            try
+            {
+                if (holder is AdapterHolders.PostVideoSectionViewHolder vh)
+                {
+                    PlayVideo(vh, isEndOfList);
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    ActiveVideoUrl = url;
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
         }
 
         public void PlayVideo(object holder, bool isEndOfList)
         {
-            // TODO: Implement MediaPlayer video playback
+            try
+            {
+                if (holder is not AdapterHolders.PostVideoSectionViewHolder videoHolder)
+                    return;
+
+                var videoUrl = videoHolder.VideoUrl;
+                if (string.IsNullOrWhiteSpace(videoUrl) || videoHolder.MediaContainer == null)
+                {
+                    return;
+                }
+
+                // Toggle play/pause when tapping the currently active item.
+                if (ActiveVideoHolder == videoHolder && ActiveVideoView != null)
+                {
+                    if (ActiveVideoView.IsPlaying)
+                    {
+                        ActiveVideoView.Pause();
+                        if (videoHolder.PlayButton != null)
+                            videoHolder.PlayButton.Visibility = ViewStates.Visible;
+                    }
+                    else
+                    {
+                        ActiveVideoView.Start();
+                        if (videoHolder.PlayButton != null)
+                            videoHolder.PlayButton.Visibility = ViewStates.Gone;
+                    }
+
+                    return;
+                }
+
+                // User tapped a different video — clear auto-resume so old video doesn't restart
+                if (LastPlayedVideoUrl != videoUrl)
+                {
+                    LastPlayedVideoUrl = null;
+                    LastPlayedPositionMs = 0;
+                }
+
+                RemoveVideo();
+
+                // Fill the fixed-height (250dp) media_container completely
+                var videoView = new VideoView(videoHolder.ItemView.Context)
+                {
+                    LayoutParameters = new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MatchParent,
+                        ViewGroup.LayoutParams.MatchParent,
+                        GravityFlags.Center)
+                };
+                videoView.Clickable = true;
+
+                ActiveVideoView = videoView;
+                ActiveVideoHolder = videoHolder;
+                ActiveVideoUrl = videoUrl;
+
+                if (videoHolder.VideoProgressBar != null)
+                    videoHolder.VideoProgressBar.Visibility = ViewStates.Visible;
+                if (videoHolder.PlayButton != null)
+                    videoHolder.PlayButton.Visibility = ViewStates.Gone;
+                // Keep VideoImage visible on top as backdrop while buffering
+                if (videoHolder.VideoImage != null)
+                    videoHolder.VideoImage.Visibility = ViewStates.Visible;
+
+                // Tap the video surface to pause/resume
+                var capturedVideoHolder = videoHolder;
+                videoView.Click += (s, e) =>
+                {
+                    WRecyclerView.GetInstance()?.PlayVideo(capturedVideoHolder, false);
+                };
+
+                // Add VideoView at index 0 (behind thumbnail ImageView) so it has a Surface to decode on.
+                // The thumbnail stays visible on top until OnPrepared hides it — no black flash.
+                videoHolder.MediaContainer.AddView(videoView, 0);
+
+                var preparedListener = new MediaPreparedListener(videoHolder, videoView, LastPlayedVideoUrl == videoUrl ? LastPlayedPositionMs : 0);
+                var completionListener = new MediaCompletionListener(videoHolder);
+                var errorListener = new MediaErrorListener(videoHolder);
+                
+                videoView.SetOnPreparedListener(preparedListener);
+                videoView.SetOnCompletionListener(completionListener);
+                videoView.SetOnErrorListener(errorListener);
+                
+                try
+                {
+                    var uri = Android.Net.Uri.Parse(videoUrl);
+                    videoView.SetVideoURI(uri);
+                }
+                catch (Exception)
+                {
+                    videoView.SetVideoPath(videoUrl);
+                }
+                
+                videoView.Start();
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+                RemoveVideo();
+            }
         }
 
         public void RemoveVideo()
         {
-            // TODO: Implement video removal
+            try
+            {
+                if (ActiveVideoView != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(ActiveVideoUrl))
+                    {
+                        try
+                        {
+                            LastPlayedPositionMs = Math.Max(ActiveVideoView.CurrentPosition, 0);
+                        }
+                        catch
+                        {
+                            LastPlayedPositionMs = 0;
+                        }
+                    }
+
+                    try
+                    {
+                        ActiveVideoView.StopPlayback();
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
+
+                    if (ActiveVideoView.Parent is ViewGroup parent)
+                        parent.RemoveView(ActiveVideoView);
+                }
+
+                if (ActiveVideoHolder != null)
+                {
+                    if (ActiveVideoHolder.VideoProgressBar != null)
+                        ActiveVideoHolder.VideoProgressBar.Visibility = ViewStates.Gone;
+
+                    if (ActiveVideoHolder.PlayButton != null)
+                        ActiveVideoHolder.PlayButton.Visibility = ViewStates.Visible;
+
+                    if (ActiveVideoHolder.VideoImage != null)
+                        ActiveVideoHolder.VideoImage.Visibility = ViewStates.Visible;
+                }
+
+                ActiveVideoView = null;
+                ActiveVideoHolder = null;
+                ActiveVideoUrl = null;
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        public void RemoveVideoForHolder(AdapterHolders.PostVideoSectionViewHolder holder)
+        {
+            try
+            {
+                if (holder == null)
+                    return;
+
+                if (ReferenceEquals(holder, ActiveVideoHolder))
+                {
+                    // Scrolled away — remember the URL so we can auto-resume when it comes back
+                    LastPlayedVideoUrl = ActiveVideoUrl;
+
+                    try
+                    {
+                        LastPlayedPositionMs = ActiveVideoView?.CurrentPosition ?? 0;
+                    }
+                    catch
+                    {
+                        LastPlayedPositionMs = 0;
+                    }
+
+                    RemoveVideo();
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
         }
 
         public void ReleasePlayer()
         {
-            // TODO: Implement player release
+            RemoveVideo();
         }
 
         public void StopVideo()
         {
-            // TODO: Implement stop video
+            LastPlayedVideoUrl = null;
+            LastPlayedPositionMs = 0;
+            RemoveVideo();
         }
 
         public void RestartPlayAfterShrinkScreen()
         {
-            // TODO: Implement restart after shrink
+            try
+            {
+                if (ActiveVideoHolder != null && !string.IsNullOrWhiteSpace(ActiveVideoUrl))
+                    PlayVideo(ActiveVideoHolder, false);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        public bool ShouldAutoResume(string videoUrl)
+        {
+            var result = !string.IsNullOrWhiteSpace(videoUrl) && videoUrl == LastPlayedVideoUrl;
+            return result;
         }
 
         public void SetXAdapter(NativePostAdapter adapter, SwipeRefreshLayout swipeRefresh)
@@ -206,7 +420,25 @@ namespace Facesofnaija.Activities.NativePost.Extra
 
         public void SetPostAndFilterType(int postType, string filter)
         {
-            SetPostAndFilterType(postType.ToString(), filter);
+            try
+            {
+                var mappedType = postType switch
+                {
+                    1 => "text",
+                    2 => "photos",
+                    3 => "video",
+                    4 => "music",
+                    5 => "files",
+                    6 => "maps",
+                    _ => ""
+                };
+
+                SetPostAndFilterType(mappedType, filter);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
         }
 
         public void SetXPopupBubble(FloatingActionButton popupBubble)
@@ -231,6 +463,108 @@ namespace Facesofnaija.Activities.NativePost.Extra
             catch (Exception ex)
             {
                 Methods.DisplayReportResultTrack(ex);
+            }
+        }
+
+        private class MediaPreparedListener : Java.Lang.Object, MediaPlayer.IOnPreparedListener
+        {
+            private readonly AdapterHolders.PostVideoSectionViewHolder Holder;
+            private readonly VideoView VideoView;
+            private readonly int ResumePositionMs;
+
+            public MediaPreparedListener(AdapterHolders.PostVideoSectionViewHolder holder, VideoView videoView, int resumePositionMs)
+            {
+                Holder = holder;
+                VideoView = videoView;
+                ResumePositionMs = Math.Max(resumePositionMs, 0);
+            }
+
+            public void OnPrepared(MediaPlayer mp)
+            {
+                try
+                {
+                    if (mp != null)
+                    {
+                        mp.Looping = true;
+                        mp.SetVideoScalingMode(VideoScalingMode.ScaleToFitWithCropping);
+                    }
+
+                    if (ResumePositionMs > 0)
+                        VideoView.SeekTo(ResumePositionMs);
+
+                    // Hide spinner and thumbnail — first frame rendered, video surface is visible underneath
+                    if (Holder.VideoProgressBar != null)
+                        Holder.VideoProgressBar.Visibility = ViewStates.Gone;
+
+                    if (Holder.VideoImage != null)
+                        Holder.VideoImage.Visibility = ViewStates.Gone;
+
+                    if (Holder.PlayButton != null)
+                        Holder.PlayButton.Visibility = ViewStates.Gone;
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+            }
+        }
+
+        private class MediaCompletionListener : Java.Lang.Object, MediaPlayer.IOnCompletionListener
+        {
+            private readonly AdapterHolders.PostVideoSectionViewHolder Holder;
+
+            public MediaCompletionListener(AdapterHolders.PostVideoSectionViewHolder holder)
+            {
+                Holder = holder;
+            }
+
+            public void OnCompletion(MediaPlayer mp)
+            {
+                try
+                {
+                    Console.WriteLine($"DEBUG MEDIA COMPLETION: video finished");
+                    if (Holder.VideoImage != null)
+                        Holder.VideoImage.Visibility = ViewStates.Visible;
+
+                    if (Holder.PlayButton != null)
+                        Holder.PlayButton.Visibility = ViewStates.Visible;
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+            }
+        }
+
+        private class MediaErrorListener : Java.Lang.Object, MediaPlayer.IOnErrorListener
+        {
+            private readonly AdapterHolders.PostVideoSectionViewHolder Holder;
+
+            public MediaErrorListener(AdapterHolders.PostVideoSectionViewHolder holder)
+            {
+                Holder = holder;
+            }
+
+            public bool OnError(MediaPlayer mp, [GeneratedEnum] MediaError what, int extra)
+            {
+                try
+                {
+                    Console.WriteLine($"DEBUG MEDIA ERROR: what={what}, extra={extra}");
+                    if (Holder.VideoProgressBar != null)
+                        Holder.VideoProgressBar.Visibility = ViewStates.Gone;
+
+                    if (Holder.VideoImage != null)
+                        Holder.VideoImage.Visibility = ViewStates.Visible;
+
+                    if (Holder.PlayButton != null)
+                        Holder.PlayButton.Visibility = ViewStates.Visible;
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+
+                return true;
             }
         }
     }

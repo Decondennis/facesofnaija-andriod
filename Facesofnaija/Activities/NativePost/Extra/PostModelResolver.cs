@@ -61,6 +61,9 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(item.Orginaltext) && !string.IsNullOrWhiteSpace(item.PostText))
+                    item.Orginaltext = item.PostText;
+
                 item.Orginaltext = Methods.FunString.DecodeString(item.Orginaltext);
             }
             catch (Exception e)

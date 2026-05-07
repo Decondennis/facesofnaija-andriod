@@ -482,7 +482,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                     return;
                             }
 
-                            if (string.IsNullOrEmpty(collection.Orginaltext))
+                            if (string.IsNullOrWhiteSpace(collection.Orginaltext) && !string.IsNullOrWhiteSpace(collection.PostText))
+                                collection.Orginaltext = collection.PostText;
+
+                            if (string.IsNullOrWhiteSpace(collection.Orginaltext))
                                 return;
 
                             PostModelResolver.PrepareTextSection(collection);
@@ -508,7 +511,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                     return;
                             }
 
-                            if (string.IsNullOrEmpty(PostCollection.Orginaltext))
+                            if (string.IsNullOrWhiteSpace(PostCollection.Orginaltext) && !string.IsNullOrWhiteSpace(PostCollection.PostText))
+                                PostCollection.Orginaltext = PostCollection.PostText;
+
+                            if (string.IsNullOrWhiteSpace(PostCollection.Orginaltext))
                                 return;
 
                             PostModelResolver.PrepareTextSection(PostCollection);

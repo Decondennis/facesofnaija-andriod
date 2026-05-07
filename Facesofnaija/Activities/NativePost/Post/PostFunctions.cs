@@ -39,13 +39,15 @@ namespace Facesofnaija.Activities.NativePost.Post
                         return PostModelType.LivePost;
                 }
 
-                if (!string.IsNullOrEmpty(item.PostFileFull))
+                var postFileCandidate = !string.IsNullOrWhiteSpace(item.PostFileFull) ? item.PostFileFull : item.PostFile;
+                if (!string.IsNullOrEmpty(postFileCandidate))
                 {
-                    var type = Methods.AttachmentFiles.Check_FileExtension(item.PostFileFull);
+                    var type = Methods.AttachmentFiles.Check_FileExtension(postFileCandidate);
                     switch (type)
                     {
                         case "Forbidden":
-                            return PostModelType.NormalPost;
+                            // Keep evaluating fallback hints below (thumb/postType/path heuristics)
+                            break;
                         case "Audio":
                             return PostModelType.VoicePost;
                         case "Video":
@@ -85,7 +87,22 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 return PostModelType.ImagePost;
                             }
                     }
+
+                    // Some API payloads provide video metadata via thumbnail + file URL but no stable extension.
+                    if (!string.IsNullOrWhiteSpace(item.PostFileThumb))
+                        return PostModelType.VideoPost;
+
+                    var filePath = postFileCandidate.ToLowerInvariant();
+                    if (filePath.Contains("/video") || filePath.Contains("videos/") || filePath.Contains("video_upload"))
+                        return PostModelType.VideoPost;
                 }
+
+                if (!string.IsNullOrWhiteSpace(item.PostType) && item.PostType.IndexOf("video", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return PostModelType.VideoPost;
+
+                if (string.Equals(item.PostType, "photo", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(item.PostType, "image", StringComparison.OrdinalIgnoreCase))
+                    return PostModelType.ImagePost;
 
                 if (item.PhotoMulti?.Count > 0 || item.PhotoAlbum?.Count > 0 || !string.IsNullOrEmpty(item.AlbumName))
                 {

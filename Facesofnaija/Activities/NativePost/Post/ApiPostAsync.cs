@@ -487,7 +487,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     if (direct?.Data != null)
                         return direct;
 
-                    var arr = jObject["data"] as JArray;
+                    var arr = jObject["data"] as JArray ?? jObject["posts"] as JArray;
                     if (arr != null)
                     {
                         var list = arr.ToObject<List<PostDataObject>>();
@@ -503,7 +503,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     if (direct?.Data != null)
                         return direct;
 
-                    var arr = parsed["data"] as JArray;
+                    var arr = parsed["data"] as JArray ?? parsed["posts"] as JArray;
                     if (arr != null)
                     {
                         var list = arr.ToObject<List<PostDataObject>>();
@@ -584,7 +584,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                             foreach (var post in from post in result.Data let check = NativeFeedAdapter.ListDiffer.FirstOrDefault(a => a?.PostData?.PostId == post.PostId && a?.TypeView == PostFunctions.GetAdapterType(post)) where check == null select post)
                             {
                                 add = true;
-                                Console.WriteLine($"DEBUG LoadDataApi: Adding post ID={post.PostId}, Publisher={post.Publisher?.Name ?? "null"}, UserData={post.UserData?.Name ?? "null"}");
+                                var detectedType = PostFunctions.GetAdapterType(post);
+                                Console.WriteLine($"DEBUG FEED TYPE: postId={post.PostId}, postType={post.PostType}, detected={detectedType}, fileFull={post.PostFileFull}, file={post.PostFile}, thumb={post.PostFileThumb}, textLen={(post.Orginaltext ?? post.PostText ?? string.Empty).Length}");
                                 var combiner = new FeedCombiner(null, NativeFeedAdapter.ListDiffer, ActivityContext);
 
                                 if (NativeFeedAdapter.NativePostType == NativeFeedType.Global)
@@ -1447,47 +1448,51 @@ namespace Facesofnaija.Activities.NativePost.Post
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {UserDetails.AccessToken}");
 
-                // Try mock endpoint first for testing, fallback to real endpoint
                 var urlMock = $"http://172.236.19.52/api/v2/endpoints/posts_mock.php";
                 var url = $"http://172.236.19.52/api/v2/endpoints/posts.php";
                 var limit = AppSettings.PostApiLimitOnScroll;
+                var filter = WRecyclerView.GetFilter();
+                var postType = WRecyclerView.GetPostType();
 
                 var postData = new[]
                 {
                     new KeyValuePair<string, string>("type", "get_news_feed"),
                     new KeyValuePair<string, string>("limit", limit),
                     new KeyValuePair<string, string>("after_post_id", offset),
+                    new KeyValuePair<string, string>("filter", string.IsNullOrWhiteSpace(filter) ? "all" : filter),
+                    new KeyValuePair<string, string>("post_type", string.IsNullOrWhiteSpace(postType) ? "all" : postType),
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
                     new KeyValuePair<string, string>("access_token", UserDetails.AccessToken ?? ""),
                 };
 
-                // Try mock endpoint first
+                // First try compatibility endpoint used during migration.
                 using (var content = new FormUrlEncodedContent(postData))
                 {
                     try
                     {
                         var response = await client.PostAsync(urlMock, content).ConfigureAwait(false);
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        
+
                         if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                         {
-                            Console.WriteLine($"GetGlobalPostDirect: Mock endpoint returned {json.Length} chars");
                             var jObject = JObject.Parse(json);
                             var statusText = jObject["api_status"]?.ToString();
-                            if (int.TryParse(statusText, out int status) && status == 200)
+                            int.TryParse(statusText, out int status);
+
+                            if (status == 200)
                             {
                                 var posts = jObject.ToObject<PostObject>();
-                                Console.WriteLine($"GetGlobalPostDirect: Mock success, posts count={posts?.Data?.Count ?? 0}");
-                                return (200, (dynamic)posts);
+                                if (posts?.Data?.Count > 0)
+                                    return (200, (dynamic)posts);
                             }
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        Console.WriteLine($"GetGlobalPostDirect: Mock endpoint error: {ex.Message}");
+                        // Ignore and continue to real endpoint.
                     }
                 }
 
-                // Fallback to real endpoint
                 using (var content = new FormUrlEncodedContent(postData))
                 {
                     var response = await client.PostAsync(url, content).ConfigureAwait(false);
