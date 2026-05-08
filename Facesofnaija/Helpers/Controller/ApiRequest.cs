@@ -771,6 +771,10 @@ namespace Facesofnaija.Helpers.Controller
                                                     var addCommentItem = adapter.ListDiffer.FirstOrDefault(a => a.TypeView == PostModelType.AddCommentSection);
                                                     if (addCommentItem != null)
                                                         adapter.NotifyItemChanged(adapter.ListDiffer.IndexOf(addCommentItem));
+
+                                                    var storyItem = adapter.ListDiffer.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                                                    if (storyItem != null)
+                                                        adapter.NotifyItemChanged(adapter.ListDiffer.IndexOf(storyItem));
                                                 }
                                             }
                                             catch (Exception e)

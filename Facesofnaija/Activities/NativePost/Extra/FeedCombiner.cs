@@ -3,7 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.NativePost.Post;
+using Facesofnaija.CustomApi.Classes.Global;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Fonts;
 using Facesofnaija.Helpers.Model;
@@ -1302,7 +1305,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
                     AlertModel = new AlertModelClass
                     {
                         TitleHead = "Communities",
-                        SubText = "Connect with people who share your interests — join a community today!",
+                        SubText = "Loading communities...",
                         LinerColor = "#1B5E20",
                         ImageDrawable = Resource.Drawable.gif_globe,
                         IconImage = Resource.Drawable.gif_globe,
@@ -1311,6 +1314,29 @@ namespace Facesofnaija.Activities.NativePost.Extra
                 };
                 PostList.Add(item);
                 AddPostDivider();
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var text = string.Empty;
+                        var (apiStatus, respond) = await CustomRequests.GetCommunityNames();
+                        if (apiStatus == 200 && respond is CommunityNames names && !string.IsNullOrWhiteSpace(names.Data))
+                            text = names.Data;
+
+                        item.AlertModel.SubText = !string.IsNullOrWhiteSpace(text)
+                            ? Methods.FunString.DecodeString(text).Replace("\n", " ")
+                            : "No communities update available.";
+
+                        onAdded?.Invoke();
+                    }
+                    catch (Exception e)
+                    {
+                        item.AlertModel.SubText = "No communities update available.";
+                        onAdded?.Invoke();
+                        Methods.DisplayReportResultTrack(e);
+                    }
+                });
             }
             catch (Exception e)
             {
@@ -1328,16 +1354,35 @@ namespace Facesofnaija.Activities.NativePost.Extra
                     Id = 333333355,
                     AlertModel = new AlertModelClass
                     {
-                        TitleHead = "Breaking News/Newspaper Review",
-                        SubText = "Stay informed — check back here for the latest breaking news and updates.",
+                        TitleHead = "News",
+                        SubText = "Loading news...",
                         LinerColor = "#B71C1C",
-                        ImageDrawable = Resource.Drawable.news,
-                        IconImage = Resource.Drawable.news,
+                        ImageDrawable = Resource.Drawable.icon_announcement_vector,
+                        IconImage = Resource.Drawable.icon_announcement_vector,
                         TypeAlert = "Announcements"
                     }
                 };
                 PostList.Add(item);
                 AddPostDivider();
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var announcement = await CustomRequests.GetAnnouncement();
+                        item.AlertModel.SubText = !string.IsNullOrWhiteSpace(announcement)
+                            ? Methods.FunString.DecodeString(announcement).Replace("\n", " ")
+                            : "No announcement available.";
+
+                        onAdded?.Invoke();
+                    }
+                    catch (Exception e)
+                    {
+                        item.AlertModel.SubText = "No announcement available.";
+                        onAdded?.Invoke();
+                        Methods.DisplayReportResultTrack(e);
+                    }
+                });
             }
             catch (Exception e)
             {

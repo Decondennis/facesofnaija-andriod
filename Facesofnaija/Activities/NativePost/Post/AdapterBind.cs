@@ -1796,30 +1796,48 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (item.AlertModel?.IconImage != null)
                     holder.IconImageView.SetImageResource(item.AlertModel.IconImage);
 
+                // Defaults for recycled view holders.
+                holder.IconImageView.Visibility = ViewStates.Visible;
+                holder.NormalImageView.Visibility = ViewStates.Visible;
+
                 switch (item.AlertModel?.TypeAlert)
                 {
                     case "Groups":
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Gradient_Linear);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_FindYourGroups);
                         holder.ButtonView.SetTextColor(Color.ParseColor("#5E35B1"));
+                        holder.ButtonView.SetBackgroundResource(Resource.Drawable.round_button_normal_outline);
                         break;
                     case "Pages":
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Gradient_Linear1);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_FindPopularPages);
                         holder.ButtonView.SetTextColor(Color.ParseColor("#C62828"));
+                        holder.ButtonView.SetBackgroundResource(Resource.Drawable.round_button_normal_outline);
                         break;
                     case "Communities":
-                        // Green gradient, communities-focused button
+                        // Compact classic communities card with animated spinning globe.
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Community_Bg);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Btn_Join_Community);
-                        holder.ButtonView.SetTextColor(Color.ParseColor("#1B5E20"));
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#2F4F1E"));
+                        holder.ButtonView.SetBackgroundResource(Resource.Drawable.Shape_Classic_Button_Green);
+                        holder.IconImageView.Visibility = ViewStates.Gone;
+                        try
+                        {
+                            Glide.With(ActivityContext).AsGif().Load(Resource.Drawable.gif_globe).Into(holder.NormalImageView);
+                        }
+                        catch (Exception)
+                        {
+                            holder.NormalImageView.SetImageResource(Resource.Drawable.gif_globe);
+                        }
                         break;
                     case "Announcements":
-                        // Red/alert gradient for breaking news
+                        // Classic announcement card without avatar/icon and with marquee text kept enabled.
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Announcement_Bg);
                         holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_Announcement);
-                        holder.ButtonView.SetTextColor(Color.ParseColor("#B71C1C"));
-                        // Announcement subtext should be readable — keep selected for marquee
+                        holder.ButtonView.SetTextColor(Color.ParseColor("#8E5B14"));
+                        holder.ButtonView.SetBackgroundResource(Resource.Drawable.Shape_Classic_Button_Amber);
+                        holder.IconImageView.Visibility = ViewStates.Gone;
+                        holder.NormalImageView.SetImageResource(Resource.Drawable.icon_announcement_vector);
                         holder.SubText.Selected = true;
                         break;
                 }
@@ -2166,7 +2184,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                         break;
                     default:
                         {
-                            var myAvatar = UserDetails.Avatar ?? string.Empty;
+                            var myAvatar = UserDetails.Avatar;
+                            if (string.IsNullOrWhiteSpace(myAvatar))
+                                myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+
+                            if (!string.IsNullOrWhiteSpace(myAvatar) && !myAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                                if (!string.IsNullOrWhiteSpace(baseUrl))
+                                    myAvatar = $"{baseUrl}/{myAvatar.TrimStart('/')}";
+                            }
+
+                            myAvatar ??= string.Empty;
                             dataOwner.Avatar = myAvatar;
                             dataOwner.Stories ??= new List<StoryDataObject.Story>();
 
@@ -2177,7 +2206,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                     Thumbnail = myAvatar,
                                 });
                             }
-                            else if (string.IsNullOrWhiteSpace(dataOwner.Stories[0]?.Thumbnail))
+                            else
                             {
                                 dataOwner.Stories[0].Thumbnail = myAvatar;
                             }

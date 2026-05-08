@@ -24,7 +24,9 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Facesofnaija.Activities.AddPost;
+using Facesofnaija.Activities.Articles;
 using Facesofnaija.Activities.Communities.Groups;
+using Facesofnaija.Activities.Communities.Communities;
 using Facesofnaija.Activities.Communities.Pages;
 using Facesofnaija.Activities.Live.Page;
 using Facesofnaija.Activities.Live.Utils;
@@ -3720,25 +3722,35 @@ namespace Facesofnaija.Activities.NativePost.Post
                         {
                             var item = PostAdapter.ListDiffer[BindingAdapterPosition];
 
-                            var intent = new Intent(PostAdapter.ActivityContext, typeof(SearchTabbedActivity));
-
                             switch (item.AlertModel?.TypeAlert)
                             {
                                 case "Pages":
+                                    {
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(SearchTabbedActivity));
                                     intent.PutExtra("Key", "Random_Pages");
+                                        PostAdapter.ActivityContext.StartActivity(intent);
                                     break;
+                                    }
                                 case "Groups":
+                                    {
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(SearchTabbedActivity));
                                     intent.PutExtra("Key", "Random_Groups");
+                                        PostAdapter.ActivityContext.StartActivity(intent);
                                     break;
+                                    }
                                 case "Communities":
-                                    intent.PutExtra("Key", "Random_Communities");
+                                    {
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(CommunitiesActivity));
+                                        PostAdapter.ActivityContext.StartActivity(intent);
+                                    }
                                     break;
                                 case "Announcements":
-                                    // Announcements are informational — no navigation needed
+                                    {
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(ArticlesActivity));
+                                        PostAdapter.ActivityContext.StartActivity(intent);
+                                    }
                                     return;
                             }
-
-                            PostAdapter.ActivityContext.StartActivity(intent);
                         }
                     }
                 }

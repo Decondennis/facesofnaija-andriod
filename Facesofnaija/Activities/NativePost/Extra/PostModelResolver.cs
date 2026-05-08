@@ -1011,11 +1011,11 @@ namespace Facesofnaija.Activities.NativePost.Extra
 
                 var alertModel = new AlertModelClass
                 {
-                    TitleHead = "Breaking News/Newspaper Review",
+                    TitleHead = "News",
                     SubText = subText,
                     LinerColor = "#B71C1C",
-                    ImageDrawable = Resource.Drawable.news,
-                    IconImage = Resource.Drawable.news,
+                    ImageDrawable = Resource.Drawable.icon_announcement_vector,
+                    IconImage = Resource.Drawable.icon_announcement_vector,
                     TypeAlert = "Announcements"
                 };
 

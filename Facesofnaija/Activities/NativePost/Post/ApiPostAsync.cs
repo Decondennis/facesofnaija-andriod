@@ -735,8 +735,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                 }
 
                 combiner.AddGreetingAlertPostView();
-                combiner.AddCommunitiesAlertPostView();
-                combiner.AddAnnouncementAlertPostView();
+                combiner.AddCommunitiesAlertPostView(() => ActivityContext?.RunOnUiThread(() => NativeFeedAdapter?.NotifyDataSetChanged()));
+                combiner.AddAnnouncementAlertPostView(() => ActivityContext?.RunOnUiThread(() => NativeFeedAdapter?.NotifyDataSetChanged()));
 
                 switch (list.Count)
                 {

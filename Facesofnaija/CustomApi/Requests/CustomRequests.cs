@@ -2,11 +2,13 @@
 using System.Net.Http;
 using System;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using WoWonderClient;
 using Facesofnaija.CustomApi.Classes.Community;
 using Facesofnaija.CustomApi.Classes.Global;
 using Facesofnaija.Helpers.Model;
 using System.Collections.Generic;
+using System.Linq;
 using WoWonderClient.Requests;
 using WoWonderClient.Classes.Global;
 using Facesofnaija.CustomApi.Classes.Search;
@@ -600,24 +602,42 @@ namespace Facesofnaija.CustomApi.Requests
         {
             try
             {
-                var client = new HttpClient();
-                var content = new FormUrlEncodedContent(new[]
+                foreach (var baseUrl in GetApiBaseCandidates())
                 {
-                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
-                        new KeyValuePair<string, string>("user_id", UserDetails.UserId)
-                    });
-                var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/communities-custom?access_token=" + UserDetails.AccessToken, content);
-                Console.WriteLine(InitializeWoWonder.WebsiteUrl + "/api/communities-custom?access_token=" + UserDetails.AccessToken);
-                string json = await response.Content.ReadAsStringAsync();
+                    var endpoint = $"{baseUrl}/api/communities-custom?access_token={UserDetails.AccessToken}";
+                    try
+                    {
+                        using var client = new HttpClient();
+                        var content = new FormUrlEncodedContent(new[]
+                        {
+                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
+                            new KeyValuePair<string, string>("user_id", UserDetails.UserId)
+                        });
 
-                CommunityNames comNames = JsonConvert.DeserializeObject<CommunityNames>(json);
-                if (comNames != null)
-                {
-                    return (comNames.Status, comNames);
+                        var response = await client.PostAsync(endpoint, content);
+                        var json = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine(endpoint);
+
+                        var token = JObject.Parse(json);
+                        var status = token["api_status"]?.Value<long?>() ?? 0;
+                        var data = token["data"]?.ToString();
+
+                        if (status == 200)
+                        {
+                            return (200, new CommunityNames
+                            {
+                                Status = 200,
+                                Data = data ?? string.Empty
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        // Try the next base URL.
+                    }
                 }
 
-                var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
-                return (400, error);
+                return (404, "communities-custom endpoint failed on all base URLs");
             }
             catch (Exception e)
             {
@@ -659,7 +679,7 @@ namespace Facesofnaija.CustomApi.Requests
         {
             try
             {
-                var client = new HttpClient();
+                // Try SDK path first.
                 var (apiStatus, respond) = await RequestsAsync.Global.GetGeneralDataAsync(true, UserDetails.OnlineUsers, UserDetails.DeviceId, "0", "announcement");
                 if (apiStatus == 200)
                 {
@@ -672,12 +692,71 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                 }
 
-                return "";
+                // Fallback: call the same endpoint style used by the web app and parse raw JSON.
+                foreach (var baseUrl in GetApiBaseCandidates())
+                {
+                    var endpoint = $"{baseUrl}/api/get-general-data?access_token={UserDetails.AccessToken}";
+                    try
+                    {
+                        using var client = new HttpClient();
+                        var content = new FormUrlEncodedContent(new[]
+                        {
+                            new KeyValuePair<string, string>("fetch", "announcement"),
+                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey)
+                        });
+
+                        var response = await client.PostAsync(endpoint, content);
+                        var json = await response.Content.ReadAsStringAsync();
+
+                        var token = JObject.Parse(json);
+                        var status = token["api_status"]?.Value<long?>() ?? 0;
+                        if (status != 200)
+                            continue;
+
+                        var ann = token["announcement"] as JObject;
+                        var textDecode = ann?["text_decode"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(textDecode))
+                            return textDecode;
+
+                        var text = ann?["text"]?.ToString();
+                        if (!string.IsNullOrWhiteSpace(text))
+                            return text;
+                    }
+                    catch
+                    {
+                        // Try the next base URL.
+                    }
+                }
+
+                return string.Empty;
             }
             catch (Exception e)
             {
-                return "";
+                return string.Empty;
             }
+        }
+
+        private static IEnumerable<string> GetApiBaseCandidates()
+        {
+            var candidates = new List<string>();
+
+            void Add(string value)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    return;
+
+                var normalized = value.Trim().TrimEnd('/');
+                if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    normalized = "http://" + normalized;
+
+                candidates.Add(normalized);
+            }
+
+            Add(InitializeWoWonder.WebsiteUrl);
+            Add(Community.WebsiteUrl);
+            Add("http://172.236.19.52");
+
+            return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
         }
     }
 }

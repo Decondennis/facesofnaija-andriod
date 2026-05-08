@@ -7,10 +7,10 @@
     android:layout_height="wrap_content"
     android:layout_marginStart="10dp"
     android:layout_marginEnd="10dp"
-    android:layout_marginTop="6dp"
-    android:layout_marginBottom="6dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
+    android:layout_marginTop="3dp"
+    android:layout_marginBottom="3dp"
+    app:cardCornerRadius="10dp"
+    app:cardElevation="2dp"
     app:cardUseCompatPadding="false">
 
     <RelativeLayout
@@ -21,25 +21,25 @@
         android:clickable="true"
         android:focusable="true"
         android:foreground="?attr/selectableItemBackground"
-        android:padding="14dp">
+        android:padding="9dp">
 
         <!-- Circular badge icon (top-left) -->
         <ImageView
             android:id="@+id/IconImageview"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:layout_alignParentStart="true"
             android:layout_alignParentTop="true"
             android:background="@drawable/circle_white"
             android:src="@drawable/sharegroup"
             android:scaleType="centerInside"
-            android:padding="6dp" />
+            android:padding="5dp" />
 
         <!-- Decorative illustration (top-right) -->
         <ImageView
             android:id="@+id/Imageview"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
             android:layout_alignParentEnd="true"
             android:layout_alignParentTop="true"
             android:src="@drawable/Image2"
@@ -54,10 +54,10 @@
             android:layout_toEndOf="@id/IconImageview"
             android:layout_toStartOf="@id/Imageview"
             android:layout_alignTop="@id/IconImageview"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="7dp"
             android:layout_marginEnd="8dp"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:ellipsize="end"
             android:maxLines="1"
@@ -69,11 +69,11 @@
             android:id="@+id/subText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/IconImageview"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="8dp"
+            android:layout_below="@id/HeadText"
+            android:layout_marginTop="5dp"
+            android:layout_marginBottom="3dp"
             android:textColor="#FFFDE7"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:singleLine="true"
             android:scrollHorizontally="true"
             android:ellipsize="marquee"
@@ -86,18 +86,18 @@
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/buttonview"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="30dp"
             android:layout_below="@id/subText"
             android:layout_alignParentStart="true"
-            android:layout_marginTop="6dp"
-            android:layout_marginBottom="2dp"
-            android:textSize="12sp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="0dp"
+            android:textSize="11sp"
             android:textAllCaps="false"
-            android:textColor="#388E3C"
+            android:textColor="#2F4F1E"
             android:text="@string/Lbl_FindYourGroups"
-            android:backgroundTint="#FFFFFF"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp" />
+            android:background="@drawable/Shape_Classic_Button_Green"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
 
     </RelativeLayout>
 </androidx.cardview.widget.CardView>

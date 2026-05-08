@@ -99,6 +99,7 @@ namespace Facesofnaija.Activities.Story.Adapters
                                 {
                                     case > 0:
                                         GlideImageLoader.LoadImage(ActivityContext, item.Stories[0]?.Thumbnail, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
+                                        Android.Util.Log.Warn("FON_STORY_BIND", $"pos={position} type={item.Type} thumb={item.Stories[0]?.Thumbnail ?? "NULL"} avatar={item.Avatar ?? "NULL"}");
                                         break;
                                 }
 

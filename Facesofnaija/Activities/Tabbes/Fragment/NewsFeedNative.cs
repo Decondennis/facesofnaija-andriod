@@ -273,8 +273,8 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                 //combiner.AddPostBoxPostView("feed", -1);
 
                 combiner.AddGreetingAlertPostView();
-                combiner.AddCommunitiesAlertPostView();
-                combiner.AddAnnouncementAlertPostView();
+                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
+                combiner.AddAnnouncementAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
 
                 PostFeedAdapter?.NotifyDataSetChanged();
                 MainRecyclerView.MainScrollEvent.IsLoading = false;
@@ -317,10 +317,10 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                     _ = Task.Run(LoadStory);
                 }
 
-                combiner.AddCommunitiesAlertPostView();
+                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
                 Console.WriteLine("DEBUG LoadPost: Added CommunitiesAlertPostView");
 
-                combiner.AddAnnouncementAlertPostView();
+                combiner.AddAnnouncementAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
                 Console.WriteLine("DEBUG LoadPost: Added AnnouncementAlertPostView");
 
                 combiner.AddGreetingAlertPostView();
@@ -409,11 +409,13 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
             if (Methods.CheckConnectivity())
             {
                 var checkSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: checkSection={(checkSection == null ? "NULL" : "found")} listCount={PostFeedAdapter?.ListDiffer?.Count ?? -1}");
                 if (checkSection != null)
                 {
                     checkSection.StoryList ??= new ObservableCollection<StoryDataObject>();
 
                     var (apiStatus, respond) = await StoryApiService.GetUserStoriesAsync();
+                    Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: apiStatus={apiStatus} respond={respond?.GetType()?.Name ?? "null"}");
                     if (apiStatus == 200)
                     {
                         if (respond is GetUserStoriesObject result)
@@ -421,7 +423,6 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                             {
                                 try
                                 {
-                                    bool add = false;
                                     var storiesToAdd = new System.Collections.Generic.List<StoryDataObject>();
 
                                     string NormalizeStoryUrl(string url)
@@ -439,138 +440,113 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                         return $"{baseUrl}/{url.TrimStart('/')}";
                                     }
 
-                                    foreach (var item in result.Stories)
+                                    void PreloadImage(string mediaFile)
                                     {
-                                        var check = checkSection.StoryList.FirstOrDefault(a => a.UserId == item.UserId);
-                                        if (check != null)
+                                        try
                                         {
-                                            if (check.Stories.Count == item.Stories.Count)
-                                                continue;
-
-                                            item.Avatar = NormalizeStoryUrl(item.Avatar);
-
-                                            foreach (var item2 in item.Stories)
-                                            {
-                                                item.DurationsList ??= new List<long>();
-
-                                                item2.Thumbnail = NormalizeStoryUrl(item2.Thumbnail);
-                                                if (item2.Videos?.Count > 0)
-                                                    item2.Videos[0].Filename = NormalizeStoryUrl(item2.Videos[0].Filename);
-
-                                                //image and video
-                                                var thumbnail = item2.Thumbnail ?? string.Empty;
-                                                var mediaFile = !thumbnail.Contains("avatar") && item2.Videos?.Count == 0 ? thumbnail : item2.Videos?.FirstOrDefault()?.Filename ?? "";
-
-                                                if (string.IsNullOrEmpty(mediaFile))
-                                                {
-                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
-                                                    item2.TypeView = "Image";
-                                                    continue;
-                                                }
-
-                                                var type = Methods.AttachmentFiles.Check_FileExtension(mediaFile);
-                                                if (type != "Video")
-                                                {
-                                                    Glide.With(Context).Load(mediaFile).Apply(new RequestOptions().SetDiskCacheStrategy(DiskCacheStrategy.All).CenterCrop()).Preload();
-                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
-                                                    item2.TypeView = "Image";
-                                                }
-                                                else
-                                                {
-                                                    item2.TypeView = "Video";
-
-                                                    var fileName = mediaFile.Split('/').Last();
-                                                    mediaFile = WoWonderTools.GetFile(DateTime.Now.Day.ToString(), Methods.Path.FolderDiskStory, fileName, mediaFile);
-
-                                                    if (PlayerSettings.EnableOfflineMode)
-                                                        new PreCachingExoPlayerVideo(Context).CacheVideosFiles(Uri.Parse(mediaFile));
-
-                                                    if (AppSettings.ShowFullVideo)
-                                                    {
-                                                        var duration = WoWonderTools.GetDuration(mediaFile);
-                                                        item.DurationsList.Add(Long.ParseLong(duration));
-                                                    }
-                                                    else
-                                                    {
-                                                        item.DurationsList.Add(AppSettings.StoryVideoDuration * 1000);
-                                                    }
-                                                }
-                                            }
-
-                                            add = true;
-                                            check.Stories = item.Stories;
-                                            check.Avatar = NormalizeStoryUrl(item.Avatar);
+                                            var ctx = Context ?? Activity?.ApplicationContext;
+                                            if (ctx != null)
+                                                Glide.With(ctx).Load(mediaFile).Apply(new RequestOptions().SetDiskCacheStrategy(DiskCacheStrategy.All).CenterCrop()).Preload();
                                         }
-                                        else
-                                        {
-                                            item.Avatar = NormalizeStoryUrl(item.Avatar);
-
-                                            foreach (var item1 in item.Stories)
-                                            {
-                                                item.DurationsList ??= new List<long>();
-
-                                                item1.Thumbnail = NormalizeStoryUrl(item1.Thumbnail);
-                                                if (item1.Videos?.Count > 0)
-                                                    item1.Videos[0].Filename = NormalizeStoryUrl(item1.Videos[0].Filename);
-
-                                                //image and video
-                                                var thumbnail = item1.Thumbnail ?? string.Empty;
-                                                string mediaFile = !thumbnail.Contains("avatar") && item1.Videos?.Count == 0 ? thumbnail : item1.Videos?.FirstOrDefault()?.Filename ?? "";
-
-                                                if (string.IsNullOrEmpty(mediaFile))
-                                                {
-                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
-                                                    item1.TypeView = "Image";
-                                                    continue;
-                                                }
-
-                                                var type1 = Methods.AttachmentFiles.Check_FileExtension(mediaFile);
-                                                if (type1 != "Video")
-                                                {
-                                                    item1.TypeView = "Image";
-                                                    Glide.With(Context).Load(mediaFile).Apply(new RequestOptions().SetDiskCacheStrategy(DiskCacheStrategy.All).CenterCrop()).Preload();
-                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
-                                                }
-                                                else
-                                                {
-                                                    item1.TypeView = "Video";
-                                                    var fileName = mediaFile.Split('/').Last();
-                                                    mediaFile = WoWonderTools.GetFile(DateTime.Now.Day.ToString(), Methods.Path.FolderDiskStory, fileName, mediaFile);
-
-                                                    if (PlayerSettings.EnableOfflineMode)
-                                                        new PreCachingExoPlayerVideo(Context).CacheVideosFiles(Uri.Parse(mediaFile));
-
-                                                    if (AppSettings.ShowFullVideo)
-                                                    {
-                                                        var duration = WoWonderTools.GetDuration(mediaFile);
-                                                        item.DurationsList.Add(Long.ParseLong(duration));
-                                                    }
-                                                    else
-                                                    {
-                                                        item.DurationsList.Add(AppSettings.StoryVideoDuration * 1000);
-                                                    }
-                                                }
-                                            }
-
-                                            add = true;
-                                            storiesToAdd.Add(item);
-                                        }
+                                        catch (Exception) { /* Glide preload is best-effort */ }
                                     }
 
+                                    foreach (var item in result.Stories)
+                                    {
+                                        if (string.IsNullOrWhiteSpace(item?.UserId)) continue;
+
+                                        item.Avatar = NormalizeStoryUrl(item.Avatar);
+                                        item.DurationsList ??= new List<long>();
+
+                                        var innerStories = item.Stories ?? new List<StoryDataObject.Story>();
+                                        foreach (var story in innerStories)
+                                        {
+                                            story.Thumbnail = NormalizeStoryUrl(story.Thumbnail);
+                                            if (story.Videos?.Count > 0)
+                                                story.Videos[0].Filename = NormalizeStoryUrl(story.Videos[0].Filename);
+
+                                            var thumbnail = story.Thumbnail ?? string.Empty;
+                                            var mediaFile = !thumbnail.Contains("avatar") && story.Videos?.Count == 0 ? thumbnail : story.Videos?.FirstOrDefault()?.Filename ?? "";
+
+                                            if (string.IsNullOrEmpty(mediaFile))
+                                            {
+                                                item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
+                                                story.TypeView = "Image";
+                                                continue;
+                                            }
+
+                                            var fileType = Methods.AttachmentFiles.Check_FileExtension(mediaFile);
+                                            if (fileType != "Video")
+                                            {
+                                                story.TypeView = "Image";
+                                                PreloadImage(mediaFile);
+                                                item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
+                                            }
+                                            else
+                                            {
+                                                story.TypeView = "Video";
+                                                var fileName = mediaFile.Split('/').Last();
+                                                mediaFile = WoWonderTools.GetFile(DateTime.Now.Day.ToString(), Methods.Path.FolderDiskStory, fileName, mediaFile);
+
+                                                if (PlayerSettings.EnableOfflineMode)
+                                                {
+                                                    try { new PreCachingExoPlayerVideo(Context ?? Activity?.ApplicationContext).CacheVideosFiles(Uri.Parse(mediaFile)); }
+                                                    catch (Exception) { }
+                                                }
+
+                                                item.DurationsList.Add(AppSettings.ShowFullVideo
+                                                    ? Long.ParseLong(WoWonderTools.GetDuration(mediaFile))
+                                                    : AppSettings.StoryVideoDuration * 1000);
+                                            }
+                                        }
+
+                                        storiesToAdd.Add(item);
+                                    }
+
+                                    Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: storiesToAdd={storiesToAdd.Count}");
                                     Activity?.RunOnUiThread(() =>
                                     {
                                         try
                                         {
-                                            if (!add)
+                                            // Re-fetch the story section — checkSection may be stale if the feed
+                                            // rebuilt its ListDiffer (NotifyDataSetChanged) while the API fetch ran.
+                                            var freshSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                                            if (freshSection == null)
+                                            {
+                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL — aborting UI update");
                                                 return;
+                                            }
 
+                                            freshSection.StoryList ??= new ObservableCollection<StoryDataObject>();
+
+                                            bool added = false;
                                             foreach (var storyItem in storiesToAdd)
-                                                checkSection.StoryList.Add(storyItem);
+                                            {
+                                                var existing = freshSection.StoryList.FirstOrDefault(s => s.UserId == storyItem.UserId);
+                                                if (existing != null)
+                                                {
+                                                    if (existing.Stories?.Count != storyItem.Stories?.Count)
+                                                    {
+                                                        existing.Stories = storyItem.Stories;
+                                                        existing.Avatar = storyItem.Avatar;
+                                                        added = true;
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    freshSection.StoryList.Add(storyItem);
+                                                    added = true;
+                                                }
+                                            }
+
+                                            if (!added) return;
 
                                             if (PostFeedAdapter?.HolderStory?.AboutMore != null)
-                                                PostFeedAdapter.HolderStory.AboutMore.Visibility = checkSection.StoryList.Count > 4 ? ViewStates.Visible : ViewStates.Invisible;
+                                                PostFeedAdapter.HolderStory.AboutMore.Visibility = freshSection.StoryList.Count > 4 ? ViewStates.Visible : ViewStates.Invisible;
 
-                                            PostFeedAdapter?.NotifyItemChanged(PostFeedAdapter.ListDiffer.IndexOf(checkSection));
+                                            var storyIdx = PostFeedAdapter.ListDiffer.IndexOf(freshSection);
+                                            Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: NotifyItemChanged idx={storyIdx} storyListCount={freshSection.StoryList.Count}");
+                                            PostFeedAdapter?.NotifyItemChanged(storyIdx);
 
                                             //if (checkSection.StoryList.Count > 0)
                                             //{
