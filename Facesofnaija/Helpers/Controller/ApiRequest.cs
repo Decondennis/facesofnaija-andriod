@@ -732,7 +732,15 @@ namespace Facesofnaija.Helpers.Controller
                             {
                                 case GetUserDataObject result:
                                     {
-                                        UserDetails.Avatar = result.UserData.Avatar;
+                                        var profileAvatar = result.UserData.Avatar;
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            var baseUrl = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                                            if (!string.IsNullOrWhiteSpace(baseUrl))
+                                                profileAvatar = $"{baseUrl}/{profileAvatar.TrimStart('/')}";
+                                        }
+
+                                        UserDetails.Avatar = profileAvatar;
                                         UserDetails.Cover = result.UserData.Cover;
                                         UserDetails.Username = result.UserData.Username;
                                         UserDetails.FullName = result.UserData.Name;

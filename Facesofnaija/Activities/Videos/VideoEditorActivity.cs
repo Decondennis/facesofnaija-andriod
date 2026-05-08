@@ -411,9 +411,9 @@ namespace Facesofnaija.Activities.Videos
                 var dialogList = new MaterialAlertDialogBuilder(this);
 
                 arrayAdapter.Add(GetText(Resource.String.Lbl_AsInput));
-                arrayAdapter.Add("90°");
-                arrayAdapter.Add("180°");
-                arrayAdapter.Add("270°");
+                arrayAdapter.Add("90ï¿½");
+                arrayAdapter.Add("180ï¿½");
+                arrayAdapter.Add("270ï¿½");
 
                 dialogList.SetTitle(Resource.String.Lbl_VideoRotation);
                 dialogList.SetItems(arrayAdapter.ToArray(), new MaterialDialogUtils(arrayAdapter, this));
@@ -776,7 +776,7 @@ namespace Facesofnaija.Activities.Videos
                 int seconds = (int)Math.Ceiling((double)esimatedDuration / 1000) - minutes * 60;
                 int estimatedSize = (int)(size * ((float)esimatedDuration / VideoView.Duration));
 
-                string videoTimeSize = minutes + ":" + seconds + " • " + Methods.FunString.Format_byte_size(estimatedSize);
+                string videoTimeSize = minutes + ":" + seconds + " ï¿½ " + Methods.FunString.Format_byte_size(estimatedSize);
 
                 TxtEditedSize.Visibility = ViewStates.Visible;
                 TxtEditedSize.Text = videoTimeSize;
@@ -1157,6 +1157,7 @@ namespace Facesofnaija.Activities.Videos
                                     };
 
                                     Intent intent = new Intent(this, typeof(PostService));
+                                    PostService.ActionStory ??= PackageName + ".action.ACTION_STORY";
                                     intent.SetAction(PostService.ActionStory);
                                     intent.PutExtra("DataPost", JsonConvert.SerializeObject(item));
                                     StartService(intent);
@@ -1213,15 +1214,15 @@ namespace Facesofnaija.Activities.Videos
                 {
                     Rotation = 0;
                 }
-                else if (itemString == "90°")
+                else if (itemString == "90ï¿½")
                 {
                     Rotation = 90;
                 }
-                else if (itemString == "180°")
+                else if (itemString == "180ï¿½")
                 {
                     Rotation = 180;
                 }
-                else if (itemString == "270°")
+                else if (itemString == "270ï¿½")
                 {
                     Rotation = 270;
                 }

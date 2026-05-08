@@ -88,6 +88,9 @@ namespace Facesofnaija.Activities.AddPost.Service
                 var data = intent.GetStringExtra("DataPost");
                 PagePost = intent.GetStringExtra("PagePost") ?? "";
 
+                ActionPost ??= PackageName + ".action.ACTION_POST";
+                ActionStory ??= PackageName + ".action.ACTION_STORY";
+
                 switch (string.IsNullOrEmpty(data))
                 {
                     case false:
@@ -100,7 +103,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                     PollyController.RunRetryPolicyFunction(new List<Func<Task>> { AddPost });
                                 }
                             }
-                            else if (ActionPostService == ActionStory)
+                            else if (ActionPostService == ActionStory || (string.IsNullOrEmpty(ActionPostService) && !string.IsNullOrEmpty(DataPost?.StoryFilePath) && !string.IsNullOrEmpty(DataPost?.StoryFileType)))
                             {
                                 if (DataPost != null)
                                 {
@@ -373,7 +376,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                     var userData = ListUtils.MyProfileList?.FirstOrDefault();
 
                     //just pass file_path and type video or image
-                    var (apiStatus, respond) = await RequestsAsync.Story.CreateStoryAsync(DataPost.StoryTitle, DataPost.StoryDescription, DataPost.StoryFilePath, DataPost.StoryFileType, DataPost.StoryThumbnail);
+                    var (apiStatus, respond) = await StoryApiService.CreateStoryAsync(DataPost.StoryTitle, DataPost.StoryDescription, DataPost.StoryFilePath, DataPost.StoryFileType, DataPost.StoryThumbnail);
                     switch (apiStatus)
                     {
                         case 200:

@@ -2164,6 +2164,26 @@ namespace Facesofnaija.Activities.NativePost.Post
                             }
                         });
                         break;
+                    default:
+                        {
+                            var myAvatar = UserDetails.Avatar ?? string.Empty;
+                            dataOwner.Avatar = myAvatar;
+                            dataOwner.Stories ??= new List<StoryDataObject.Story>();
+
+                            if (dataOwner.Stories.Count == 0)
+                            {
+                                dataOwner.Stories.Add(new StoryDataObject.Story
+                                {
+                                    Thumbnail = myAvatar,
+                                });
+                            }
+                            else if (string.IsNullOrWhiteSpace(dataOwner.Stories[0]?.Thumbnail))
+                            {
+                                dataOwner.Stories[0].Thumbnail = myAvatar;
+                            }
+
+                            break;
+                        }
                 }
 
                 holder.StoryAdapter.NotifyDataSetChanged();

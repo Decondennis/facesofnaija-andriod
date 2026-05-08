@@ -1911,12 +1911,12 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&amp;", "&")
                        .Replace("&quot;", "")
                        .Replace("&apos;", "")
-                       .Replace("&cent;", "¢")
-                       .Replace("&pound;", "£")
-                       .Replace("&yen;", "¥")
-                       .Replace("&euro;", "€")
-                       .Replace("&copy;", "©")
-                       .Replace("&reg;", "®")
+                       .Replace("&cent;", "ï¿½")
+                       .Replace("&pound;", "ï¿½")
+                       .Replace("&yen;", "ï¿½")
+                       .Replace("&euro;", "ï¿½")
+                       .Replace("&copy;", "ï¿½")
+                       .Replace("&reg;", "ï¿½")
                        .Replace("<b>", "")
                        .Replace("<u>", "")
                        .Replace("<i>", "")
@@ -1936,8 +1936,8 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("O&#770;", "")
                        .Replace("O&#771;", "")
                        .Replace("</table>", "")
-                       .Replace("&bull;", "•")
-                       .Replace("&hellip;", "…")
+                       .Replace("&bull;", "ï¿½")
+                       .Replace("&hellip;", "ï¿½")
                        .Replace("&prime;", "'")
                        .Replace("&Prime;", "?")
                        .Replace("&oline;", "?")
@@ -1945,7 +1945,7 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&weierp;", "P")
                        .Replace("&image;", "I")
                        .Replace("&real;", "R")
-                       .Replace("&trade;", "™")
+                       .Replace("&trade;", "ï¿½")
                        .Replace("&alefsym;", "?")
                        .Replace("&larr;", "?")
                        .Replace("&uarr;", "?")
@@ -1961,7 +1961,7 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&forall;", "?")
                        .Replace("&part;", "?")
                        .Replace("&exist;", "?")
-                       .Replace("&empty;", "Ø")
+                       .Replace("&empty;", "ï¿½")
                        .Replace("&nabla;", "?")
                        .Replace("&isin;", "?")
                        .Replace("&notin;", "?")
@@ -1973,9 +1973,9 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&radic;", "v")
                        .Replace("&prop;", "?")
                        .Replace("&infin;", "8")
-                       .Replace("&OEig;", "Œ")
-                       .Replace("&oelig;", "œ")
-                       .Replace("&Yuml;", "Ÿ")
+                       .Replace("&OEig;", "ï¿½")
+                       .Replace("&oelig;", "ï¿½")
+                       .Replace("&Yuml;", "ï¿½")
                        .Replace("&spades;", "?")
                        .Replace("&clubs;", "?")
                        .Replace("&hearts;", "?")
@@ -1983,8 +1983,8 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&thetasym;", "?")
                        .Replace("&upsih;", "?")
                        .Replace("&piv;", "?")
-                       .Replace("&Scaron;", "Š")
-                       .Replace("&scaron;", "š")
+                       .Replace("&Scaron;", "ï¿½")
+                       .Replace("&scaron;", "ï¿½")
                        .Replace("&ang;", "?")
                        .Replace("&and;", "?")
                        .Replace("&or;", "?")
@@ -1994,7 +1994,7 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&there4;", "?")
                        .Replace("&sim;", "~")
                        .Replace("&cong;", "?")
-                       .Replace("&asymp;", "˜")
+                       .Replace("&asymp;", "ï¿½")
                        .Replace("&ne;", "?")
                        .Replace("&equiv;", "=")
                        .Replace("&le;", "=")
@@ -2007,7 +2007,7 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&oplus;", "?")
                        .Replace("&otimes;", "?")
                        .Replace("&perp;", "?")
-                       .Replace("&sdot;", "·")
+                       .Replace("&sdot;", "ï¿½")
                        .Replace("&lcell;", "?")
                        .Replace("&rcell;", "?")
                        .Replace("&lfloor;", "?")
@@ -2016,10 +2016,10 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("&rang;", "?")
                        .Replace("&loz;", "?")
                        .Replace("\u0024", "$")
-                       .Replace("\u20AC", "€")
-                       .Replace("\u00A3", "£")
-                       .Replace("\u00A5", "¥")
-                       .Replace("\u00A2", "¢")
+                       .Replace("\u20AC", "ï¿½")
+                       .Replace("\u00A3", "ï¿½")
+                       .Replace("\u00A5", "ï¿½")
+                       .Replace("\u00A2", "ï¿½")
                        .Replace("\u20B9", "?")
                        .Replace("\u20A8", "?")
                        .Replace("\u20B1", "?")
@@ -2028,10 +2028,10 @@ namespace Facesofnaija.Helpers.Utils
                        .Replace("\u20AB", "?")
                        .Replace("\u20AA", "?")
                        .Replace("&#36;", "$")
-                       .Replace("&#8364;", "€")
-                       .Replace("&#163;", "£")
-                       .Replace("&#165;", "¥")
-                       .Replace("&#162;", "¢")
+                       .Replace("&#8364;", "ï¿½")
+                       .Replace("&#163;", "ï¿½")
+                       .Replace("&#165;", "ï¿½")
+                       .Replace("&#162;", "ï¿½")
                        .Replace("&#8377;", "?")
                        .Replace("&#8360;", "?")
                        .Replace("&#8369;", "?")
@@ -3532,7 +3532,11 @@ namespace Facesofnaija.Helpers.Utils
                                 //Creates DCIM folder in the main app path in android devices
                                 var directories = Application.Context.GetExternalFilesDirs(Android.OS.Environment.DirectoryDcim);
                                 if (directories!.Any())
-                                    return directories[0].AbsolutePath;
+                                {
+                                    var p = directories[0].AbsolutePath;
+                                    if (!string.IsNullOrEmpty(p) && !p.StartsWith("/dev/null"))
+                                        return p;
+                                }
                                 break;
                             }
                         default:
@@ -3540,11 +3544,15 @@ namespace Facesofnaija.Helpers.Utils
                                 var directories1 = Application.Context.GetExternalFilesDir(""); //storage/emulated/0/Android/data/com.wowondermessenger.app/files
                                 if (directories1 != null)
                                 {
-                                    var pathDefault = directories1.AbsolutePath.Split("/Android/")?.FirstOrDefault();
-                                    switch (string.IsNullOrEmpty(pathDefault))
+                                    var rawPath = directories1.AbsolutePath;
+                                    if (!string.IsNullOrEmpty(rawPath) && !rawPath.StartsWith("/dev/null"))
                                     {
-                                        case false:
-                                            return pathDefault;
+                                        var pathDefault = rawPath.Split("/Android/")?.FirstOrDefault();
+                                        switch (string.IsNullOrEmpty(pathDefault))
+                                        {
+                                            case false:
+                                                return pathDefault;
+                                        }
                                     }
                                 }
 

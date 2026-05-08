@@ -22,6 +22,7 @@ using Facesofnaija.Helpers.Utils;
 using Facesofnaija.MediaPlayers;
 using Facesofnaija.MediaPlayers.Exo;
 using Facesofnaija.SQLite;
+using WoWonderClient;
 using WoWonderClient.Classes.Story;
 using WoWonderClient.Requests;
 using static Facesofnaija.Activities.NativePost.Extra.WRecyclerView;
@@ -240,11 +241,13 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                 ShimmerInflater?.Show();
 
+                // Save existing story list before clearing so stories survive the refresh.
+                var existingStoryList = PostFeedAdapter?.ListDiffer
+                    ?.FirstOrDefault(a => a.TypeView == PostModelType.Story)
+                    ?.StoryList?.Where(s => s.Type != "Your").ToList() ?? new List<StoryDataObject>();
+
                 PostFeedAdapter?.ListDiffer?.Clear();
                 PostFeedAdapter?.NotifyDataSetChanged();
-
-                PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList?.Clear();
-                PostFeedAdapter?.HolderStory?.StoryAdapter?.NotifyDataSetChanged();
 
                 Task.Run(() =>
                 {
@@ -264,7 +267,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                 if (AppSettings.ShowStory)
                 {
-                    combiner.AddStoryPostView(new List<StoryDataObject>());
+                    combiner.AddStoryPostView(existingStoryList);
                 }
 
                 //combiner.AddPostBoxPostView("feed", -1);
@@ -275,6 +278,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                 PostFeedAdapter?.NotifyDataSetChanged();
                 MainRecyclerView.MainScrollEvent.IsLoading = false;
+
+                if (AppSettings.ShowStory)
+                    _ = Task.Run(LoadStory);
 
                 Task.Factory.StartNew(() => StartApiService("0", "Refresh"));
             }
@@ -307,6 +313,8 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                     //var list = dbDatabase.GetDataStory();
                     combiner.AddStoryPostView(new List<StoryDataObject>());
                     Console.WriteLine("DEBUG LoadPost: Added StoryPostView");
+
+                    _ = Task.Run(LoadStory);
                 }
 
                 combiner.AddCommunitiesAlertPostView();
@@ -405,7 +413,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                 {
                     checkSection.StoryList ??= new ObservableCollection<StoryDataObject>();
 
-                    var (apiStatus, respond) = await RequestsAsync.Story.GetUserStoriesAsync();
+                    var (apiStatus, respond) = await StoryApiService.GetUserStoriesAsync();
                     if (apiStatus == 200)
                     {
                         if (respond is GetUserStoriesObject result)
@@ -414,20 +422,51 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                 try
                                 {
                                     bool add = false;
+                                    var storiesToAdd = new System.Collections.Generic.List<StoryDataObject>();
+
+                                    string NormalizeStoryUrl(string url)
+                                    {
+                                        if (string.IsNullOrWhiteSpace(url))
+                                            return string.Empty;
+
+                                        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                            return url;
+
+                                        var baseUrl = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                                        if (string.IsNullOrWhiteSpace(baseUrl))
+                                            return url;
+
+                                        return $"{baseUrl}/{url.TrimStart('/')}";
+                                    }
+
                                     foreach (var item in result.Stories)
                                     {
                                         var check = checkSection.StoryList.FirstOrDefault(a => a.UserId == item.UserId);
                                         if (check != null)
                                         {
                                             if (check.Stories.Count == item.Stories.Count)
-                                                return;
+                                                continue;
+
+                                            item.Avatar = NormalizeStoryUrl(item.Avatar);
 
                                             foreach (var item2 in item.Stories)
                                             {
                                                 item.DurationsList ??= new List<long>();
 
+                                                item2.Thumbnail = NormalizeStoryUrl(item2.Thumbnail);
+                                                if (item2.Videos?.Count > 0)
+                                                    item2.Videos[0].Filename = NormalizeStoryUrl(item2.Videos[0].Filename);
+
                                                 //image and video
-                                                var mediaFile = !item2.Thumbnail.Contains("avatar") && item2.Videos?.Count == 0 ? item2.Thumbnail : item2.Videos?.FirstOrDefault()?.Filename ?? "";
+                                                var thumbnail = item2.Thumbnail ?? string.Empty;
+                                                var mediaFile = !thumbnail.Contains("avatar") && item2.Videos?.Count == 0 ? thumbnail : item2.Videos?.FirstOrDefault()?.Filename ?? "";
+
+                                                if (string.IsNullOrEmpty(mediaFile))
+                                                {
+                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
+                                                    item2.TypeView = "Image";
+                                                    continue;
+                                                }
 
                                                 var type = Methods.AttachmentFiles.Check_FileExtension(mediaFile);
                                                 if (type != "Video")
@@ -460,15 +499,30 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                                             add = true;
                                             check.Stories = item.Stories;
+                                            check.Avatar = NormalizeStoryUrl(item.Avatar);
                                         }
                                         else
                                         {
+                                            item.Avatar = NormalizeStoryUrl(item.Avatar);
+
                                             foreach (var item1 in item.Stories)
                                             {
                                                 item.DurationsList ??= new List<long>();
 
+                                                item1.Thumbnail = NormalizeStoryUrl(item1.Thumbnail);
+                                                if (item1.Videos?.Count > 0)
+                                                    item1.Videos[0].Filename = NormalizeStoryUrl(item1.Videos[0].Filename);
+
                                                 //image and video
-                                                string mediaFile = !item1.Thumbnail.Contains("avatar") && item1.Videos?.Count == 0 ? item1.Thumbnail : item1.Videos?.FirstOrDefault()?.Filename ?? "";
+                                                var thumbnail = item1.Thumbnail ?? string.Empty;
+                                                string mediaFile = !thumbnail.Contains("avatar") && item1.Videos?.Count == 0 ? thumbnail : item1.Videos?.FirstOrDefault()?.Filename ?? "";
+
+                                                if (string.IsNullOrEmpty(mediaFile))
+                                                {
+                                                    item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
+                                                    item1.TypeView = "Image";
+                                                    continue;
+                                                }
 
                                                 var type1 = Methods.AttachmentFiles.Check_FileExtension(mediaFile);
                                                 if (type1 != "Video")
@@ -499,7 +553,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             }
 
                                             add = true;
-                                            checkSection.StoryList.Add(item);
+                                            storiesToAdd.Add(item);
                                         }
                                     }
 
@@ -509,6 +563,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                         {
                                             if (!add)
                                                 return;
+
+                                            foreach (var storyItem in storiesToAdd)
+                                                checkSection.StoryList.Add(storyItem);
 
                                             if (PostFeedAdapter?.HolderStory?.AboutMore != null)
                                                 PostFeedAdapter.HolderStory.AboutMore.Visibility = checkSection.StoryList.Count > 4 ? ViewStates.Visible : ViewStates.Invisible;

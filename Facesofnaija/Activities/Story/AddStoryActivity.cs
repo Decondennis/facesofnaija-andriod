@@ -310,6 +310,7 @@ namespace Facesofnaija.Activities.Story
                     };
 
                     Intent intent = new Intent(this, typeof(PostService));
+                    PostService.ActionStory ??= PackageName + ".action.ACTION_STORY";
                     intent.SetAction(PostService.ActionStory);
                     intent.PutExtra("DataPost", JsonConvert.SerializeObject(item));
                     StartService(intent);
