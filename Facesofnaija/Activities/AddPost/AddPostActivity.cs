@@ -4,6 +4,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
 using Android.Graphics.Drawables;
+using Android.Media;
 using Android.OS;
 using Android.Text;
 using Android.Util;
@@ -552,24 +553,20 @@ namespace Facesofnaija.Activities.AddPost
         {
             try
             {
-                Log.Info("FON_POST", "Post button clicked");
 
                 if (IsPosting)
                 {
-                    Log.Warn("FON_POST", "Ignored duplicate submit while posting is in progress");
                     return;
                 }
 
                 if (string.IsNullOrWhiteSpace(TxtContentPost.Text) && string.IsNullOrWhiteSpace(MentionTextView.Text) && AttachmentsAdapter.AttachmentList.Count == 0)
                 {
-                    Log.Warn("FON_POST", "Validation failed: empty post");
                     ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_YouCannot_PostanEmptyPost), ToastLength.Long);
                     return;
                 }
 
                 if (!Methods.CheckConnectivity())
                 {
-                    Log.Warn("FON_POST", "Validation failed: no internet connectivity");
                     ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
                     return;
                 }
@@ -582,7 +579,6 @@ namespace Facesofnaija.Activities.AddPost
                     int max = Convert.ToInt32(ListUtils.SettingsSiteList?.MaxCharacters);
                     if (max < content?.Length)
                     {
-                        Log.Warn("FON_POST", "Validation failed: max characters exceeded");
                         ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_Error_MaxCharacters) + " " + ListUtils.SettingsSiteList?.MaxCharacters, ToastLength.Short);
                         return;
                     }
@@ -595,33 +591,31 @@ namespace Facesofnaija.Activities.AddPost
 
                 if (missingAttachment != null)
                 {
-                    Log.Warn("FON_POST", $"Validation failed: missing attachment file path={missingAttachment.FileUrl}");
                     ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Failed_to_load), ToastLength.Short);
                     return;
                 }
 
                 SetPostingState(true);
                 IsPosting = true;
-                Log.Info("FON_POST", $"Validation passed. Starting API request pagePost={PagePost} idPost={IdPost} attachments={AttachmentsAdapter.AttachmentList.Count}");
+                foreach (var attachment in AttachmentsAdapter.AttachmentList)
+                {
+                    var name = global::System.IO.Path.GetFileName(attachment?.FileUrl ?? string.Empty);
+                }
 
                 var (apiStatus, respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
                 var customApiStatus = apiStatus;
                 var customRespond = respond;
-                Log.Info("FON_POST", $"Custom API response received apiStatus={apiStatus} respondType={respond?.GetType().Name ?? "null"}");
 
                 if (apiStatus != 200 && apiStatus != 201)
                 {
-                    Log.Warn("FON_POST", $"Custom post failed apiStatus={apiStatus}. Retrying with SDK request path.");
                     var sdkResult = await RequestsAsync.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
                     apiStatus = sdkResult.Item1;
                     respond = sdkResult.Item2;
-                    Log.Info("FON_POST", $"SDK API response received apiStatus={apiStatus} respondType={respond?.GetType().Name ?? "null"}");
 
                     if (apiStatus == 404 && respond is string sdkMessage && sdkMessage.Contains("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase))
                     {
                         apiStatus = customApiStatus;
                         respond = customRespond;
-                        Log.Warn("FON_POST", "SDK fallback returned non-JSON response. Preserving custom API error message.");
                     }
                 }
 
@@ -658,7 +652,6 @@ namespace Facesofnaija.Activities.AddPost
                         else if (message.IndexOf("bad request", StringComparison.OrdinalIgnoreCase) >= 0)
                             message = "Unable to publish your post right now. Please try again.";
 
-                        Log.Warn("FON_POST", $"Submit failed with message={message}");
                         ToastUtils.ShowToast(this, message, ToastLength.Long);
                     }
                     else
@@ -669,7 +662,6 @@ namespace Facesofnaija.Activities.AddPost
             }
             catch (Exception exception)
             {
-                Log.Error("FON_POST", $"Unhandled exception in submit: {exception}");
                 SetPostingState(false);
                 IsPosting = false;
                 Methods.DisplayReportResultTrack(exception);
@@ -1094,7 +1086,8 @@ namespace Facesofnaija.Activities.AddPost
 
                                 foreach (var item in mPaths)
                                 {
-                                    PendingAttachmentTypeHint = "Image";
+                                    var selectedType = Methods.AttachmentFiles.Check_FileExtension(item);
+                                    PendingAttachmentTypeHint = selectedType is "Video" or "Audio" ? selectedType : string.Empty;
                                     PickiTonCompleteListener(item);
                                 }
                             }
@@ -1110,7 +1103,17 @@ namespace Facesofnaija.Activities.AddPost
                                         var filepath = ResolveAttachmentPathFromUri(uri);
                                         if (string.IsNullOrWhiteSpace(filepath))
                                             continue;
-                                        PendingAttachmentTypeHint = "Image";
+                                        var selectedType = Methods.AttachmentFiles.Check_FileExtension(filepath);
+                                        if (selectedType == "File")
+                                        {
+                                            var mime = ContentResolver?.GetType(uri) ?? string.Empty;
+                                            selectedType = mime.Contains("video", StringComparison.OrdinalIgnoreCase)
+                                                ? "Video"
+                                                : mime.Contains("audio", StringComparison.OrdinalIgnoreCase)
+                                                    ? "Audio"
+                                                    : string.Empty;
+                                        }
+                                        PendingAttachmentTypeHint = selectedType is "Video" or "Audio" ? selectedType : string.Empty;
                                         PickiTonCompleteListener(filepath);
                                     }
                                 }
@@ -1120,7 +1123,17 @@ namespace Facesofnaija.Activities.AddPost
                                     var filepath = ResolveAttachmentPathFromUri(uri);
                                     if (string.IsNullOrWhiteSpace(filepath))
                                         break;
-                                    PendingAttachmentTypeHint = "Image";
+                                    var selectedType = Methods.AttachmentFiles.Check_FileExtension(filepath);
+                                    if (selectedType == "File")
+                                    {
+                                        var mime = ContentResolver?.GetType(uri) ?? string.Empty;
+                                        selectedType = mime.Contains("video", StringComparison.OrdinalIgnoreCase)
+                                            ? "Video"
+                                            : mime.Contains("audio", StringComparison.OrdinalIgnoreCase)
+                                                ? "Audio"
+                                                : string.Empty;
+                                    }
+                                    PendingAttachmentTypeHint = selectedType is "Video" or "Audio" ? selectedType : string.Empty;
                                     PickiTonCompleteListener(filepath);
                                 }
                             }
@@ -1526,6 +1539,54 @@ namespace Facesofnaija.Activities.AddPost
             }
         }
 
+        private string InferAttachmentTypeFromContent(string path, string hint = "")
+        {
+            try
+            {
+                if (string.Equals(hint, "Video", StringComparison.OrdinalIgnoreCase))
+                    return "Video";
+                if (string.Equals(hint, "Audio", StringComparison.OrdinalIgnoreCase))
+                    return "Audio";
+
+                using (var retriever = new MediaMetadataRetriever())
+                {
+                    retriever.SetDataSource(path);
+                    var hasVideo = retriever.ExtractMetadata(MetadataKey.HasVideo);
+                    if (string.Equals(hasVideo, "yes", StringComparison.OrdinalIgnoreCase) || hasVideo == "1")
+                        return "Video";
+
+                    var hasAudio = retriever.ExtractMetadata(MetadataKey.HasAudio);
+                    if (string.Equals(hasAudio, "yes", StringComparison.OrdinalIgnoreCase) || hasAudio == "1")
+                        return "Audio";
+                }
+            }
+            catch
+            {
+                // Ignore and continue with additional checks.
+            }
+
+            try
+            {
+                var opts = new BitmapFactory.Options { InJustDecodeBounds = true };
+                BitmapFactory.DecodeFile(path, opts);
+                if (opts.OutWidth > 0 && opts.OutHeight > 0)
+                    return "Image";
+            }
+            catch
+            {
+                // Ignore and fall back to extension mapping.
+            }
+
+            var ext = global::System.IO.Path.GetExtension(path)?.ToLowerInvariant();
+            return ext switch
+            {
+                ".mp4" or ".m4v" or ".mov" or ".webm" or ".mkv" or ".avi" or ".flv" or ".mpeg" or ".mpg" or ".3gp" => "Video",
+                ".mp3" or ".wav" or ".aac" or ".m4a" or ".ogg" => "Audio",
+                ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" => "Image",
+                _ => "File"
+            };
+        }
+
         //Permissions
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
         {
@@ -1692,7 +1753,6 @@ namespace Facesofnaija.Activities.AddPost
                 {
                     var avatar = ResolveComposerAvatar(DataUser?.Avatar);
 
-                    Log.Info("FON_POST", $"LoadDataUser userId={DataUser.UserId} username={DataUser.Username} avatar={avatar}");
 
                     GlideImageLoader.LoadImage(this, avatar, PostSectionImage, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
 
@@ -1715,7 +1775,6 @@ namespace Facesofnaija.Activities.AddPost
                 {
                     var avatar = ResolveComposerAvatar();
 
-                    Log.Info("FON_POST", $"LoadDataUser fallback avatar={avatar}");
 
                     GlideImageLoader.LoadImage(this, avatar, PostSectionImage, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
 
@@ -2537,7 +2596,6 @@ namespace Facesofnaija.Activities.AddPost
                 if (string.IsNullOrWhiteSpace(path) || !global::System.IO.File.Exists(path))
                 {
                     ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Failed_to_load), ToastLength.Short);
-                    Log.Warn("FON_POST", $"PickiTonCompleteListener invalid path={path}");
                     return;
                 }
 
@@ -2562,19 +2620,30 @@ namespace Facesofnaija.Activities.AddPost
                 if (detectedType == "File" && string.Equals(PendingAttachmentTypeHint, "Video", StringComparison.OrdinalIgnoreCase))
                     detectedType = "Video";
 
+                if (detectedType == "File")
+                    detectedType = InferAttachmentTypeFromContent(path, PendingAttachmentTypeHint);
+
+
+                if (check is false && info != "AdultImages" && detectedType == "File" && global::System.IO.File.Exists(path))
+                {
+                    if (string.Equals(PendingAttachmentTypeHint, "Video", StringComparison.OrdinalIgnoreCase))
+                        detectedType = "Video";
+                    else if (string.Equals(PendingAttachmentTypeHint, "Audio", StringComparison.OrdinalIgnoreCase))
+                        detectedType = "Audio";
+
+                    check = true;
+                }
+
                 if (check is false && info != "AdultImages" && (detectedType == "Image" || detectedType == "Video" || detectedType == "Audio"))
                 {
                     check = true;
-                    Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={detectedType} path={path}");
                 }
 
-                Log.Info("FON_POST", $"Mime check path={path} check={check} info={info} detected={detectedType} hint={PendingAttachmentTypeHint}");
 
                 if (check is false && info != "AdultImages" && (detectedType == "Video" || detectedType == "Image" || detectedType == "Audio"))
                 {
                     // Some content providers return generic mime values; trust local extension for common media types.
                     check = true;
-                    Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={detectedType} path={path}");
                 }
 
                 if (check is false)
@@ -2707,7 +2776,7 @@ namespace Facesofnaija.Activities.AddPost
                 }
                 else
                 {
-                    var type = Methods.AttachmentFiles.Check_FileExtension(path);
+                    var type = detectedType;
                     switch (type)
                     {
                         case "File":

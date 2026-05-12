@@ -61,12 +61,15 @@ namespace Facesofnaija.Helpers.Controller
 
                 Methods.Path.Chack_MyFolder();
 
+                var allowMixedPostMedia = Context.GetType().Name is "AddPostActivity" or "PostSharingActivity";
+                var mimeTypes = allowMixedPostMedia ? MimeType.OfAll() : MimeType.OfImage();
+
                 if (AppSettings.GalleryIntentSystem == GalleryIntentSystem.Matisse)
                 {
                     if (allowMultiple)
                     {
                         Matisse.From(Context)
-                            .Choose(MimeType.OfImage())
+                            .Choose(mimeTypes)
                             .Theme(Resource.Style.Matisse_Dracula)
                             .Countable(false)
                             .AddFilter(new GifSizeFilter(320, 320, 5 * Com.Zhihu.Matisse.Filter.Filter.K * Com.Zhihu.Matisse.Filter.Filter.K))
@@ -79,7 +82,7 @@ namespace Facesofnaija.Helpers.Controller
                     else
                     {
                         Matisse.From(Context)
-                            .Choose(MimeType.OfImage())
+                            .Choose(mimeTypes)
                             .Theme(Resource.Style.Matisse_Dracula)
                             .Countable(false)
                             .AddFilter(new GifSizeFilter(320, 320, 5 * Com.Zhihu.Matisse.Filter.Filter.K * Com.Zhihu.Matisse.Filter.Filter.K))

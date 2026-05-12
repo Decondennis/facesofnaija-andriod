@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
@@ -183,7 +183,7 @@ namespace Facesofnaija.Activities.NativePost.Post
         int d = 0;
         public override void OnViewDetachedFromWindow(Object holder)
         {
-            // This fires on the EXACT holder instance that scrolled off screen — reliable for saving video state
+            // This fires on the EXACT holder instance that scrolled off screen � reliable for saving video state
             if (holder is AdapterHolders.PostVideoSectionViewHolder videoHolder)
             {
                 try
@@ -1383,11 +1383,9 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                             avatarUrl = GlideImageLoader.NormalizeImageUrl(avatarUrl);
                             
-                            Log.Info("FON_POST", $"AddPostBox avatar resolved={avatarUrl}");
                             
                             if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
                             {
-                                Log.Warn("FON_POST", "AddPostBox avatar null");
                                 Glide.With(holder.ItemView).Clear(holder.ProfileImageView);
                                 holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
                                 break;
@@ -1406,7 +1404,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                             }
                             else if (avatarUrl.Contains("no_profile_image"))
                             {
-                                Log.Info("FON_POST", "AddPostBox using no_profile_image drawable");
                                 holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
                                 TryRefreshMyProfileAvatar();
                             }
@@ -1425,7 +1422,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 }
                                 catch (Exception ex)
                                 {
-                                    Log.Error("FON_POST", "AddPostBox Glide error: " + ex.Message);
                                     holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
                                 }
                             }
@@ -2005,11 +2001,9 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (!string.IsNullOrWhiteSpace(accessToken) && !string.Equals(Current.AccessToken, accessToken, StringComparison.Ordinal))
                     Current.AccessToken = accessToken;
 
-                Log.Info("FON_POST", $"AddPostBox profile refresh start userId={UserDetails.UserId} currentTokenEmpty={string.IsNullOrWhiteSpace(Current.AccessToken)} userTokenEmpty={string.IsNullOrWhiteSpace(UserDetails.AccessToken)}");
 
                 if (string.IsNullOrWhiteSpace(Current.AccessToken))
                 {
-                    Log.Warn("FON_POST", "AddPostBox profile refresh skipped because access token is empty");
                     return;
                 }
 
@@ -2053,16 +2047,13 @@ namespace Facesofnaija.Activities.NativePost.Post
                             }
                         });
 
-                        Log.Info("FON_POST", $"AddPostBox profile refresh success avatar={profileAvatar}");
                     }
                     else
                     {
-                        Log.Warn("FON_POST", "AddPostBox profile refresh returned empty avatar");
                     }
                 }
                 else
                 {
-                    Log.Warn("FON_POST", "AddPostBox profile refresh failed via direct API call");
                 }
             }
             catch (Exception e)
@@ -2100,7 +2091,6 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 if (apiBaseCandidates.Count == 0)
                 {
-                    Log.Warn("FON_POST", "AddPostBox direct profile refresh skipped because base URL is empty");
                     return null;
                 }
 
@@ -2112,7 +2102,6 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(UserDetails.UserId))
                 {
-                    Log.Warn("FON_POST", "AddPostBox direct profile refresh skipped because session or user id is empty");
                     return null;
                 }
 
@@ -2137,7 +2126,6 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                         var response = await client.PostAsync(endpoint, endpointContent);
                         var json = await response.Content.ReadAsStringAsync();
-                        Log.Info("FON_POST", $"AddPostBox profile refresh endpoint={endpoint} httpStatus={(int)response.StatusCode}");
 
                         if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<", StringComparison.Ordinal))
                             continue;
@@ -2147,7 +2135,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                             var userResult = JsonConvert.DeserializeObject<GetUserDataObject>(json);
                             if (userResult?.UserData != null && userResult.Status == 200)
                             {
-                                Log.Info("FON_POST", $"AddPostBox profile refresh success avatar={userResult.UserData.Avatar}");
                                 return userResult.UserData;
                             }
                         }
@@ -2168,18 +2155,15 @@ namespace Facesofnaija.Activities.NativePost.Post
                                     var userData = userDataToken.ToObject<UserDataObject>();
                                     if (!string.IsNullOrWhiteSpace(userData?.Avatar))
                                     {
-                                        Log.Info("FON_POST", $"AddPostBox profile refresh success (generic) avatar={userData.Avatar}");
                                         return userData;
                                     }
                                 }
                             }
 
                             var errorText = jsonToken["errors"]?["error_text"]?.ToString() ?? string.Empty;
-                            Log.Warn("FON_POST", $"AddPostBox profile refresh api_status={apiStatus} error={errorText}");
                         }
                         catch (Exception parseEx)
                         {
-                            Log.Warn("FON_POST", $"AddPostBox profile refresh parse failed for endpoint={endpoint}: {parseEx.Message}");
                         }
                     }
                 }
@@ -2188,7 +2172,6 @@ namespace Facesofnaija.Activities.NativePost.Post
             }
             catch (Exception ex)
             {
-                Log.Warn("FON_POST", $"AddPostBox direct profile refresh exception: {ex.Message}");
                 return null;
             }
         }

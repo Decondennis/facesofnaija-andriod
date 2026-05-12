@@ -1,4 +1,4 @@
-ï»¿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Gms.Ads.DoubleClick;
 using Android.Graphics;
@@ -786,7 +786,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                     //itemView.SetLayerType(LayerType.Hardware, null);
 
-                    // Direct lookup â€” no reflection needed, all IDs exist in Post_Content_video_layout.xml
+                    // Direct lookup — no reflection needed, all IDs exist in Post_Content_video_layout.xml
                     try
                     {
                         Console.WriteLine($"DEBUG VIDEO HOLDER INIT: itemView type={itemView?.GetType()?.Name ?? "NULL"}, childCount={(itemView as Android.Views.ViewGroup)?.ChildCount}");
@@ -2108,7 +2108,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 }
 
                                 //intent.PutExtra("itemObject", JsonConvert.SerializeObject(EventData));
-                                Log.Info("FON_POST", $"Composer action=Gallery launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2156,7 +2155,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
-                                Log.Info("FON_POST", $"Composer action=Write launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2204,7 +2202,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
-                                Log.Info("FON_POST", $"Composer action=Mention launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2252,7 +2249,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
-                                Log.Info("FON_POST", $"Composer action=Feeling launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -3704,7 +3700,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     IconImageView = MainView.FindViewById<ImageView>(Resource.Id.IconImageview);
                     NormalImageView = MainView.FindViewById<ImageView>(Resource.Id.Imageview);
 
-                    // Enable marquee scrolling â€” must have Selected = true
+                    // Enable marquee scrolling — must have Selected = true
                     if (SubText != null)
                         SubText.Selected = true;
 

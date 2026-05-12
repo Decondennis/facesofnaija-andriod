@@ -4,6 +4,7 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
 using Android.Graphics.Drawables;
+using Android.Media;
 using Android.OS;
 using Android.Text;
 using Android.Util;
@@ -2309,6 +2310,17 @@ namespace Facesofnaija.Activities.AddPost
 
                 //  Chick if it was successful
                 var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(path);
+                var localType = Methods.AttachmentFiles.Check_FileExtension(path);
+                if (localType == "File")
+                    localType = InferAttachmentTypeFromContent(path);
+                if (check is false && info != "AdultImages" && localType == "File" && global::System.IO.File.Exists(path))
+                {
+                    check = true;
+                }
+                if (check is false && info != "AdultImages" && (localType == "Image" || localType == "Video" || localType == "Audio"))
+                {
+                    check = true;
+                }
                 if (check is false)
                 {
                     if (info == "AdultImages")
@@ -2322,7 +2334,7 @@ namespace Facesofnaija.Activities.AddPost
                         {
                             try
                             {
-                                var type = Methods.AttachmentFiles.Check_FileExtension(path);
+                                var type = localType;
                                 switch (type)
                                 {
                                     case "Image":
@@ -2433,7 +2445,7 @@ namespace Facesofnaija.Activities.AddPost
                 }
                 else
                 {
-                    var type = Methods.AttachmentFiles.Check_FileExtension(path);
+                    var type = localType;
                     switch (type)
                     {
                         case "File":
@@ -3166,10 +3178,11 @@ namespace Facesofnaija.Activities.AddPost
                     var filePath = Methods.AttachmentFiles.GetActualPathFromFile(this, fileUri);
                     var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(filePath);
                     var localType = Methods.AttachmentFiles.Check_FileExtension(filePath);
+                    if (localType == "File")
+                        localType = InferAttachmentTypeFromContent(filePath);
                     if (check is false && info != "AdultImages" && (localType == "Image" || localType == "Video" || localType == "Audio"))
                     {
                         check = true;
-                        Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={localType} path={filePath}");
                     }
                     if (check is false)
                     {
@@ -3213,6 +3226,49 @@ namespace Facesofnaija.Activities.AddPost
             }
         }
 
+        private string InferAttachmentTypeFromContent(string path)
+        {
+            try
+            {
+                using (var retriever = new MediaMetadataRetriever())
+                {
+                    retriever.SetDataSource(path);
+                    var hasVideo = retriever.ExtractMetadata(MetadataKey.HasVideo);
+                    if (string.Equals(hasVideo, "yes", StringComparison.OrdinalIgnoreCase) || hasVideo == "1")
+                        return "Video";
+
+                    var hasAudio = retriever.ExtractMetadata(MetadataKey.HasAudio);
+                    if (string.Equals(hasAudio, "yes", StringComparison.OrdinalIgnoreCase) || hasAudio == "1")
+                        return "Audio";
+                }
+            }
+            catch
+            {
+                // Ignore and continue with image/extension checks.
+            }
+
+            try
+            {
+                var opts = new BitmapFactory.Options { InJustDecodeBounds = true };
+                BitmapFactory.DecodeFile(path, opts);
+                if (opts.OutWidth > 0 && opts.OutHeight > 0)
+                    return "Image";
+            }
+            catch
+            {
+                // Ignore and fall back to extension mapping.
+            }
+
+            var ext = global::System.IO.Path.GetExtension(path)?.ToLowerInvariant();
+            return ext switch
+            {
+                ".mp4" or ".m4v" or ".mov" or ".webm" or ".mkv" or ".avi" or ".flv" or ".mpeg" or ".mpg" or ".3gp" => "Video",
+                ".mp3" or ".wav" or ".aac" or ".m4a" or ".ogg" => "Audio",
+                ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp" => "Image",
+                _ => "File"
+            };
+        }
+
         /// <summary>
         ///  Update UI to reflect multiple file being shared
         /// </summary>
@@ -3244,10 +3300,11 @@ namespace Facesofnaija.Activities.AddPost
 
                             var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(filePath);
                             var localType = Methods.AttachmentFiles.Check_FileExtension(filePath);
+                            if (localType == "File")
+                                localType = InferAttachmentTypeFromContent(filePath);
                             if (check is false && info != "AdultImages" && (localType == "Image" || localType == "Video" || localType == "Audio"))
                             {
                                 check = true;
-                                Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={localType} path={filePath}");
                             }
                             if (check is false)
                             {

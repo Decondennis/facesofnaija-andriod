@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using System.Net.Http;
 using System;
 using Newtonsoft.Json;
@@ -764,7 +764,7 @@ namespace Facesofnaija.CustomApi.Requests
         }
 
         // ---------------------------------------------------------------------------
-        // Custom Posts — bypasses the SDK's internal HttpClient which points to the
+        // Custom Posts � bypasses the SDK's internal HttpClient which points to the
         // wrong domain (facesofnaija.com) and instead uses InitializeWoWonder.WebsiteUrl
         // (the working IP from analytic.xml).
         // ---------------------------------------------------------------------------
@@ -789,7 +789,6 @@ namespace Facesofnaija.CustomApi.Requests
                         var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
                         if (string.IsNullOrWhiteSpace(sessionId))
                         {
-                            Android.Util.Log.Warn("FON_POST_CUSTOM", "submit aborted: session id is empty");
                             return (400, "Session is missing. Please sign in again.");
                         }
 
@@ -799,7 +798,6 @@ namespace Facesofnaija.CustomApi.Requests
                             $"{GetApiBase()}/app_api.php?type=new_post"
                         };
 
-                        Android.Util.Log.Info("FON_POST_CUSTOM", $"submit pagePost={pagePost} userId={userId} postId={postId} privacy={privacy ?? "NULL"} textLen={(textContent ?? string.Empty).Length} attachments={postAttachments?.Count ?? 0} serverKeyLen={(InitializeWoWonder.ServerKey ?? string.Empty).Length}");
 
                         string lastError = "Bad request.";
                         var hasExplicitApiError = false;
@@ -855,16 +853,31 @@ namespace Facesofnaija.CustomApi.Requests
                                 foreach (var att in postAttachments)
                                 {
                                     if (string.IsNullOrEmpty(att?.FileUrl)) continue;
+
+                                    var fileName = att.FileName;
+                                    if (string.IsNullOrWhiteSpace(fileName))
+                                        fileName = Path.GetFileName(att.FileUrl);
+
+                                    if (string.IsNullOrWhiteSpace(fileName))
+                                        fileName = string.Equals(att.TypeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase) ? "video.mp4" : "file.bin";
+
+                                    var typeAttachment = att.TypeAttachment;
+                                    if (string.Equals(typeAttachment, "postFile", StringComparison.OrdinalIgnoreCase) && IsVideoExtension(fileName))
+                                        typeAttachment = "postVideo";
+
+                                    var resolvedMime = GetMimeType(fileName);
+                                    if (string.Equals(typeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase) && string.Equals(resolvedMime, "application/octet-stream", StringComparison.OrdinalIgnoreCase))
+                                        resolvedMime = "video/mp4";
+
                                     if (att.FileStream != null)
                                     {
                                         att.FileStream.Position = 0;
                                         using var ms = new MemoryStream();
                                         att.FileStream.CopyTo(ms);
                                         var bytes = ms.ToArray();
-                                        var fileName = att.FileName ?? "file";
                                         var fileContent = new ByteArrayContent(bytes);
-                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileName));
-                                        form.Add(fileContent, att.TypeAttachment, fileName);
+                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
+                                        form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
                                         {
@@ -878,10 +891,9 @@ namespace Facesofnaija.CustomApi.Requests
                                     else if (File.Exists(att.FileUrl))
                                     {
                                         var bytes = File.ReadAllBytes(att.FileUrl);
-                                        var fileName = att.FileName ?? Path.GetFileName(att.FileUrl);
                                         var fileContent = new ByteArrayContent(bytes);
-                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileName));
-                                        form.Add(fileContent, att.TypeAttachment, fileName);
+                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
+                                        form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
                                         {
@@ -899,10 +911,8 @@ namespace Facesofnaija.CustomApi.Requests
                                 }
                             }
 
-                            Android.Util.Log.Info("FON_POST_CUSTOM", $"POST → {url}");
                             var response = await client.PostAsync(url, form);
                             var json = await response.Content.ReadAsStringAsync();
-                            Android.Util.Log.Info("FON_POST_CUSTOM", $"Response {(int)response.StatusCode}: {json?.Substring(0, Math.Min(400, json?.Length ?? 0))}");
 
                             if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
                             {
@@ -936,7 +946,6 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                     catch (Exception ex)
                     {
-                        Android.Util.Log.Error("FON_POST_CUSTOM", $"Exception: {ex.Message}");
                         return (404, ex.Message);
                     }
                 }
@@ -954,11 +963,23 @@ namespace Facesofnaija.CustomApi.Requests
                         ".mp4" => "video/mp4",
                         ".mov" => "video/quicktime",
                         ".m4v" => "video/x-m4v",
+                        ".webm" => "video/webm",
+                        ".flv" => "video/x-flv",
+                        ".mpeg" => "video/mpeg",
+                        ".mpg" => "video/mpeg",
+                        ".mkv" => "video/x-matroska",
+                        ".avi" => "video/x-msvideo",
                         ".3gp" => "video/3gpp",
                         ".mp3" => "audio/mpeg",
                         ".wav" => "audio/wav",
                         _ => "application/octet-stream"
                     };
+                }
+
+                private static bool IsVideoExtension(string fileName)
+                {
+                    var ext = Path.GetExtension(fileName)?.ToLowerInvariant();
+                    return ext is ".mp4" or ".mov" or ".m4v" or ".webm" or ".flv" or ".mpeg" or ".mpg" or ".mkv" or ".avi" or ".3gp";
                 }
             }
         }
