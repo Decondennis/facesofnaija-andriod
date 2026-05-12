@@ -27,6 +27,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
             {
                 base.OnScrolled(recyclerView, dx, dy);
 
+                // Trigger pagination only while scrolling down.
+                if (dy <= 0)
+                    return;
+
                 if (IsLoading)
                     return;
 

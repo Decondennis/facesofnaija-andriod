@@ -3,6 +3,7 @@ using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.OS;
+using Android.Util;
 using Android.Views;
 using Android.Widget;
 using AndroidX.AppCompat.App;
@@ -17,10 +18,14 @@ using Bumptech.Glide.Request.Transition;
 using Bumptech.Glide.Signature;
 using Bumptech.Glide.Util;
 using Java.Lang;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.Comment;
 using Facesofnaija.Activities.Comment.Adapters;
 using Facesofnaija.Activities.MyProfile;
@@ -37,6 +42,9 @@ using Facesofnaija.Library.Anjo.SuperTextLibrary;
 using Facesofnaija.SQLite;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Classes.Posts;
+using WoWonderClient.Classes.User;
+using WoWonderClient.Requests;
+using WoWonderClient;
 using Xamarin.Facebook.Ads;
 using Console = System.Console;
 using Exception = System.Exception;
@@ -84,6 +92,8 @@ namespace Facesofnaija.Activities.NativePost.Post
         public RequestOptions GlideNormalOptions;
         public RequestOptions GlideCircleOptions;
         public RequestBuilder GlideThumbnailRequestBuilder;
+        private DateTime LastProfileRefreshRequest = DateTime.MinValue;
+        private bool IsProfileRefreshInFlight;
 
         public int ScreenWidthPixels = 1024;
         public int ScreenHeightPixels = 768;
@@ -1356,11 +1366,69 @@ namespace Facesofnaija.Activities.NativePost.Post
                             if (viewHolder is not AdapterHolders.AddPostViewHolder holder)
                                 return;
 
-                            var avatarUrl = GlideImageLoader.NormalizeImageUrl(UserDetails.Avatar);
-                            var circleGlideRequestBuilder = Glide.With(holder.ItemView).Load(avatarUrl).Apply(GlideCircleOptions).Timeout(3000).SetUseAnimationPool(false);
-                            circleGlideRequestBuilder.DontTransform_T();
-                            circleGlideRequestBuilder.Downsample(DownsampleStrategy.CenterInside);
-                            circleGlideRequestBuilder.AddListener(new AdapterBind.GlideCustomRequestListener("Circle AddPost Global")).Override(70).Into(holder.ProfileImageView);
+                            holder.ProfileImageView.Visibility = ViewStates.Visible;
+                            holder.ProfileImageView.Alpha = 1f;
+                            holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+
+                            var avatarUrl = UserDetails.Avatar;
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                                avatarUrl = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                                avatarUrl = new SqLiteDatabase().Get_MyProfile()?.Avatar;
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                                avatarUrl = item?.PostData?.Publisher?.Avatar;
+
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                                avatarUrl = WoWonderTools.GetDefaultAvatar();
+
+                            avatarUrl = GlideImageLoader.NormalizeImageUrl(avatarUrl);
+                            
+                            Log.Info("FON_POST", $"AddPostBox avatar resolved={avatarUrl}");
+                            
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                            {
+                                Log.Warn("FON_POST", "AddPostBox avatar null");
+                                Glide.With(holder.ItemView).Clear(holder.ProfileImageView);
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+                                break;
+                            }
+
+                            // Handle default avatar tokens that should load as drawables, not URLs
+                            if (avatarUrl.Contains("no_profile_image_circle"))
+                            {
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+                                TryRefreshMyProfileAvatar();
+                            }
+                            else if (avatarUrl.Contains("no_profile_female_image_circle"))
+                            {
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_female_image);
+                                TryRefreshMyProfileAvatar();
+                            }
+                            else if (avatarUrl.Contains("no_profile_image"))
+                            {
+                                Log.Info("FON_POST", "AddPostBox using no_profile_image drawable");
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+                                TryRefreshMyProfileAvatar();
+                            }
+                            else if (avatarUrl.Contains("no_profile_female_image"))
+                            {
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_female_image);
+                                TryRefreshMyProfileAvatar();
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    Glide.With(holder.ItemView).Load(avatarUrl)
+                                        .Apply(new RequestOptions().CircleCrop().Placeholder(Resource.Drawable.no_profile_image).Error(Resource.Drawable.no_profile_image))
+                                        .Into(holder.ProfileImageView);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error("FON_POST", "AddPostBox Glide error: " + ex.Message);
+                                    holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+                                }
+                            }
 
                             break;
                         }
@@ -1912,6 +1980,217 @@ namespace Facesofnaija.Activities.NativePost.Post
         public string CleanImageLink(string url)
         {
             return url.Replace("?cache=0", "");
+        }
+
+        private async void TryRefreshMyProfileAvatar()
+        {
+            try
+            {
+                if (ActivityContext?.IsDestroyed != false)
+                    return;
+
+                if (IsProfileRefreshInFlight)
+                    return;
+
+                if (DateTime.UtcNow - LastProfileRefreshRequest < TimeSpan.FromMinutes(2))
+                    return;
+
+                LastProfileRefreshRequest = DateTime.UtcNow;
+                IsProfileRefreshInFlight = true;
+
+                var accessToken = Current.AccessToken;
+                if (string.IsNullOrWhiteSpace(accessToken))
+                    accessToken = UserDetails.AccessToken;
+
+                if (!string.IsNullOrWhiteSpace(accessToken) && !string.Equals(Current.AccessToken, accessToken, StringComparison.Ordinal))
+                    Current.AccessToken = accessToken;
+
+                Log.Info("FON_POST", $"AddPostBox profile refresh start userId={UserDetails.UserId} currentTokenEmpty={string.IsNullOrWhiteSpace(Current.AccessToken)} userTokenEmpty={string.IsNullOrWhiteSpace(UserDetails.AccessToken)}");
+
+                if (string.IsNullOrWhiteSpace(Current.AccessToken))
+                {
+                    Log.Warn("FON_POST", "AddPostBox profile refresh skipped because access token is empty");
+                    return;
+                }
+
+                var userData = await FetchMyProfileDirectAsync();
+                if (userData != null)
+                {
+                    var profileAvatar = userData.Avatar;
+                    if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                        if (!string.IsNullOrWhiteSpace(baseUrl))
+                            profileAvatar = $"{baseUrl}/{profileAvatar.TrimStart('/')}";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(profileAvatar))
+                    {
+                        UserDetails.Avatar = profileAvatar;
+                        ListUtils.MyProfileList = new System.Collections.ObjectModel.ObservableCollection<UserDataObject> { userData };
+
+                        try
+                        {
+                            var dbDatabase = new SqLiteDatabase();
+                            dbDatabase.Insert_Or_Update_To_MyProfileTable(userData);
+                        }
+                        catch (Exception dbEx)
+                        {
+                            Methods.DisplayReportResultTrack(dbEx);
+                        }
+
+                        ActivityContext?.RunOnUiThread(() =>
+                        {
+                            try
+                            {
+                                var addPostIndex = ListDiffer?.FindIndex(a => a.TypeView == PostModelType.AddPostBox) ?? -1;
+                                if (addPostIndex >= 0)
+                                    NotifyItemChanged(addPostIndex);
+                            }
+                            catch (Exception uiEx)
+                            {
+                                Methods.DisplayReportResultTrack(uiEx);
+                            }
+                        });
+
+                        Log.Info("FON_POST", $"AddPostBox profile refresh success avatar={profileAvatar}");
+                    }
+                    else
+                    {
+                        Log.Warn("FON_POST", "AddPostBox profile refresh returned empty avatar");
+                    }
+                }
+                else
+                {
+                    Log.Warn("FON_POST", "AddPostBox profile refresh failed via direct API call");
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+            finally
+            {
+                IsProfileRefreshInFlight = false;
+            }
+        }
+
+        private async Task<UserDataObject> FetchMyProfileDirectAsync()
+        {
+            try
+            {
+                var apiBaseCandidates = new List<string>();
+
+                void AddBase(string value)
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                        return;
+
+                    var normalized = value.Trim().TrimEnd('/');
+                    if (!normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                        normalized = "http://" + normalized;
+
+                    if (!apiBaseCandidates.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                        apiBaseCandidates.Add(normalized);
+                }
+
+                AddBase(InitializeWoWonder.WebsiteUrl);
+                AddBase(CustomApi.Requests.CustomRequests.Community.WebsiteUrl);
+                AddBase("http://172.236.19.52");
+
+                if (apiBaseCandidates.Count == 0)
+                {
+                    Log.Warn("FON_POST", "AddPostBox direct profile refresh skipped because base URL is empty");
+                    return null;
+                }
+
+                using var client = new HttpClient();
+
+                var sessionId = Current.AccessToken;
+                if (string.IsNullOrWhiteSpace(sessionId))
+                    sessionId = UserDetails.AccessToken;
+
+                if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(UserDetails.UserId))
+                {
+                    Log.Warn("FON_POST", "AddPostBox direct profile refresh skipped because session or user id is empty");
+                    return null;
+                }
+
+                foreach (var baseUrl in apiBaseCandidates)
+                {
+                    var profileEndpoints = new[]
+                    {
+                        $"{baseUrl}/app_api.php?application=phone&type=get_user_data",
+                        $"{baseUrl}/app_api.php?type=get_user_data"
+                    };
+
+                    foreach (var endpoint in profileEndpoints)
+                    {
+                        using var endpointContent = new FormUrlEncodedContent(new[]
+                        {
+                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                            new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? string.Empty),
+                            new KeyValuePair<string, string>("user_profile_id", UserDetails.UserId ?? string.Empty),
+                            new KeyValuePair<string, string>("s", sessionId),
+                            new KeyValuePair<string, string>("fetch", "user_data,following")
+                        });
+
+                        var response = await client.PostAsync(endpoint, endpointContent);
+                        var json = await response.Content.ReadAsStringAsync();
+                        Log.Info("FON_POST", $"AddPostBox profile refresh endpoint={endpoint} httpStatus={(int)response.StatusCode}");
+
+                        if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<", StringComparison.Ordinal))
+                            continue;
+
+                        try
+                        {
+                            var userResult = JsonConvert.DeserializeObject<GetUserDataObject>(json);
+                            if (userResult?.UserData != null && userResult.Status == 200)
+                            {
+                                Log.Info("FON_POST", $"AddPostBox profile refresh success avatar={userResult.UserData.Avatar}");
+                                return userResult.UserData;
+                            }
+                        }
+                        catch
+                        {
+                            // Continue to generic parsing below.
+                        }
+
+                        try
+                        {
+                            var jsonToken = JObject.Parse(json);
+                            var apiStatus = jsonToken["api_status"]?.Value<long?>() ?? 0;
+                            if (apiStatus == 200)
+                            {
+                                var userDataToken = jsonToken["user_data"] as JObject;
+                                if (userDataToken != null)
+                                {
+                                    var userData = userDataToken.ToObject<UserDataObject>();
+                                    if (!string.IsNullOrWhiteSpace(userData?.Avatar))
+                                    {
+                                        Log.Info("FON_POST", $"AddPostBox profile refresh success (generic) avatar={userData.Avatar}");
+                                        return userData;
+                                    }
+                                }
+                            }
+
+                            var errorText = jsonToken["errors"]?["error_text"]?.ToString() ?? string.Empty;
+                            Log.Warn("FON_POST", $"AddPostBox profile refresh api_status={apiStatus} error={errorText}");
+                        }
+                        catch (Exception parseEx)
+                        {
+                            Log.Warn("FON_POST", $"AddPostBox profile refresh parse failed for endpoint={endpoint}: {parseEx.Message}");
+                        }
+                    }
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("FON_POST", $"AddPostBox direct profile refresh exception: {ex.Message}");
+                return null;
+            }
         }
 
         public IList GetPreloadItems(int p0)

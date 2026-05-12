@@ -10,6 +10,7 @@ using Android.Util;
 using Android.Views;
 using Android.Views.InputMethods;
 using Android.Widget;
+using Android.Provider;
 using AndroidX.Activity.Result;
 using AndroidX.AppCompat.Content.Res;
 using AndroidX.AppCompat.Widget;
@@ -36,12 +37,17 @@ using Facesofnaija.Activities.AddPost.Adapters;
 using Facesofnaija.Activities.AddPost.Service;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Contacts.Adapters;
+using Facesofnaija.Activities.NativePost.Extra;
+using Facesofnaija.Activities.NativePost.Post;
+using Facesofnaija.Activities.Tabbes;
 using Facesofnaija.Activities.Videos;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
+using Facesofnaija.SQLite;
 using Facesofnaija.Library.Anjo.IntegrationRecyclerView;
 using Facesofnaija.Library.Anjo.SuperTextLibrary;
 using WoWonderClient.Classes.Event;
@@ -101,6 +107,9 @@ namespace Facesofnaija.Activities.AddPost
         private ImageView ImagePostState;
         private LinearLayout ActivityRootView;
         private DialogGalleryController GalleryController;
+        private bool IsPosting;
+        private string DefaultPostButtonText = "";
+        private string PendingAttachmentTypeHint = "";
 
         #endregion
 
@@ -125,6 +134,9 @@ namespace Facesofnaija.Activities.AddPost
                     var id = Intent?.GetStringExtra("PostId") ?? "Data not available";
                     if (id != "Data not available" && !string.IsNullOrEmpty(id)) IdPost = id;
                 }
+
+                if (string.IsNullOrWhiteSpace(IdPost))
+                    IdPost = UserDetails.UserId;
 
                 //Get Value And Set Toolbar
                 InitComponent();
@@ -253,6 +265,7 @@ namespace Facesofnaija.Activities.AddPost
             try
             {
                 TxtAddPost = FindViewById<TextView>(Resource.Id.toolbar_title);
+                DefaultPostButtonText = TxtAddPost?.Text ?? GetString(Resource.String.Lbl_Post);
                 TxtContentPost = FindViewById<EditText>(Resource.Id.editTxtEmail);
                 SlidingUpPanel = FindViewById<SlidingUpPanelLayout>(Resource.Id.sliding_layout);
                 PostSectionImage = FindViewById<ImageView>(Resource.Id.postsectionimage);
@@ -539,60 +552,168 @@ namespace Facesofnaija.Activities.AddPost
         {
             try
             {
-                if (string.IsNullOrEmpty(TxtContentPost.Text) && string.IsNullOrEmpty(MentionTextView.Text) && AttachmentsAdapter.AttachmentList.Count == 0)
+                Log.Info("FON_POST", "Post button clicked");
+
+                if (IsPosting)
                 {
+                    Log.Warn("FON_POST", "Ignored duplicate submit while posting is in progress");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(TxtContentPost.Text) && string.IsNullOrWhiteSpace(MentionTextView.Text) && AttachmentsAdapter.AttachmentList.Count == 0)
+                {
+                    Log.Warn("FON_POST", "Validation failed: empty post");
                     ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_YouCannot_PostanEmptyPost), ToastLength.Long);
+                    return;
+                }
+
+                if (!Methods.CheckConnectivity())
+                {
+                    Log.Warn("FON_POST", "Validation failed: no internet connectivity");
+                    ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
+                    return;
+                }
+
+                string content = !string.IsNullOrEmpty(MentionText) ? TxtContentPost.Text + " " + GetText(Resource.String.Lbl_With) + " " + MentionText.Remove(MentionText.Length - 1, 1) : TxtContentPost.Text;
+                content = content?.Trim() ?? string.Empty;
+
+                if (ListUtils.SettingsSiteList?.MaxCharacters != null)
+                {
+                    int max = Convert.ToInt32(ListUtils.SettingsSiteList?.MaxCharacters);
+                    if (max < content?.Length)
+                    {
+                        Log.Warn("FON_POST", "Validation failed: max characters exceeded");
+                        ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_Error_MaxCharacters) + " " + ListUtils.SettingsSiteList?.MaxCharacters, ToastLength.Short);
+                        return;
+                    }
+                }
+
+                var missingAttachment = AttachmentsAdapter.AttachmentList.FirstOrDefault(a =>
+                    !string.IsNullOrWhiteSpace(a.FileUrl) &&
+                    !a.FileUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
+                    !global::System.IO.File.Exists(a.FileUrl));
+
+                if (missingAttachment != null)
+                {
+                    Log.Warn("FON_POST", $"Validation failed: missing attachment file path={missingAttachment.FileUrl}");
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Failed_to_load), ToastLength.Short);
+                    return;
+                }
+
+                SetPostingState(true);
+                IsPosting = true;
+                Log.Info("FON_POST", $"Validation passed. Starting API request pagePost={PagePost} idPost={IdPost} attachments={AttachmentsAdapter.AttachmentList.Count}");
+
+                var (apiStatus, respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
+                var customApiStatus = apiStatus;
+                var customRespond = respond;
+                Log.Info("FON_POST", $"Custom API response received apiStatus={apiStatus} respondType={respond?.GetType().Name ?? "null"}");
+
+                if (apiStatus != 200 && apiStatus != 201)
+                {
+                    Log.Warn("FON_POST", $"Custom post failed apiStatus={apiStatus}. Retrying with SDK request path.");
+                    var sdkResult = await RequestsAsync.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
+                    apiStatus = sdkResult.Item1;
+                    respond = sdkResult.Item2;
+                    Log.Info("FON_POST", $"SDK API response received apiStatus={apiStatus} respondType={respond?.GetType().Name ?? "null"}");
+
+                    if (apiStatus == 404 && respond is string sdkMessage && sdkMessage.Contains("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase))
+                    {
+                        apiStatus = customApiStatus;
+                        respond = customRespond;
+                        Log.Warn("FON_POST", "SDK fallback returned non-JSON response. Preserving custom API error message.");
+                    }
+                }
+
+                if (apiStatus == 200 && respond is AddPostObject postObject)
+                {
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Post_Added), ToastLength.Short);
+
+                    if (postObject.PostData != null)
+                    {
+                        TryInjectPostIntoNewsFeed(postObject.PostData);
+                    }
+
+                    var resultIntent = new Intent();
+                    if (postObject.PostData != null)
+                        resultIntent.PutExtra("itemObject", JsonConvert.SerializeObject(postObject.PostData));
+
+                    SetResult(Result.Ok, resultIntent);
+                    Finish();
+                }
+                else if (apiStatus == 201)
+                {
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_VideoUploadWithProcessed), ToastLength.Short);
+                    Finish();
                 }
                 else
                 {
-                    if (!Methods.CheckConnectivity())
+                    SetPostingState(false);
+                    IsPosting = false;
+
+                    if (respond is string message && !string.IsNullOrWhiteSpace(message))
                     {
-                        ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
-                        return;
-                    }
+                        if (message.IndexOf("something went wrong", StringComparison.OrdinalIgnoreCase) >= 0)
+                            message = "Something went wrong. Please try again.";
+                        else if (message.IndexOf("bad request", StringComparison.OrdinalIgnoreCase) >= 0)
+                            message = "Unable to publish your post right now. Please try again.";
 
-                    string content = !string.IsNullOrEmpty(MentionText) ? TxtContentPost.Text + " " + GetText(Resource.String.Lbl_With) + " " + MentionText.Remove(MentionText.Length - 1, 1) : TxtContentPost.Text;
-
-                    if (ListUtils.SettingsSiteList?.MaxCharacters != null)
-                    {
-                        int max = Convert.ToInt32(ListUtils.SettingsSiteList?.MaxCharacters);
-                        if (max < content?.Length)
-                        {
-                            ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_Error_MaxCharacters) + " " + ListUtils.SettingsSiteList?.MaxCharacters, ToastLength.Short);
-                            return;
-                        }
-                    }
-
-                    TxtAddPost.Enabled = false;
-
-                    var (apiStatus, respond) = await RequestsAsync.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
-                    if (apiStatus == 200 && respond is AddPostObject postObject)
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Post_Added), ToastLength.Short);
-
-                        var resultIntent = new Intent();
-                        if (postObject.PostData != null)
-                            resultIntent.PutExtra("itemObject", JsonConvert.SerializeObject(postObject.PostData));
-
-                        SetResult(Result.Ok, resultIntent);
-                        Finish();
-                    }
-                    else if (apiStatus == 201)
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_VideoUploadWithProcessed), ToastLength.Short);
-                        Finish();
+                        Log.Warn("FON_POST", $"Submit failed with message={message}");
+                        ToastUtils.ShowToast(this, message, ToastLength.Long);
                     }
                     else
                     {
-                        TxtAddPost.Enabled = true;
                         Methods.DisplayReportResult(this, respond);
                     }
                 }
             }
             catch (Exception exception)
             {
-                TxtAddPost.Enabled = true;
+                Log.Error("FON_POST", $"Unhandled exception in submit: {exception}");
+                SetPostingState(false);
+                IsPosting = false;
                 Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private void SetPostingState(bool isPosting)
+        {
+            try
+            {
+                TxtAddPost.Enabled = !isPosting;
+                TxtAddPost.Clickable = !isPosting;
+                TxtAddPost.Alpha = isPosting ? 0.65f : 1f;
+                TxtAddPost.Text = isPosting ? GetString(Resource.String.Lbl_Please_wait) : (string.IsNullOrWhiteSpace(DefaultPostButtonText) ? GetString(Resource.String.Lbl_Post) : DefaultPostButtonText);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private void TryInjectPostIntoNewsFeed(PostDataObject postData)
+        {
+            try
+            {
+                var global = TabbedMainActivity.GetInstance();
+                var adapter = global?.NewsFeedTab?.PostFeedAdapter;
+                if (adapter?.ListDiffer == null)
+                    return;
+
+                postData.Reaction ??= new Reaction();
+
+                var combine = new FeedCombiner(ApiPostAsync.RegexFilterText(postData), adapter.ListDiffer, this);
+                var check = adapter.ListDiffer.FirstOrDefault(a => a.PostData != null && a.TypeView != PostModelType.AddPostBox);
+                if (check != null)
+                    combine.CombineDefaultPostSections("Top");
+                else
+                    combine.CombineDefaultPostSections();
+
+                adapter.NotifyDataSetChanged();
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
             }
         }
 
@@ -973,6 +1094,7 @@ namespace Facesofnaija.Activities.AddPost
 
                                 foreach (var item in mPaths)
                                 {
+                                    PendingAttachmentTypeHint = "Image";
                                     PickiTonCompleteListener(item);
                                 }
                             }
@@ -985,14 +1107,20 @@ namespace Facesofnaija.Activities.AddPost
                                     {
                                         var item = mClipData.GetItemAt(i);
                                         Uri uri = item.Uri;
-                                        var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                                        var filepath = ResolveAttachmentPathFromUri(uri);
+                                        if (string.IsNullOrWhiteSpace(filepath))
+                                            continue;
+                                        PendingAttachmentTypeHint = "Image";
                                         PickiTonCompleteListener(filepath);
                                     }
                                 }
                                 else
                                 {
                                     Uri uri = data.Data;
-                                    var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                                    var filepath = ResolveAttachmentPathFromUri(uri);
+                                    if (string.IsNullOrWhiteSpace(filepath))
+                                        break;
+                                    PendingAttachmentTypeHint = "Image";
                                     PickiTonCompleteListener(filepath);
                                 }
                             }
@@ -1007,7 +1135,9 @@ namespace Facesofnaija.Activities.AddPost
 
                             UriData = data.Data;
 
-                            var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, data.Data);
+                            var filepath = ResolveAttachmentPathFromUri(data.Data);
+                            if (string.IsNullOrWhiteSpace(filepath))
+                                break;
 
                             if (AppSettings.EnableVideoEditor)
                             {
@@ -1049,7 +1179,10 @@ namespace Facesofnaija.Activities.AddPost
                                 StartActivityForResult(intent, 2000);
                             }
                             else
+                            {
+                                PendingAttachmentTypeHint = "Video";
                                 PickiTonCompleteListener(filepath);
+                            }
 
                             break;
                         }
@@ -1060,7 +1193,9 @@ namespace Facesofnaija.Activities.AddPost
 
                             AttachmentsAdapter.RemoveAll();
 
-                            var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, data.Data);
+                            var filepath = ResolveAttachmentPathFromUri(data.Data);
+                            if (string.IsNullOrWhiteSpace(filepath))
+                                break;
 
                             if (AppSettings.EnableVideoEditor)
                             {
@@ -1102,7 +1237,10 @@ namespace Facesofnaija.Activities.AddPost
                                 StartActivityForResult(intent, 2000);
                             }
                             else
+                            {
+                                PendingAttachmentTypeHint = "Video";
                                 PickiTonCompleteListener(filepath);
+                            }
 
                             break;
                         }
@@ -1183,7 +1321,9 @@ namespace Facesofnaija.Activities.AddPost
                             if (string.IsNullOrEmpty(IntentController.CurrentPhotoPath))
                             {
                                 Uri uri = data.Data;
-                                var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                                var filepath = ResolveAttachmentPathFromUri(uri);
+                                if (string.IsNullOrWhiteSpace(filepath))
+                                    break;
                                 PickiTonCompleteListener(filepath);
                             }
                             else
@@ -1256,7 +1396,9 @@ namespace Facesofnaija.Activities.AddPost
                     case 504 when resultCode == Result.Ok:
                         {
                             Uri uri = data.Data;
-                            var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                            var filepath = ResolveAttachmentPathFromUri(uri);
+                            if (string.IsNullOrWhiteSpace(filepath))
+                                break;
                             PickiTonCompleteListener(filepath);
                             break;
                         }
@@ -1264,7 +1406,9 @@ namespace Facesofnaija.Activities.AddPost
                     case 505 when resultCode == Result.Ok:
                         {
                             Uri uri = data.Data;
-                            var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                            var filepath = ResolveAttachmentPathFromUri(uri);
+                            if (string.IsNullOrWhiteSpace(filepath))
+                                break;
                             PickiTonCompleteListener(filepath);
                             break;
                         }
@@ -1299,6 +1443,86 @@ namespace Facesofnaija.Activities.AddPost
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private string ResolveAttachmentPathFromUri(Uri uri)
+        {
+            try
+            {
+                if (uri == null)
+                    return string.Empty;
+
+                var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, uri);
+                if (!string.IsNullOrWhiteSpace(filepath) && global::System.IO.File.Exists(filepath))
+                    return filepath;
+
+                using var input = ContentResolver?.OpenInputStream(uri);
+                if (input == null)
+                    return filepath ?? string.Empty;
+
+                var extension = "bin";
+                var mime = ContentResolver?.GetType(uri) ?? string.Empty;
+                if (mime.Contains("image"))
+                    extension = "jpg";
+                else if (mime.Contains("video"))
+                    extension = "mp4";
+                else if (mime.Contains("audio"))
+                    extension = "mp3";
+
+                if (extension == "bin")
+                {
+                    var lastSegment = uri.LastPathSegment ?? string.Empty;
+                    var dotIndex = lastSegment.LastIndexOf('.');
+                    if (dotIndex >= 0 && dotIndex < lastSegment.Length - 1)
+                    {
+                        var extFromSegment = lastSegment[(dotIndex + 1)..].Trim().ToLowerInvariant();
+                        if (!string.IsNullOrWhiteSpace(extFromSegment) && extFromSegment.Length <= 6)
+                            extension = extFromSegment;
+                    }
+                }
+
+                if (extension == "bin")
+                {
+                    try
+                    {
+                        using var cursor = ContentResolver?.Query(uri, null, null, null, null);
+                        if (cursor != null && cursor.MoveToFirst())
+                        {
+                            var index = cursor.GetColumnIndex(OpenableColumns.DisplayName);
+                            if (index >= 0)
+                            {
+                                var displayName = cursor.GetString(index) ?? string.Empty;
+                                var dotIndex = displayName.LastIndexOf('.');
+                                if (dotIndex >= 0 && dotIndex < displayName.Length - 1)
+                                {
+                                    var extFromName = displayName[(dotIndex + 1)..].Trim().ToLowerInvariant();
+                                    if (!string.IsNullOrWhiteSpace(extFromName) && extFromName.Length <= 6)
+                                        extension = extFromName;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Methods.DisplayReportResultTrack(ex);
+                    }
+                }
+
+                Methods.Path.Chack_MyFolder();
+                var destPath = global::System.IO.Path.Combine(Methods.Path.FolderDiskImage, $"att_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.{extension}");
+
+                using (var output = global::System.IO.File.Create(destPath))
+                {
+                    input.CopyTo(output);
+                }
+
+                return destPath;
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+                return string.Empty;
             }
         }
 
@@ -1466,7 +1690,11 @@ namespace Facesofnaija.Activities.AddPost
             {
                 if (DataUser != null)
                 {
-                    GlideImageLoader.LoadImage(this, DataUser.Avatar, PostSectionImage, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+                    var avatar = ResolveComposerAvatar(DataUser?.Avatar);
+
+                    Log.Info("FON_POST", $"LoadDataUser userId={DataUser.UserId} username={DataUser.Username} avatar={avatar}");
+
+                    GlideImageLoader.LoadImage(this, avatar, PostSectionImage, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
 
                     TxtUserName.Text = WoWonderTools.GetNameFinal(DataUser);
 
@@ -1485,12 +1713,52 @@ namespace Facesofnaija.Activities.AddPost
                 }
                 else
                 {
-                    TxtUserName.Text = UserDetails.Username;
+                    var avatar = ResolveComposerAvatar();
+
+                    Log.Info("FON_POST", $"LoadDataUser fallback avatar={avatar}");
+
+                    GlideImageLoader.LoadImage(this, avatar, PostSectionImage, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+
+                    TxtUserName.Text = !string.IsNullOrWhiteSpace(UserDetails.FullName) ? UserDetails.FullName : UserDetails.Username;
                 }
             }
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private static string ResolveComposerAvatar(string preferredAvatar = null)
+        {
+            try
+            {
+                string IsUsable(string value)
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                        return null;
+
+                    var trimmed = value.Trim();
+                    if (trimmed.Equals("null", StringComparison.OrdinalIgnoreCase) || trimmed == "0")
+                        return null;
+
+                    return trimmed;
+                }
+
+                var localProfile = ListUtils.MyProfileList?.FirstOrDefault();
+                if (localProfile == null)
+                    localProfile = new SqLiteDatabase().Get_MyProfile();
+
+                var avatar = IsUsable(preferredAvatar)
+                             ?? IsUsable(UserDetails.Avatar)
+                             ?? IsUsable(localProfile?.Avatar)
+                             ?? IsUsable(WoWonderTools.GetDefaultAvatar())
+                             ?? "no_profile_image";
+
+                return GlideImageLoader.NormalizeImageUrl(avatar);
+            }
+            catch
+            {
+                return "no_profile_image";
             }
         }
 
@@ -2266,6 +2534,13 @@ namespace Facesofnaija.Activities.AddPost
             //Dismiss dialog and return the path
             try
             {
+                if (string.IsNullOrWhiteSpace(path) || !global::System.IO.File.Exists(path))
+                {
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Failed_to_load), ToastLength.Short);
+                    Log.Warn("FON_POST", $"PickiTonCompleteListener invalid path={path}");
+                    return;
+                }
+
                 //  Check if it was a Drive/local/unknown provider file and display a Toast
                 //if (wasDriveFile)
                 //{
@@ -2282,6 +2557,26 @@ namespace Facesofnaija.Activities.AddPost
 
                 //  Chick if it was successful
                 var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(path);
+                var detectedType = Methods.AttachmentFiles.Check_FileExtension(path);
+
+                if (detectedType == "File" && string.Equals(PendingAttachmentTypeHint, "Video", StringComparison.OrdinalIgnoreCase))
+                    detectedType = "Video";
+
+                if (check is false && info != "AdultImages" && (detectedType == "Image" || detectedType == "Video" || detectedType == "Audio"))
+                {
+                    check = true;
+                    Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={detectedType} path={path}");
+                }
+
+                Log.Info("FON_POST", $"Mime check path={path} check={check} info={info} detected={detectedType} hint={PendingAttachmentTypeHint}");
+
+                if (check is false && info != "AdultImages" && (detectedType == "Video" || detectedType == "Image" || detectedType == "Audio"))
+                {
+                    // Some content providers return generic mime values; trust local extension for common media types.
+                    check = true;
+                    Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={detectedType} path={path}");
+                }
+
                 if (check is false)
                 {
                     if (info == "AdultImages")
@@ -2449,7 +2744,7 @@ namespace Facesofnaija.Activities.AddPost
                                 {
                                     case "File Dont Exists":
                                         {
-                                            var bitmapImage = Methods.MultiMedia.Retrieve_VideoFrame_AsBitmap(this, UriData.ToString());
+                                            var bitmapImage = Methods.MultiMedia.Retrieve_VideoFrame_AsBitmap(this, UriData?.ToString() ?? path);
                                             Methods.MultiMedia.Export_Bitmap_As_Image(bitmapImage, fileNameWithoutExtenion, Methods.Path.FolderDcimImage);
                                             break;
                                         }
@@ -2547,6 +2842,10 @@ namespace Facesofnaija.Activities.AddPost
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
+            }
+            finally
+            {
+                PendingAttachmentTypeHint = string.Empty;
             }
         }
 

@@ -11,7 +11,11 @@ using System.Collections.Generic;
 using System.Linq;
 using WoWonderClient.Requests;
 using WoWonderClient.Classes.Global;
+using WoWonderClient.Classes.Posts;
+using System.Collections.ObjectModel;
+using System.IO;
 using Facesofnaija.CustomApi.Classes.Search;
+using System.Net.Http.Headers;
 
 namespace Facesofnaija.CustomApi.Requests
 {
@@ -758,5 +762,204 @@ namespace Facesofnaija.CustomApi.Requests
 
             return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
         }
+
+        // ---------------------------------------------------------------------------
+        // Custom Posts — bypasses the SDK's internal HttpClient which points to the
+        // wrong domain (facesofnaija.com) and instead uses InitializeWoWonder.WebsiteUrl
+        // (the working IP from analytic.xml).
+        // ---------------------------------------------------------------------------
+        public static class Posts
+            {
+                private static string GetApiBase()
+                {
+                    // Posting is currently broken on the domain endpoint but works on the server IP.
+                    return "http://172.236.19.52";
+                }
+
+                public static async Task<(int, dynamic)> AddNewPostAsync(
+                    string userId, string postId, string pagePost, string textContent,
+                    string privacy, string feelingType, string feeling, string location,
+                    ObservableCollection<Attachments> postAttachments,
+                    ObservableCollection<PollAnswers> pollAnswersList,
+                    string idColor, string albumName)
+                {
+                    try
+                    {
+                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId))
+                        {
+                            Android.Util.Log.Warn("FON_POST_CUSTOM", "submit aborted: session id is empty");
+                            return (400, "Session is missing. Please sign in again.");
+                        }
+
+                        var endpoints = new[]
+                        {
+                            $"{GetApiBase()}/app_api.php?application=phone&type=new_post",
+                            $"{GetApiBase()}/app_api.php?type=new_post"
+                        };
+
+                        Android.Util.Log.Info("FON_POST_CUSTOM", $"submit pagePost={pagePost} userId={userId} postId={postId} privacy={privacy ?? "NULL"} textLen={(textContent ?? string.Empty).Length} attachments={postAttachments?.Count ?? 0} serverKeyLen={(InitializeWoWonder.ServerKey ?? string.Empty).Length}");
+
+                        string lastError = "Bad request.";
+                        var hasExplicitApiError = false;
+                        foreach (var url in endpoints)
+                        {
+                            using var form = new MultipartFormDataContent(Guid.NewGuid().ToString());
+                            form.Add(new StringContent(InitializeWoWonder.ServerKey ?? string.Empty), "server_key");
+                            form.Add(new StringContent(userId ?? string.Empty), "user_id");
+                            form.Add(new StringContent(sessionId ?? string.Empty), "s");
+
+                            var normalizedPrivacy = string.IsNullOrWhiteSpace(privacy) ? "0" : privacy;
+                            form.Add(new StringContent(textContent ?? string.Empty), "postText");
+                            form.Add(new StringContent(normalizedPrivacy), "postPrivacy");
+                            form.Add(new StringContent("0"), "community_id");
+
+                            if (!string.IsNullOrEmpty(feelingType))
+                                form.Add(new StringContent(feelingType), "feeling_type");
+                            if (!string.IsNullOrEmpty(feeling))
+                                form.Add(new StringContent(feeling), "feeling");
+                            if (!string.IsNullOrEmpty(location))
+                                form.Add(new StringContent(location), "postMap");
+                            if (!string.IsNullOrEmpty(idColor))
+                                form.Add(new StringContent(idColor), "post_color");
+                            if (!string.IsNullOrEmpty(albumName))
+                                form.Add(new StringContent(albumName), "album_name");
+
+                            if (!string.IsNullOrEmpty(pagePost) && !string.IsNullOrEmpty(postId))
+                            {
+                                if (pagePost.Contains("SocialGroup", StringComparison.OrdinalIgnoreCase) || pagePost.Contains("Group", StringComparison.OrdinalIgnoreCase))
+                                    form.Add(new StringContent(postId), "group_id");
+                                else if (pagePost.Contains("SocialPage", StringComparison.OrdinalIgnoreCase) || pagePost.Contains("Page", StringComparison.OrdinalIgnoreCase))
+                                    form.Add(new StringContent(postId), "page_id");
+                                else if (pagePost.Contains("SocialEvent", StringComparison.OrdinalIgnoreCase) || pagePost.Contains("Event", StringComparison.OrdinalIgnoreCase))
+                                    form.Add(new StringContent(postId), "event_id");
+                                else if (pagePost.Contains("Normal", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (!string.Equals(userId, postId, StringComparison.OrdinalIgnoreCase))
+                                        form.Add(new StringContent(postId), "recipient_id");
+                                }
+                            }
+
+                            if (pollAnswersList != null)
+                            {
+                                foreach (var answer in pollAnswersList)
+                                {
+                                    if (!string.IsNullOrEmpty(answer?.Answer))
+                                        form.Add(new StringContent(answer.Answer), "answer[]");
+                                }
+                            }
+
+                            if (postAttachments != null && postAttachments.Count > 0)
+                            {
+                                foreach (var att in postAttachments)
+                                {
+                                    if (string.IsNullOrEmpty(att?.FileUrl)) continue;
+                                    if (att.FileStream != null)
+                                    {
+                                        att.FileStream.Position = 0;
+                                        using var ms = new MemoryStream();
+                                        att.FileStream.CopyTo(ms);
+                                        var bytes = ms.ToArray();
+                                        var fileName = att.FileName ?? "file";
+                                        var fileContent = new ByteArrayContent(bytes);
+                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileName));
+                                        form.Add(fileContent, att.TypeAttachment, fileName);
+
+                                        if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
+                                        {
+                                            var thumbBytes = File.ReadAllBytes(att.Thumb.FileUrl);
+                                            var thumbName = Path.GetFileName(att.Thumb.FileUrl);
+                                            var thumbContent = new ByteArrayContent(thumbBytes);
+                                            thumbContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(thumbName));
+                                            form.Add(thumbContent, att.Thumb.TypeAttachment, thumbName);
+                                        }
+                                    }
+                                    else if (File.Exists(att.FileUrl))
+                                    {
+                                        var bytes = File.ReadAllBytes(att.FileUrl);
+                                        var fileName = att.FileName ?? Path.GetFileName(att.FileUrl);
+                                        var fileContent = new ByteArrayContent(bytes);
+                                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(fileName));
+                                        form.Add(fileContent, att.TypeAttachment, fileName);
+
+                                        if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
+                                        {
+                                            var thumbBytes = File.ReadAllBytes(att.Thumb.FileUrl);
+                                            var thumbName = Path.GetFileName(att.Thumb.FileUrl);
+                                            var thumbContent = new ByteArrayContent(thumbBytes);
+                                            thumbContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(thumbName));
+                                            form.Add(thumbContent, att.Thumb.TypeAttachment, thumbName);
+                                        }
+                                    }
+                                    else if (att.FileUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        form.Add(new StringContent(att.FileUrl), "postSticker");
+                                    }
+                                }
+                            }
+
+                            Android.Util.Log.Info("FON_POST_CUSTOM", $"POST → {url}");
+                            var response = await client.PostAsync(url, form);
+                            var json = await response.Content.ReadAsStringAsync();
+                            Android.Util.Log.Info("FON_POST_CUSTOM", $"Response {(int)response.StatusCode}: {json?.Substring(0, Math.Min(400, json?.Length ?? 0))}");
+
+                            if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                            {
+                                if (!hasExplicitApiError)
+                                    lastError = $"Unexpected server response (HTTP {(int)response.StatusCode})";
+                                continue;
+                            }
+
+                            var token = JObject.Parse(json);
+                            var apiStatus = token["api_status"]?.ToString();
+                            if (string.Equals(apiStatus, "200", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var result = token.ToObject<AddPostObject>();
+                                if (result != null)
+                                    return (200, result);
+
+                                return (200, json);
+                            }
+
+                            var errorText = token["errors"]?["error_text"]?.ToString();
+                            if (!string.IsNullOrWhiteSpace(errorText))
+                            {
+                                lastError = errorText;
+                                hasExplicitApiError = true;
+                            }
+                            else
+                                lastError = json;
+                        }
+
+                        return (400, lastError);
+                    }
+                    catch (Exception ex)
+                    {
+                        Android.Util.Log.Error("FON_POST_CUSTOM", $"Exception: {ex.Message}");
+                        return (404, ex.Message);
+                    }
+                }
+
+                private static string GetMimeType(string fileName)
+                {
+                    var ext = Path.GetExtension(fileName)?.ToLowerInvariant();
+                    return ext switch
+                    {
+                        ".jpg" => "image/jpeg",
+                        ".jpeg" => "image/jpeg",
+                        ".png" => "image/png",
+                        ".gif" => "image/gif",
+                        ".webp" => "image/webp",
+                        ".mp4" => "video/mp4",
+                        ".mov" => "video/quicktime",
+                        ".m4v" => "video/x-m4v",
+                        ".3gp" => "video/3gpp",
+                        ".mp3" => "audio/mpeg",
+                        ".wav" => "audio/wav",
+                        _ => "application/octet-stream"
+                    };
+                }
+            }
+        }
     }
-}

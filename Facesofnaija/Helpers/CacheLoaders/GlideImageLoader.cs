@@ -49,11 +49,20 @@ namespace Facesofnaija.Helpers.CacheLoaders
 
                 imageUri = imageUri.Trim().Replace(" ", "");
 
+                if (imageUri.Equals("no_profile_image", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_image", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_image.png", System.StringComparison.OrdinalIgnoreCase))
+                    return "no_profile_image";
+
+                if (imageUri.Equals("no_profile_female_image", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_female_image", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_female_image.png", System.StringComparison.OrdinalIgnoreCase))
+                    return "no_profile_female_image";
+
+                if (imageUri.Equals("no_profile_image_circle", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_image_circle", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_image_circle.png", System.StringComparison.OrdinalIgnoreCase))
+                    return "no_profile_image_circle";
+
+                if (imageUri.Equals("no_profile_female_image_circle", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_female_image_circle", System.StringComparison.OrdinalIgnoreCase) || imageUri.EndsWith("/no_profile_female_image_circle.png", System.StringComparison.OrdinalIgnoreCase))
+                    return "no_profile_female_image_circle";
+
                 if (imageUri.Contains("file://") || imageUri.Contains("content://") || imageUri.Contains("storage") || imageUri.Contains("/data/user/0/") || imageUri.Contains("user_anonymous"))
                     return imageUri;
-
-                if (imageUri == "no_profile_image" || imageUri.EndsWith("/no_profile_image"))
-                    return "http://172.236.19.52/assets/images/no_profile_image.png";
 
                 if (imageUri.StartsWith("//"))
                     return "http:" + imageUri;

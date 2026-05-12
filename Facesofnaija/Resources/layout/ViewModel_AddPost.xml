@@ -4,162 +4,195 @@
 	xmlns:app="http://schemas.android.com/apk/res-auto"
 	android:layout_width="match_parent"
 	android:layout_height="wrap_content"
-	android:layout_weight="10"
-	android:orientation="vertical">
-	<LinearLayout
-		android:id="@+id/addLayout"
-		android:layout_width="match_parent"
-		android:layout_height="75dp"
-		android:background="?attr/selectableItemBackground"
-		android:focusable="true"
-		android:clickable="true"
-		android:orientation="horizontal"
-		android:gravity="center_vertical">
+	android:orientation="vertical"
+	android:paddingStart="12dp"
+	android:paddingEnd="12dp"
+	android:paddingTop="8dp"
+	android:paddingBottom="8dp">
 
-		<refractored.controls.CircleImageView
-			android:id="@+id/image"
-			android:layout_weight="0"
-			android:layout_width="40dp"
-			android:layout_marginStart="16dp"
-			android:layout_height="40dp"
-			android:layout_gravity="center"
-			android:layout_centerVertical="true"
-			android:layout_alignParentStart="true"
-			android:scaleType="centerCrop"
-			app:civ_border_width="1dp"
-			app:civ_border_color="@color/gnt_white"
-			android:src="@drawable/Cover_image" />
-		<LinearLayout
-			android:id="@+id/ll_post_text"
+	<com.google.android.material.card.MaterialCardView
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		app:cardBackgroundColor="?attr/colorFill"
+		app:cardCornerRadius="16dp"
+		app:cardElevation="2dp"
+		app:strokeColor="?attr/colorDivider"
+		app:strokeWidth="1dp">
+
+		<androidx.constraintlayout.widget.ConstraintLayout
 			android:layout_width="match_parent"
-			android:layout_height="match_parent"
-			android:orientation="vertical"
-			android:gravity="center_vertical"
-			android:layout_marginStart="13dp">
+			android:layout_height="wrap_content"
+			android:paddingTop="12dp"
+			android:paddingBottom="8dp">
 
-			<TextView
-				android:id="@+id/postText"
-				android:layout_toEndOf="@+id/image"
-				android:layout_width="match_parent"
+			<LinearLayout
+				android:id="@+id/addLayout"
+				android:layout_width="0dp"
 				android:layout_height="wrap_content"
-				android:layout_gravity="center"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp"
+				android:background="?attr/selectableItemBackground"
+				android:clickable="true"
+				android:focusable="true"
 				android:gravity="center_vertical"
-				android:layout_centerVertical="true"
-				android:lines="1"
-				android:text="@string/Lbl_Whats_Going_On"
-				android:textSize="16sp" />
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_marginTop="3dp"
-				android:text="@string/Lbl_TypeSomethingsHere"
-				android:textSize="12sp"
-				android:textColor="@color/text_color_in_between"/>
+				android:minHeight="64dp"
+				android:orientation="horizontal"
+				android:paddingTop="6dp"
+				android:paddingBottom="6dp"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toTopOf="parent">
 
-		</LinearLayout>
-	</LinearLayout>
+				<refractored.controls.CircleImageView
+					android:id="@+id/image"
+					android:layout_width="42dp"
+					android:layout_height="42dp"
+					android:scaleType="centerCrop"
+					android:src="@drawable/no_profile_image"
+					app:civ_border_color="@color/gnt_white"
+					app:civ_border_width="1dp" />
 
-	<LinearLayout
-		android:layout_width="match_parent"
-		android:layout_height="35dp"
-		android:orientation="horizontal"
-		android:weightSum="4"
-		android:layout_marginBottom="12dp">
+				<LinearLayout
+					android:id="@+id/ll_post_text"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_marginStart="12dp"
+					android:layout_weight="1"
+					android:orientation="vertical">
 
-		<LinearLayout
-			android:id="@+id/rlPostGallery"
-			android:layout_width="0dp"
-			android:layout_height="match_parent"
-			android:layout_weight="1"
-			android:background="?attr/selectableItemBackground"
-			android:gravity="center"
-			android:orientation="horizontal">
-			<ImageView
-				android:layout_width="16dp"
-				android:layout_height="16dp"
-				android:src="@drawable/icon_addpost_image_vector"/>
-			<TextView
-				android:layout_width="wrap_content"
-				android:layout_height="match_parent"
-				android:layout_marginStart="7dp"
-				android:text="@string/Lbl_Gallery"
+					<TextView
+						android:id="@+id/postText"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:lines="1"
+						android:text="@string/Lbl_Whats_Going_On"
+						android:textColor="?attr/colorReact"
+						android:textSize="16sp"
+						android:textStyle="bold" />
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="2dp"
+						android:text="@string/Lbl_TypeSomethingsHere"
+						android:textColor="@color/text_color_in_between"
+						android:textSize="12sp" />
+				</LinearLayout>
+			</LinearLayout>
+
+			<LinearLayout
+				android:id="@+id/actionRow"
+				android:layout_width="0dp"
+				android:layout_height="40dp"
+				android:layout_marginStart="8dp"
+				android:layout_marginTop="8dp"
+				android:layout_marginEnd="8dp"
 				android:gravity="center_vertical"
-				android:textSize="13sp"
-				android:textColor="?attr/colorReact"/>
-		</LinearLayout>
+				android:orientation="horizontal"
+				android:weightSum="4"
+				app:layout_constraintEnd_toEndOf="parent"
+				app:layout_constraintStart_toStartOf="parent"
+				app:layout_constraintTop_toBottomOf="@id/addLayout">
 
-		<LinearLayout
-			android:id="@+id/rlPostFriend"
-			android:layout_width="0dp"
-			android:layout_height="match_parent"
-			android:layout_weight="1"
-			android:background="?attr/selectableItemBackground"
-			android:gravity="center"
-			android:orientation="horizontal">
-			<ImageView
-				android:layout_width="16dp"
-				android:layout_height="16dp"
-				android:src="@drawable/icon_addpost_users_vector"/>
-			<TextView
-				android:layout_width="wrap_content"
-				android:layout_height="match_parent"
-				android:layout_marginStart="7dp"
-				android:text="@string/Lbl_Friend"
-				android:gravity="center_vertical"
-				android:textSize="12sp"
-				android:textColor="?attr/colorReact"/>
-		</LinearLayout>
+				<LinearLayout
+					android:id="@+id/rlPostGallery"
+					android:layout_width="0dp"
+					android:layout_height="match_parent"
+					android:layout_weight="1"
+					android:background="?attr/selectableItemBackground"
+					android:gravity="center"
+					android:orientation="horizontal">
 
-		<LinearLayout
-			android:id="@+id/rlPostFeeling"
-			android:layout_width="0dp"
-			android:layout_height="match_parent"
-			android:layout_weight="1"
-			android:background="?attr/selectableItemBackground"
-			android:gravity="center"
-			android:orientation="horizontal">
-			<ImageView
-				android:layout_width="16dp"
-				android:layout_height="16dp"
-				android:src="@drawable/icon_addpost_feeling_vector"/>
-			<TextView
-				android:layout_width="wrap_content"
-				android:layout_height="match_parent"
-				android:layout_marginStart="7dp"
-				android:text="@string/Lbl_Feeling"
-				android:gravity="center_vertical"
-				android:textSize="13sp"
-				android:textColor="?attr/colorReact"/>
-		</LinearLayout>
+					<ImageView
+						android:layout_width="16dp"
+						android:layout_height="16dp"
+						android:src="@drawable/icon_addpost_image_vector" />
 
-		<LinearLayout
-			android:id="@+id/rlPostLive"
-			android:layout_width="0dp"
-			android:layout_height="match_parent"
-			android:layout_weight="1"
-			android:background="?attr/selectableItemBackground"
-			android:gravity="center"
-			android:orientation="horizontal">
-			<ImageView
-				android:layout_width="16dp"
-				android:layout_height="16dp"
-				android:src="@drawable/icon_addpost_video_vector"/>
-			<TextView
-				android:layout_width="wrap_content"
-				android:layout_height="match_parent"
-				android:layout_marginStart="7dp"
-				android:text="@string/Lbl_PostLive"
-				android:gravity="center_vertical"
-				android:textSize="13sp"
-				android:textColor="?attr/colorReact"/>
-		</LinearLayout>
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="6dp"
+						android:text="@string/Lbl_Gallery"
+						android:textColor="?attr/colorReact"
+						android:textSize="12sp" />
+				</LinearLayout>
 
-	</LinearLayout>
+				<LinearLayout
+					android:id="@+id/rlPostFriend"
+					android:layout_width="0dp"
+					android:layout_height="match_parent"
+					android:layout_weight="1"
+					android:background="?attr/selectableItemBackground"
+					android:gravity="center"
+					android:orientation="horizontal">
+
+					<ImageView
+						android:layout_width="16dp"
+						android:layout_height="16dp"
+						android:src="@drawable/icon_addpost_users_vector" />
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="6dp"
+						android:text="@string/Lbl_Friend"
+						android:textColor="?attr/colorReact"
+						android:textSize="12sp" />
+				</LinearLayout>
+
+				<LinearLayout
+					android:id="@+id/rlPostFeeling"
+					android:layout_width="0dp"
+					android:layout_height="match_parent"
+					android:layout_weight="1"
+					android:background="?attr/selectableItemBackground"
+					android:gravity="center"
+					android:orientation="horizontal">
+
+					<ImageView
+						android:layout_width="16dp"
+						android:layout_height="16dp"
+						android:src="@drawable/icon_addpost_feeling_vector" />
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="6dp"
+						android:text="@string/Lbl_Feeling"
+						android:textColor="?attr/colorReact"
+						android:textSize="12sp" />
+				</LinearLayout>
+
+				<LinearLayout
+					android:id="@+id/rlPostLive"
+					android:layout_width="0dp"
+					android:layout_height="match_parent"
+					android:layout_weight="1"
+					android:background="?attr/selectableItemBackground"
+					android:gravity="center"
+					android:orientation="horizontal">
+
+					<ImageView
+						android:layout_width="16dp"
+						android:layout_height="16dp"
+						android:src="@drawable/icon_addpost_video_vector" />
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginStart="6dp"
+						android:text="@string/Lbl_PostLive"
+						android:textColor="?attr/colorReact"
+						android:textSize="12sp" />
+				</LinearLayout>
+			</LinearLayout>
+		</androidx.constraintlayout.widget.ConstraintLayout>
+	</com.google.android.material.card.MaterialCardView>
 
 	<View
 		android:id="@+id/simpleViewAnimator"
 		android:layout_width="match_parent"
-		android:background="?attr/colorDivider"
-		android:layout_height="10dp"/>
+		android:layout_height="6dp"
+		android:background="@android:color/transparent" />
 
 </LinearLayout>

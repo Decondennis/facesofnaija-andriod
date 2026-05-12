@@ -3165,6 +3165,12 @@ namespace Facesofnaija.Activities.AddPost
                     // Update UI to reflect image being shared
                     var filePath = Methods.AttachmentFiles.GetActualPathFromFile(this, fileUri);
                     var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(filePath);
+                    var localType = Methods.AttachmentFiles.Check_FileExtension(filePath);
+                    if (check is false && info != "AdultImages" && (localType == "Image" || localType == "Video" || localType == "Audio"))
+                    {
+                        check = true;
+                        Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={localType} path={filePath}");
+                    }
                     if (check is false)
                     {
                         if (info == "AdultImages")
@@ -3237,6 +3243,12 @@ namespace Facesofnaija.Activities.AddPost
                             var filePath = Methods.AttachmentFiles.GetActualPathFromFile(this, fileUri);
 
                             var (check, info) = await WoWonderTools.CheckMimeTypesWithServer(filePath);
+                            var localType = Methods.AttachmentFiles.Check_FileExtension(filePath);
+                            if (check is false && info != "AdultImages" && (localType == "Image" || localType == "Video" || localType == "Audio"))
+                            {
+                                check = true;
+                                Log.Warn("FON_POST", $"Server mime probe inconclusive. Falling back to local type={localType} path={filePath}");
+                            }
                             if (check is false)
                             {
                                 if (info == "AdultImages")

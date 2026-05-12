@@ -134,10 +134,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 switch (NativeFeedAdapter.NativePostType)
                 {
                     case NativeFeedType.Global:
-                        (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
-
-                        if (offset == "0" && (apiStatus != 200 || respond is not PostObject directFirstPage || !HasRenderablePosts(directFirstPage)))
-                            (apiStatus, respond) = await GetGlobalPostDirect("0", adId);
+                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
                         break;
                     case NativeFeedType.User:
                         (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
@@ -366,14 +363,17 @@ namespace Facesofnaija.Activities.NativePost.Post
 
             WRecyclerView.MainScrollEvent.IsLoading = true;
             var adId = NativeFeedAdapter.ListDiffer.LastOrDefault(a => a.TypeView == PostModelType.AdsPost && a.PostData != null && a.PostData.PostType == "ad")?.PostData?.Id ?? "";
-            Log.Warn("FON_TIMELINE", $"Calling GetGlobalPostDirect offset={offset}");
+            Log.Warn("FON_TIMELINE", $"Starting feed request offset={offset}");
             
             switch (NativeFeedAdapter.NativePostType)
             {
                 case NativeFeedType.Global:
-                    (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
-                    if (apiStatus != 200 || respond is not PostObject firstPage || !HasRenderablePosts(firstPage))
-                        (apiStatus, respond) = await GetGlobalPostDirect("0", adId);
+                    (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                    if (apiStatus != 200 || respond is not PostObject typedResult || typedResult?.Data == null)
+                    {
+                        Log.Warn("FON_TIMELINE", $"Primary feed API failed (status={apiStatus}). Trying app_api fallback");
+                        (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
+                    }
                     break;
                 case NativeFeedType.User:
                     (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
@@ -413,7 +413,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             }
 
             var extractedResult = TryGetPostObject(respond);
-            Log.Warn("FON_TIMELINE", $"GetGlobalPostDirect result: apiStatus={apiStatus} posts={extractedResult?.Data?.Count ?? -1}");
+            Log.Warn("FON_TIMELINE", $"Feed result: apiStatus={apiStatus} posts={extractedResult?.Data?.Count ?? -1}");
             if (apiStatus != 200 || extractedResult?.Data == null)
             {
                 WRecyclerView.MainScrollEvent.IsLoading = false;
@@ -466,6 +466,23 @@ namespace Facesofnaija.Activities.NativePost.Post
                 Log.Error("FON_TIMELINE", $"FetchNewsFeedApiPosts EXCEPTION: {ex.GetType().Name}: {ex.Message}");
                 Methods.DisplayReportResultTrack(ex);
                 WRecyclerView.MainScrollEvent.IsLoading = false;
+            }
+            finally
+            {
+                WRecyclerView.MainScrollEvent.IsLoading = false;
+
+                ActivityContext?.RunOnUiThread(() =>
+                {
+                    try
+                    {
+                        if (WRecyclerView.SwipeRefreshLayoutView is { Refreshing: true })
+                            WRecyclerView.SwipeRefreshLayoutView.Refreshing = false;
+                    }
+                    catch (Exception e)
+                    {
+                        Methods.DisplayReportResultTrack(e);
+                    }
+                });
             }
         }
 
@@ -1439,8 +1456,7 @@ namespace Facesofnaija.Activities.NativePost.Post
         }
 
         /// <summary>
-        /// Direct API call fallback for feed endpoints when standard client fails
-        /// Aligns with web app v2 API structure
+        /// Direct feed fallback against app_api.php to bypass client URL-resolution issues.
         /// </summary>
         private async Task<(int, dynamic)> GetGlobalPostDirect(string offset, string adId)
         {
@@ -1450,52 +1466,21 @@ namespace Facesofnaija.Activities.NativePost.Post
                 using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {UserDetails.AccessToken}");
-
-                var urlMock = $"http://172.236.19.52/api/v2/endpoints/posts_mock.php";
-                var url = $"http://172.236.19.52/api/v2/endpoints/posts.php";
+                var url = $"http://172.236.19.52/app_api.php?application=phone&type=get_news_feed";
                 var limit = AppSettings.PostApiLimitOnScroll;
                 var filter = WRecyclerView.GetFilter();
                 var postType = WRecyclerView.GetPostType();
 
                 var postData = new[]
                 {
-                    new KeyValuePair<string, string>("type", "get_news_feed"),
+                    new KeyValuePair<string, string>("user_id", UserDetails.UserId?.ToString() ?? "0"),
+                    new KeyValuePair<string, string>("s", UserDetails.AccessToken ?? ""),
                     new KeyValuePair<string, string>("limit", limit),
-                    new KeyValuePair<string, string>("after_post_id", offset),
-                    new KeyValuePair<string, string>("filter", string.IsNullOrWhiteSpace(filter) ? "all" : filter),
-                    new KeyValuePair<string, string>("post_type", string.IsNullOrWhiteSpace(postType) ? "all" : postType),
+                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                    new KeyValuePair<string, string>("filter", string.IsNullOrWhiteSpace(filter) ? "0" : filter),
+                    new KeyValuePair<string, string>("post_type", string.IsNullOrWhiteSpace(postType) ? "0" : postType),
                     new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
-                    new KeyValuePair<string, string>("access_token", UserDetails.AccessToken ?? ""),
                 };
-
-                // First try compatibility endpoint used during migration.
-                using (var content = new FormUrlEncodedContent(postData))
-                {
-                    try
-                    {
-                        var response = await client.PostAsync(urlMock, content).ConfigureAwait(false);
-                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-                        if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
-                        {
-                            var jObject = JObject.Parse(json);
-                            var statusText = jObject["api_status"]?.ToString();
-                            int.TryParse(statusText, out int status);
-
-                            if (status == 200)
-                            {
-                                var posts = jObject.ToObject<PostObject>();
-                                if (posts?.Data?.Count > 0)
-                                    return (200, (dynamic)posts);
-                            }
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        // Ignore and continue to real endpoint.
-                    }
-                }
 
                 using (var content = new FormUrlEncodedContent(postData))
                 {
@@ -1513,8 +1498,19 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                         if (status == 200)
                         {
-                            var posts = jObject.ToObject<PostObject>();
-                            return (200, (dynamic)posts);
+                            var direct = jObject.ToObject<PostObject>();
+                            if (direct?.Data != null)
+                                return (200, (dynamic)direct);
+
+                            var arr = jObject["data"] as JArray ?? jObject["posts"] as JArray;
+                            if (arr != null)
+                            {
+                                var list = arr.ToObject<List<PostDataObject>>();
+                                if (list != null)
+                                    return (200, (dynamic)new PostObject { Data = list });
+                            }
+
+                            return (200, (dynamic)new PostObject { Data = new List<PostDataObject>() });
                         }
 
                         return (status == 0 ? 400 : status, (dynamic)jObject);

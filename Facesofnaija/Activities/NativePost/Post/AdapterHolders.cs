@@ -2108,6 +2108,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 }
 
                                 //intent.PutExtra("itemObject", JsonConvert.SerializeObject(EventData));
+                                Log.Info("FON_POST", $"Composer action=Gallery launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2155,6 +2156,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
+                                Log.Info("FON_POST", $"Composer action=Write launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2202,6 +2204,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
+                                Log.Info("FON_POST", $"Composer action=Mention launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)
@@ -2249,6 +2252,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                                         intent.PutExtra("PostId", PostAdapter.IdParameter);
                                         break;
                                 }
+                                Log.Info("FON_POST", $"Composer action=Feeling launch type={intent.GetStringExtra("Type")} postId={intent.GetStringExtra("PostId")}");
                                 PostAdapter.ActivityContext.StartActivity(intent);
                             }
                             catch (Exception e)

@@ -3381,8 +3381,17 @@ namespace Facesofnaija.Helpers.Utils
                 if (string.IsNullOrEmpty(filename))
                     return "Forbidden";
 
-                var mime = MimeTypeMap.GetMimeType(filename.Split('.').LastOrDefault());
-                if (string.IsNullOrEmpty(mime)) return "Forbidden";
+                var extension = System.IO.Path.GetExtension(filename)?.TrimStart('.').ToLowerInvariant();
+                var mime = MimeTypeMap.GetMimeType(extension);
+                if (string.IsNullOrEmpty(mime))
+                {
+                    return extension switch
+                    {
+                        "webp" or "heic" or "heif" or "avif" or "bmp" or "jfif" => "Image",
+                        "mkv" or "webm" or "avi" or "flv" or "wmv" or "mpeg" or "mpg" or "mts" or "m2ts" => "Video",
+                        _ => "Forbidden"
+                    };
+                }
                 if (mime.Contains("audio"))
                 {
                     return "Audio";
