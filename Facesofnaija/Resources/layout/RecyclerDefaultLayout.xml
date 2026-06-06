@@ -55,7 +55,7 @@ android:textColor="?attr/colorReact"
       android:layout_height="match_parent"
       android:orientation="vertical"> 
       <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler"
+        android:id="@+id/recyler"
         android:clickable="true"
         android:focusable="false"
         android:focusableInTouchMode="true"

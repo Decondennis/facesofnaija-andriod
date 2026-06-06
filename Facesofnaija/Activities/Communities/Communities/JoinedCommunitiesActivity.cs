@@ -33,6 +33,9 @@ namespace Facesofnaija.Activities.Communities.Communities
         private ViewStub EmptyStateLayout;
         private View Inflated;
 
+        private string FetchType = "joined_communities";
+        private string PageTitle = "Joined Communities";
+
         protected override void OnCreate(Bundle savedInstanceState)
         {
             try
@@ -42,6 +45,9 @@ namespace Facesofnaija.Activities.Communities.Communities
 
                 Methods.App.FullScreenApp(this);
                 SetContentView(Resource.Layout.RecyclerDefaultLayout);
+
+                FetchType = Intent?.GetStringExtra("fetch") ?? "joined_communities";
+                PageTitle = Intent?.GetStringExtra("title") ?? "Joined Communities";
 
                 InitComponent();
                 InitToolbar();
@@ -115,7 +121,7 @@ namespace Facesofnaija.Activities.Communities.Communities
             if (toolBar == null)
                 return;
 
-            toolBar.Title = "Joined Communities";
+            toolBar.Title = PageTitle;
             toolBar.SetTitleTextColor(Color.ParseColor(AppSettings.MainColor));
             SetSupportActionBar(toolBar);
             SupportActionBar?.SetDisplayShowCustomEnabled(true);
@@ -144,15 +150,9 @@ namespace Facesofnaija.Activities.Communities.Communities
 
         private async Task LoadJoinedCommunitiesAsync()
         {
-            if (!Methods.CheckConnectivity())
-            {
-                RunOnUiThread(() => InflateEmptyState(EmptyStateInflater.Type.NoConnection, EmptyStateButtonOnClick));
-                return;
-            }
-
             try
             {
-                var (status, respond) = await CustomRequests.Community.GetJoinedCommunitiesAsync();
+                var (status, respond) = await CustomRequests.Community.GetCommunitiesByFetchAsync(FetchType);
                 if (status == 200 && respond is ListCommunitiesObject result && result.Data != null)
                 {
                     RunOnUiThread(() =>
@@ -243,12 +243,6 @@ namespace Facesofnaija.Activities.Communities.Communities
                 var item = Adapter.GetItem(e.Position);
                 if (item == null)
                     return;
-
-                if (!Methods.CheckConnectivity())
-                {
-                    ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
-                    return;
-                }
 
                 var (apiStatus, respond) = await CustomRequests.Community.JoinCommunityAsync(item.CommunityId);
                 if (apiStatus == 200 && respond is JoinCommunityObject result && result.JoinStatus == "left")

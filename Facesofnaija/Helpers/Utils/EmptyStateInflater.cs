@@ -326,6 +326,15 @@ namespace Facesofnaija.Helpers.Utils
                         TitleText.Text = Application.Context.GetText(Resource.String.Lbl_Empty_Business);
                         DescriptionText.Text = "";
                         break;
+                    case Type.NoCommunity:
+                        FontUtils.SetTextViewIcon(FontsIconFrameWork.FontAwesomeLight, EmptyStateIcon, FontAwesomeIcon.Users);
+                        EmptyStateIcon.SetTextSize(ComplexUnitType.Dip, 45f);
+                        EmptyStateIcon.Visibility = ViewStates.Visible;
+                        TitleText.Text = "No Communities";
+                        DescriptionText.Text = "No communities found.";
+                        EmptyStateButton.Text = Application.Context.GetText(Resource.String.Lbl_Refresh);
+                        EmptyStateButton.Visibility = ViewStates.Visible;
+                        break;
                     case Type.NoBlockedUsers:
                         FontUtils.SetTextViewIcon(FontsIconFrameWork.IonIcons, EmptyStateIcon, IonIconsFonts.Person);
                         EmptyStateIcon.SetTextSize(ComplexUnitType.Dip, 45f);

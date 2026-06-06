@@ -9,28 +9,18 @@
         android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar">
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
-                app:theme="@style/ToolbarTheme"
+            app:theme="@style/ToolbarTheme"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             app:titleTextAppearance="@style/Toolbar.TitleText"
-            android:background="?attr/colorFill">
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/Lbl_Submit"
-                android:layout_gravity="end"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:padding="15dp" 
-                android:id="@+id/toolbar_title" />
-        </androidx.appcompat.widget.Toolbar>
+            android:background="?attr/colorFill" />
     </com.google.android.material.appbar.AppBarLayout>
-	<androidx.core.widget.NestedScrollView
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/toolbar"
         android:clipToPadding="false"
-		android:padding="16dp"
+        android:padding="16dp"
         android:scrollbars="none"
         android:scrollingCache="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
@@ -39,153 +29,151 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-			<com.google.android.material.card.MaterialCardView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_marginBottom="14dp"
-				app:cardBackgroundColor="@color/primary"
-				app:cardCornerRadius="14dp"
-				app:cardElevation="2dp">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:background="#f8f9fa"
+                android:text="As a regular user, you can request permission to create a community. An administrator will review your request."
+                android:textColor="#666666"
+                android:textSize="13sp"
+                android:layout_marginBottom="16dp" />
 
-				<TextView
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:padding="14dp"
-					android:text="As a regular user, you can request permission to create a community. An administrator will review your request."
-					android:textColor="@android:color/white"
-					android:textSize="13sp" />
-			</com.google.android.material.card.MaterialCardView>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Community Name"
+                android:textStyle="bold"
+                android:textSize="14sp" />
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="Community Name"
-				android:textStyle="bold" />
+            <EditText
+                android:id="@+id/CommunityTitleText"
+                style="@style/EditTextNormalStyle"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/round_gray_border"
+                android:gravity="start|center_vertical"
+                android:hint="@string/Lbl_CommunityName"
+                android:inputType="textCapSentences"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:textSize="15sp" />
 
-			<EditText
-				android:id="@+id/CommunityTitleText"
-				style="@style/EditTextNormalStyle"
-				android:layout_width="match_parent"
-				android:layout_height="48dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:gravity="start|center_vertical"
-				android:hint="@string/Lbl_CommunityName"
-				android:inputType="textCapSentences"
-				android:paddingStart="12dp"
-				android:paddingEnd="12dp"
-				android:textSize="15sp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Description"
+                android:textStyle="bold"
+                android:textSize="14sp" />
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="Community URL"
-				android:textStyle="bold" />
+            <EditText
+                android:id="@+id/DescriptionText"
+                style="@style/EditTextNormalStyle"
+                android:layout_width="match_parent"
+                android:layout_height="88dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:background="@drawable/round_gray_border"
+                android:gravity="start|top"
+                android:hint="@string/Lbl_Describe_Community"
+                android:inputType="textMultiLine"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="12dp"
+                android:textSize="15sp" />
 
-			<EditText
-				android:id="@+id/CommunityUrlText"
-				style="@style/EditTextNormalStyle"
-				android:layout_width="match_parent"
-				android:layout_height="48dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:gravity="start|center_vertical"
-				android:hint="example-community"
-				android:inputType="text"
-				android:paddingStart="12dp"
-				android:paddingEnd="12dp"
-				android:textSize="15sp" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="Description"
-				android:textStyle="bold" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:orientation="vertical">
 
-			<EditText
-				android:id="@+id/DescriptionText"
-				style="@style/EditTextNormalStyle"
-				android:layout_width="match_parent"
-				android:layout_height="88dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:gravity="start|top"
-				android:hint="@string/Lbl_Describe_Community"
-				android:inputType="textMultiLine"
-				android:paddingStart="12dp"
-				android:paddingTop="10dp"
-				android:paddingEnd="12dp"
-				android:textSize="15sp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Privacy"
+                        android:textStyle="bold"
+                        android:textSize="14sp" />
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="@string/Lbl_Privacy"
-				android:textStyle="bold" />
+                    <Spinner
+                        android:id="@+id/PrivacySpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/round_gray_border"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp" />
+                </LinearLayout>
 
-			<Spinner
-				android:id="@+id/PrivacySpinner"
-				android:layout_width="match_parent"
-				android:layout_height="48dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:paddingStart="10dp"
-				android:paddingEnd="10dp" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:orientation="vertical">
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="@string/Lbl_Category"
-				android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Category"
+                        android:textStyle="bold"
+                        android:textSize="14sp" />
 
-			<EditText
-				android:id="@+id/CategoryText"
-				style="@style/EditTextNormalStyle"
-				android:layout_width="match_parent"
-				android:layout_height="48dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:gravity="start|center_vertical"
-				android:hint="@string/Lbl_Category"
-				android:inputType="textCapSentences"
-				android:paddingStart="12dp"
-				android:paddingEnd="12dp"
-				android:textSize="15sp" />
+                    <Spinner
+                        android:id="@+id/CategorySpinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/round_gray_border"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp" />
+                </LinearLayout>
+            </LinearLayout>
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:text="Reason for Request"
-				android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Reason for Request"
+                android:textStyle="bold"
+                android:textSize="14sp" />
 
-			<EditText
-				android:id="@+id/ReasonText"
-				style="@style/EditTextNormalStyle"
-				android:layout_width="match_parent"
-				android:layout_height="88dp"
-				android:layout_marginTop="6dp"
-				android:layout_marginBottom="12dp"
-				android:background="@drawable/round_gray_border"
-				android:gravity="start|top"
-				android:hint="Why do you want to create this community?"
-				android:inputType="textMultiLine"
-				android:paddingStart="12dp"
-				android:paddingTop="10dp"
-				android:paddingEnd="12dp"
-				android:textSize="15sp" />
+            <EditText
+                android:id="@+id/ReasonText"
+                style="@style/EditTextNormalStyle"
+                android:layout_width="match_parent"
+                android:layout_height="88dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/round_gray_border"
+                android:gravity="start|top"
+                android:hint="Why do you want to create this community?"
+                android:inputType="textMultiLine"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="12dp"
+                android:textSize="15sp" />
 
-			<TextView
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_marginTop="4dp"
-				android:text="You can submit this request once all required fields are filled."
-				android:textColor="@color/text_color_in_between"
-				android:textSize="12sp" />
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/SubmitButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@drawable/follow_button_profile_friends_pressed"
+                android:text="Submit Request"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="8dp" />
+
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

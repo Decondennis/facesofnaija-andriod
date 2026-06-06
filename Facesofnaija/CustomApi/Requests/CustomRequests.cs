@@ -30,30 +30,41 @@ namespace Facesofnaija.CustomApi.Requests
             public static string UserId { get; set; }
             public static string AccessToken { get; set; }
 
-            private static async Task<(long?, dynamic)> GetCommunitiesByFetchAsync(string fetch)
+            internal static async Task<(long?, dynamic)> GetCommunitiesByFetchAsync(string fetch)
             {
                 try
                 {
-                    var client = new HttpClient();
+                    Console.WriteLine("FON_COMM " + fetch + " start");
+                    using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                    var url = "http://172.236.19.52/api/get-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("fetch", fetch),
-                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
-                        new KeyValuePair<string, string>("user_id", UserDetails.UserId)
+                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                        new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "")
                     });
 
-                    var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/get-community?access_token=" + UserDetails.AccessToken, content);
+                    var response = await client.PostAsync(url, content);
                     var json = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine("FON_COMM " + fetch + " done");
 
-                    var list = JsonConvert.DeserializeObject<ListCommunitiesObject>(json);
-                    if (list != null)
-                        return (list.Status, list);
+                    if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                    {
+                        var list = JsonConvert.DeserializeObject<ListCommunitiesObject>(json);
+                        if (list != null)
+                            return (list.Status, list);
+                    }
 
+                    Console.WriteLine("FON_COMM " + fetch + " FAILED response=" + (int)response.StatusCode + " json=" + (json ?? "null"));
                     var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
                     return (400, error);
                 }
                 catch (Exception e)
                 {
+                    Console.WriteLine("FON_COMM " + fetch + " EXCEPTION=" + e.Message);
                     return (404, e.Message);
                 }
             }
@@ -108,25 +119,46 @@ namespace Facesofnaija.CustomApi.Requests
 
             public static async Task<(long?, dynamic)> GetRequestedCommunitiesAsync()
             {
-                var (apiStatus, respond) = await GetCommunitiesByFetchAsync("joined_communities");
-                if (apiStatus != 200 || respond is not ListCommunitiesObject result || result.Data == null)
-                    return (apiStatus, respond);
-
-                var requested = new List<CommunityDataObject>();
-                foreach (var item in result.Data)
+                try
                 {
-                    if (item == null)
-                        continue;
+                    Console.WriteLine("FON_COMM requested_communities start");
+                    using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    if (WoWonderTools.IsJoinedCommunity(item) == "2" || item.IsCommunityJoined == 2)
-                        requested.Add(item);
+                    var url = "http://172.236.19.52/api/get-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("fetch", "requested_communities"),
+                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                        new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "")
+                    });
+
+                    var response = await client.PostAsync(url, content);
+                    var json = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine("FON_COMM requested_communities done");
+
+                    if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                    {
+                        var list = JsonConvert.DeserializeObject<ListCommunityRequestsObject>(json);
+                        if (list != null)
+                            return (list.Status, list);
+                    }
+
+                    Console.WriteLine("FON_COMM requested_communities FAILED response=" + (int)response.StatusCode + " json=" + (json ?? "null"));
+                    var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
+                    return (400, error);
                 }
-
-                return (200, new ListCommunitiesObject
+                catch (Exception e)
                 {
-                    Status = 200,
-                    Data = requested
-                });
+                    Console.WriteLine("FON_COMM requested_communities EXCEPTION=" + e.Message);
+                    return (404, e.Message);
+                }
+            }
+
+            public static async Task<(long?, dynamic)> GetAllCommunitiesAsync()
+            {
+                return await GetCommunitiesByFetchAsync("random_communities");
             }
 
             public static async Task<(long?, dynamic)> GetCommunityDataAsync(string communityId)
@@ -290,30 +322,37 @@ namespace Facesofnaija.CustomApi.Requests
 
             public static async Task<(long?, dynamic)> JoinCommunityAsync(string communityId)
             {
-                Console.WriteLine("This is JoinCommunityAsync");
+                Console.WriteLine("FON_COMM join start id=" + communityId);
                 try
                 {
-                    var client = new HttpClient();
+                    using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                    var url = "http://172.236.19.52/api/join-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
-                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
-                        new KeyValuePair<string, string>("community_id", communityId)
+                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                        new KeyValuePair<string, string>("community_id", communityId ?? "")
                     });
-                    var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/join-community?access_token=" + UserDetails.AccessToken, content);
-                    string json = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine(json);
+                    var response = await client.PostAsync(url, content);
+                    var json = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine("FON_COMM join done json=" + json);
 
-                    JoinCommunityObject list = JsonConvert.DeserializeObject<JoinCommunityObject>(json);
-                    if (list != null)
+                    if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
                     {
-                        return (list.Status, list);
+                        JoinCommunityObject list = JsonConvert.DeserializeObject<JoinCommunityObject>(json);
+                        if (list != null)
+                            return (list.Status, list);
                     }
 
+                    Console.WriteLine("FON_COMM join FAILED response=" + (int)response.StatusCode + " json=" + (json ?? "null"));
                     var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
                     return (400, error);
                 }
                 catch (Exception e)
                 {
+                    Console.WriteLine("FON_COMM join EXCEPTION=" + e.Message);
                     return (404, e.Message);
                 }
             }
@@ -667,23 +706,25 @@ namespace Facesofnaija.CustomApi.Requests
 
         public static async Task<(long?, dynamic)> RequestCommunity(Dictionary<string, string> dictionary)
         {
-            dictionary.Add("server_key", InitializeWoWonder.ServerKey);
-            dictionary.Add("user_id", UserDetails.UserId);
-            dictionary.Add("type", "request-community");
-            
             try
             {
-                var client = new HttpClient();
-                var content = new FormUrlEncodedContent(dictionary);
-                var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/communities-custom?access_token=" + UserDetails.AccessToken + "&type=request-community", content);
-                Console.WriteLine(InitializeWoWonder.WebsiteUrl + "/api/request-community?access_token=" + UserDetails.AccessToken+ "&type=request-community");
-                
-                string json = await response.Content.ReadAsStringAsync();
+                using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                CommunityRequst comRquest = JsonConvert.DeserializeObject<CommunityRequst>(json);
-                if (comRquest != null)
+                var url = "http://172.236.19.52/api/request-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                var content = new FormUrlEncodedContent(dictionary);
+                Console.WriteLine("FON_COMM request-community url=" + url);
+                
+                var response = await client.PostAsync(url, content);
+                var json = await response.Content.ReadAsStringAsync();
+                Console.WriteLine("FON_COMM request-community response=" + json);
+
+                if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
                 {
-                    return (comRquest.Status, comRquest);
+                    CommunityRequst comRquest = JsonConvert.DeserializeObject<CommunityRequst>(json);
+                    if (comRquest != null)
+                        return (comRquest.Status, comRquest);
                 }
 
                 var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
@@ -691,6 +732,7 @@ namespace Facesofnaija.CustomApi.Requests
             }
             catch (Exception e)
             {
+                Console.WriteLine("FON_COMM request-community EXCEPTION=" + e.Message);
                 return (404, e.Message);
             }
         }

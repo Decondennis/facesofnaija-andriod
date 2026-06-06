@@ -46,6 +46,7 @@ namespace Facesofnaija.Activities.Communities.Communities
         private ObservableCollection<CommunityDataObject> JoinedCommunityList = new ObservableCollection<CommunityDataObject>();
         private ObservableCollection<CommunityDataObject> RequestedCommunityList = new ObservableCollection<CommunityDataObject>();
         private ObservableCollection<CommunityDataObject> SuggestedCommunityList = new ObservableCollection<CommunityDataObject>();
+        private ObservableCollection<CommunityDataObject> AllCommunityList = new ObservableCollection<CommunityDataObject>();
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -228,28 +229,38 @@ namespace Facesofnaija.Activities.Communities.Communities
 
         private async Task LoadDashboardAsync()
         {
-            if (!Methods.CheckConnectivity())
-            {
-                RunOnUiThread(() => InflateEmptyState(EmptyStateInflater.Type.NoConnection, EmptyStateButtonOnClick));
-                return;
-            }
-
             try
             {
+                Console.WriteLine("FON_COMM LoadDashboardAsync: starting 3 API calls");
                 var joinedTask = CustomRequests.Community.GetJoinedCommunitiesAsync();
-                var requestedTask = CustomRequests.Community.GetRequestedCommunitiesAsync();
+                var allTask = CustomRequests.Community.GetAllCommunitiesAsync();
                 var suggestedTask = CustomRequests.Community.GetSuggestedCommunitiesAsync();
 
-                await Task.WhenAll(joinedTask, requestedTask, suggestedTask);
+                await Task.WhenAll(joinedTask, allTask, suggestedTask);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: all 3 API calls done");
 
-                JoinedCommunityList = ExtractCommunityList(joinedTask.Result);
-                RequestedCommunityList = ExtractCommunityList(requestedTask.Result);
-                SuggestedCommunityList = ExtractCommunityList(suggestedTask.Result);
+                var joinedResult = joinedTask.Result;
+                var allResult = allTask.Result;
+                var suggestedResult = suggestedTask.Result;
+
+                Console.WriteLine("FON_COMM LoadDashboardAsync: joined status=" + joinedResult.Item1 + " type=" + joinedResult.Item2?.GetType()?.Name);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: all status=" + allResult.Item1 + " type=" + allResult.Item2?.GetType()?.Name);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: suggested status=" + suggestedResult.Item1 + " type=" + suggestedResult.Item2?.GetType()?.Name);
+
+                JoinedCommunityList = ExtractCommunityList(joinedResult);
+                AllCommunityList = ExtractCommunityList(allResult);
+                SuggestedCommunityList = ExtractCommunityList(suggestedResult);
+
+                Console.WriteLine("FON_COMM LoadDashboardAsync: joined count=" + JoinedCommunityList?.Count);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: all count=" + AllCommunityList?.Count);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: suggested count=" + SuggestedCommunityList?.Count);
 
                 RunOnUiThread(BuildDashboardSections);
+                Console.WriteLine("FON_COMM LoadDashboardAsync: BuildDashboardSections queued");
             }
             catch (Exception exception)
             {
+                Console.WriteLine("FON_COMM LoadDashboardAsync EXCEPTION: " + exception.Message);
                 Methods.DisplayReportResultTrack(exception);
                 RunOnUiThread(() => InflateEmptyState(EmptyStateInflater.Type.NoCommunity, SearchButtonOnClick));
             }
@@ -267,14 +278,10 @@ namespace Facesofnaija.Activities.Communities.Communities
         {
             try
             {
+                Console.WriteLine("FON_COMM BuildDashboardSections: starting, sections count=" + DashboardAdapter.Sections?.Count);
+
                 DashboardAdapter.Sections = new ObservableCollection<CommunityDashboardSectionModel>
                 {
-                    new CommunityDashboardSectionModel
-                    {
-                        Title = "Suggested Communities",
-                        Type = CommunityDashboardSectionType.Suggested,
-                        Communities = SuggestedCommunityList
-                    },
                     new CommunityDashboardSectionModel
                     {
                         Title = "Joined Communities",
@@ -283,27 +290,47 @@ namespace Facesofnaija.Activities.Communities.Communities
                     },
                     new CommunityDashboardSectionModel
                     {
+                        Title = "All Communities",
+                        Type = CommunityDashboardSectionType.Suggested,
+                        Communities = AllCommunityList
+                    },
+                    new CommunityDashboardSectionModel
+                    {
+                        Title = "Suggested Communities",
+                        Type = CommunityDashboardSectionType.Suggested,
+                        Communities = SuggestedCommunityList
+                    },
+                    new CommunityDashboardSectionModel
+                    {
                         Title = "Requested Communities",
                         Type = CommunityDashboardSectionType.Requested,
-                        Communities = RequestedCommunityList
+                        Communities = new ObservableCollection<CommunityDataObject>()
                     }
                 };
 
+                Console.WriteLine("FON_COMM BuildDashboardSections: sections set, count=" + DashboardAdapter.Sections?.Count);
+
                 DashboardAdapter.NotifyDataSetChanged();
+                Console.WriteLine("FON_COMM BuildDashboardSections: NotifyDataSetChanged done");
+
                 SwipeRefreshLayout.Refreshing = false;
+                Console.WriteLine("FON_COMM BuildDashboardSections: SwipeRefresh false");
 
                 if (DashboardAdapter.ItemCount > 0)
                 {
                     MRecycler.Visibility = ViewStates.Visible;
                     EmptyStateLayout.Visibility = ViewStates.Gone;
+                    Console.WriteLine("FON_COMM BuildDashboardSections: showing recycler");
                 }
                 else
                 {
                     InflateEmptyState(EmptyStateInflater.Type.NoCommunity, SearchButtonOnClick);
+                    Console.WriteLine("FON_COMM BuildDashboardSections: empty state");
                 }
             }
             catch (Exception e)
             {
+                Console.WriteLine("FON_COMM BuildDashboardSections EXCEPTION: " + e.Message);
                 Methods.DisplayReportResultTrack(e);
             }
         }
@@ -353,12 +380,6 @@ namespace Facesofnaija.Activities.Communities.Communities
                 if (e.Item == null)
                     return;
 
-                if (!Methods.CheckConnectivity())
-                {
-                    ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
-                    return;
-                }
-
                 var previousState = WoWonderTools.IsJoinedCommunity(e.Item);
                 ApplyJoinState(e.Item, GetNextState(e.Item), e.Button);
                 e.Button.Enabled = false;
@@ -397,10 +418,17 @@ namespace Facesofnaija.Activities.Communities.Communities
                 switch (section.Type)
                 {
                     case CommunityDashboardSectionType.Suggested:
-                        StartActivity(new Intent(this, typeof(SuggestedCommunityActivity)));
+                        var allIntent = new Intent(this, typeof(JoinedCommunitiesActivity));
+                        allIntent.PutExtra("fetch", "random_communities");
+                        allIntent.PutExtra("title", section.Title);
+                        StartActivity(allIntent);
                         break;
                     case CommunityDashboardSectionType.Joined:
                         StartActivity(new Intent(this, typeof(JoinedCommunitiesActivity)));
+                        break;
+                    case CommunityDashboardSectionType.Requested:
+                        var reqIntent = new Intent(this, typeof(RequestedCommunitiesActivity));
+                        StartActivity(reqIntent);
                         break;
                     default:
                         ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
@@ -519,6 +547,7 @@ namespace Facesofnaija.Activities.Communities.Communities
                 JoinedCommunityList = null!;
                 RequestedCommunityList = null!;
                 SuggestedCommunityList = null!;
+                AllCommunityList = null!;
             }
             catch (Exception e)
             {

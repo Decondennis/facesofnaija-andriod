@@ -59,7 +59,7 @@ namespace Facesofnaija.Activities.Announcements
         {
             try
             {
-                MRecycler = FindViewById<RecyclerView>(Resource.Id.recycler);
+                MRecycler = FindViewById<RecyclerView>(Resource.Id.recyler);
                 SwipeRefreshLayout = FindViewById<SwipeRefreshLayout>(Resource.Id.swipeRefreshLayout);
                 EmptyStateLayout = FindViewById<ViewStub>(Resource.Id.viewStub);
 

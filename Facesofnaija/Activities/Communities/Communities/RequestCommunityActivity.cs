@@ -15,6 +15,7 @@ using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Utils;
 using Exception = System.Exception;
+using AndroidX.AppCompat.Widget;
 using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
 
 namespace Facesofnaija.Activities.Communities.Communities
@@ -22,10 +23,31 @@ namespace Facesofnaija.Activities.Communities.Communities
     [Activity(Icon = "@mipmap/icon", Theme = "@style/MyTheme", ConfigurationChanges = ConfigChanges.Locale | ConfigChanges.UiMode | ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize)]
     public class RequestCommunityActivity : BaseActivity
     {
-        private TextView TxtAdd;
-        private EditText TxtCommunityTitle, TxtCommunityUrl, TxtDescription, TxtCategory, TxtReason;
-        private Spinner PrivacySpinner;
+        private AppCompatButton SubmitButton;
+        private EditText TxtCommunityTitle, TxtDescription, TxtReason;
+        private Spinner PrivacySpinner, CategorySpinner;
         private string PrivacyStatus = "1";
+        private string SelectedCategory = "1";
+
+        private static readonly Dictionary<string, string> Categories = new Dictionary<string, string>
+        {
+            {"1", "Other"},
+            {"2", "Education"},
+            {"3", "Entertainment"},
+            {"4", "Music"},
+            {"5", "Business"},
+            {"6", "Sports"},
+            {"7", "News"},
+            {"8", "Technology"},
+            {"9", "Fashion"},
+            {"10", "Art"},
+            {"11", "Travel"},
+            {"12", "Food"},
+            {"13", "Health"},
+            {"14", "Religion"},
+            {"15", "Family"},
+            {"16", "Gaming"},
+        };
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -35,11 +57,8 @@ namespace Facesofnaija.Activities.Communities.Communities
                 SetTheme(WoWonderTools.IsTabDark() ? Resource.Style.MyTheme_Dark : Resource.Style.MyTheme);
 
                 Methods.App.FullScreenApp(this);
-
-                // Create your application here
                 SetContentView(Resource.Layout.CreateCommunityLayout);
 
-                //Get Value And Set Toolbar
                 InitComponent();
                 InitToolbar();
             }
@@ -54,8 +73,9 @@ namespace Facesofnaija.Activities.Communities.Communities
             try
             {
                 base.OnResume();
-                TxtAdd.Click += TxtAddOnClick;
+                SubmitButton.Click += SubmitButtonOnClick;
                 PrivacySpinner.ItemSelected += PrivacySpinnerOnItemSelected;
+                CategorySpinner.ItemSelected += CategorySpinnerOnItemSelected;
             }
             catch (Exception e)
             {
@@ -68,8 +88,9 @@ namespace Facesofnaija.Activities.Communities.Communities
             try
             {
                 base.OnPause();
-                TxtAdd.Click -= TxtAddOnClick;
+                SubmitButton.Click -= SubmitButtonOnClick;
                 PrivacySpinner.ItemSelected -= PrivacySpinnerOnItemSelected;
+                CategorySpinner.ItemSelected -= CategorySpinnerOnItemSelected;
             }
             catch (Exception e)
             {
@@ -92,11 +113,10 @@ namespace Facesofnaija.Activities.Communities.Communities
 
         public override bool OnOptionsItemSelected(IMenuItem item)
         {
-            switch (item.ItemId)
+            if (item.ItemId == Android.Resource.Id.Home)
             {
-                case Android.Resource.Id.Home:
-                    Finish();
-                    return true;
+                Finish();
+                return true;
             }
             return base.OnOptionsItemSelected(item);
         }
@@ -105,21 +125,15 @@ namespace Facesofnaija.Activities.Communities.Communities
         {
             try
             {
-                TxtAdd = FindViewById<TextView>(Resource.Id.toolbar_title);
-
                 TxtCommunityTitle = FindViewById<EditText>(Resource.Id.CommunityTitleText);
-                TxtCommunityUrl = FindViewById<EditText>(Resource.Id.CommunityUrlText);
                 TxtDescription = FindViewById<EditText>(Resource.Id.DescriptionText);
-                TxtCategory = FindViewById<EditText>(Resource.Id.CategoryText);
                 TxtReason = FindViewById<EditText>(Resource.Id.ReasonText);
                 PrivacySpinner = FindViewById<Spinner>(Resource.Id.PrivacySpinner);
-
-                TxtAdd.Text = GetString(Resource.String.Lbl_SubmitRequest);
+                CategorySpinner = FindViewById<Spinner>(Resource.Id.CategorySpinner);
+                SubmitButton = FindViewById<AppCompatButton>(Resource.Id.SubmitButton);
 
                 Methods.SetColorEditText(TxtCommunityTitle, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtCommunityUrl, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                 Methods.SetColorEditText(TxtDescription, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtCategory, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                 Methods.SetColorEditText(TxtReason, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
 
                 var privacyItems = new List<string>
@@ -127,11 +141,14 @@ namespace Facesofnaija.Activities.Communities.Communities
                     GetString(Resource.String.Radio_Public),
                     GetString(Resource.String.Radio_Private)
                 };
-
-                var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerDropDownItem, privacyItems);
-                PrivacySpinner.Adapter = adapter;
+                var privacyAdapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerDropDownItem, privacyItems);
+                PrivacySpinner.Adapter = privacyAdapter;
                 PrivacySpinner.SetSelection(0);
-                PrivacyStatus = "1";
+
+                var categoryNames = new List<string>(Categories.Values);
+                var categoryAdapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerDropDownItem, categoryNames);
+                CategorySpinner.Adapter = categoryAdapter;
+                CategorySpinner.SetSelection(0);
             }
             catch (Exception e)
             {
@@ -155,7 +172,6 @@ namespace Facesofnaija.Activities.Communities.Communities
                     SupportActionBar.SetHomeButtonEnabled(true);
                     SupportActionBar.SetDisplayShowHomeEnabled(true);
                     SupportActionBar.SetHomeAsUpIndicator(AppCompatResources.GetDrawable(this, AppSettings.FlowDirectionRightToLeft ? Resource.Drawable.ic_action_right_arrow_color : Resource.Drawable.ic_action_left_arrow_color));
-
                 }
             }
             catch (Exception e)
@@ -168,13 +184,12 @@ namespace Facesofnaija.Activities.Communities.Communities
         {
             try
             {
-                TxtAdd = null!;
+                SubmitButton = null!;
                 TxtCommunityTitle = null!;
-                TxtCommunityUrl = null!;
                 TxtDescription = null!;
-                TxtCategory = null!;
                 TxtReason = null!;
                 PrivacySpinner = null!;
+                CategorySpinner = null!;
             }
             catch (Exception e)
             {
@@ -187,70 +202,65 @@ namespace Facesofnaija.Activities.Communities.Communities
             PrivacyStatus = e.Position == 1 ? "2" : "1";
         }
 
-        //Save 
-        private async void TxtAddOnClick(object sender, EventArgs e)
+        private void CategorySpinnerOnItemSelected(object sender, AdapterView.ItemSelectedEventArgs e)
+        {
+            var keys = new List<string>(Categories.Keys);
+            SelectedCategory = e.Position < keys.Count ? keys[e.Position] : "1";
+        }
+
+        private async void SubmitButtonOnClick(object sender, EventArgs e)
         {
             try
             {
-                if (!Methods.CheckConnectivity())
+                if (string.IsNullOrWhiteSpace(TxtCommunityTitle.Text) ||
+                    string.IsNullOrWhiteSpace(TxtDescription.Text) ||
+                    string.IsNullOrWhiteSpace(TxtReason.Text))
                 {
-                    ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
+                    return;
+                }
+
+                var communityName = BuildCommunityName(TxtCommunityTitle.Text);
+
+                if (communityName.Length < 5)
+                {
+                    ToastUtils.ShowToast(this, "Community URL must be at least 5 characters.", ToastLength.Short);
+                    return;
+                }
+
+                SubmitButton.Enabled = false;
+                ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading));
+
+                var dictionary = new Dictionary<string, string>
+                {
+                    {"community_name", communityName},
+                    {"community_title", TxtCommunityTitle.Text.Trim()},
+                    {"about", TxtDescription.Text.Trim()},
+                    {"category", SelectedCategory},
+                    {"reason", TxtReason.Text.Trim()},
+                    {"privacy", PrivacyStatus},
+                    {"server_key", ""},
+                };
+
+                var (apiStatus, respond) = await CustomRequests.RequestCommunity(dictionary);
+
+                ProgressDialogHelper.Dismiss(this);
+                SubmitButton.Enabled = true;
+
+                if (apiStatus == 200)
+                {
+                    ToastUtils.ShowToast(this, "Community request submitted successfully.", ToastLength.Short);
+                    Finish();
                 }
                 else
-                {    
-                    if (string.IsNullOrWhiteSpace(TxtCommunityTitle.Text) ||
-                        string.IsNullOrWhiteSpace(TxtDescription.Text) ||
-                        string.IsNullOrWhiteSpace(TxtCategory.Text) ||
-                        string.IsNullOrWhiteSpace(TxtReason.Text))
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
-                        return;
-                    }
-
-                    var requestedUrl = string.IsNullOrWhiteSpace(TxtCommunityUrl.Text) ? TxtCommunityTitle.Text : TxtCommunityUrl.Text;
-                    var communityName = BuildCommunityName(requestedUrl);
-
-                    if (communityName.Length < 5)
-                    {
-                        ToastUtils.ShowToast(this, "Community URL must be at least 5 characters.", ToastLength.Short);
-                        return;
-                    }
-
-                    //Show a progress
-                    ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading));
-
-                    var dictionary = new Dictionary<string, string>
-                    {
-                        {"name", communityName},
-                        {"country", TxtCategory.Text},
-                        {"state", TxtCommunityTitle.Text},
-                        {"about", TxtDescription.Text},
-                        {"privacy", PrivacyStatus},
-                        {"lga", TxtReason.Text},
-
-                        // Web-form parity fields
-                        {"community_title", TxtCommunityTitle.Text},
-                        {"community_name", communityName},
-                        {"category", TxtCategory.Text},
-                        {"reason", TxtReason.Text},
-                    };
-
-                    var (apiStatus, respond) = await CustomRequests.RequestCommunity(dictionary);
-
-                    ProgressDialogHelper.Dismiss(this);
-
-                    if (apiStatus == 200)
-                    {
-                        ToastUtils.ShowToast(this, "Community request submitted successfully.", ToastLength.Short);
-                        Finish();
-                    } else{
-                        ToastUtils.ShowToast(this, "Error while submitting request.", ToastLength.Short);
-                    }
+                {
+                    ToastUtils.ShowToast(this, "Error while submitting request.", ToastLength.Short);
                 }
             }
             catch (Exception exception)
             {
                 ProgressDialogHelper.Dismiss(this);
+                SubmitButton.Enabled = true;
                 Methods.DisplayReportResultTrack(exception);
             }
         }
@@ -269,6 +279,5 @@ namespace Facesofnaija.Activities.Communities.Communities
 
             return new string(chars.ToArray());
         }
-
     }
 }
