@@ -111,6 +111,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (task != null && (task.IsCompleted == false || task.Status == TaskStatus.Running))
                 {
                     Console.WriteLine("API = Task already running, returning...");
+                    if (WRecyclerView?.SwipeRefreshLayoutView is { Refreshing: true })
+                        WRecyclerView.SwipeRefreshLayoutView.Refreshing = false;
                     return null;
                 }
 
@@ -119,7 +121,11 @@ namespace Facesofnaija.Activities.NativePost.Post
                 WRecyclerView.Hash = hash;
 
                 if (WRecyclerView.MainScrollEvent.IsLoading)
+                {
+                    if (WRecyclerView?.SwipeRefreshLayoutView is { Refreshing: true })
+                        WRecyclerView.SwipeRefreshLayoutView.Refreshing = false;
                     return null;
+                }
 
 
                 //=================
@@ -135,6 +141,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                 {
                     case NativeFeedType.Global:
                         (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                        if (apiStatus != 200)
+                            (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
                         break;
                     case NativeFeedType.User:
                         (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
@@ -441,6 +449,13 @@ namespace Facesofnaija.Activities.NativePost.Post
             {
                 respond = extractedResult;
                 Log.Warn("FON_TIMELINE", $"Feed OK — loading {extractedResult.Data.Count} posts into adapter typeRun={typeRun}");
+
+                ActivityContext?.RunOnUiThread(() =>
+                {
+                    try { WRecyclerView?.ShimmerInflater?.Hide(); }
+                    catch (Exception e) { Methods.DisplayReportResultTrack(e); }
+                });
+
                 if (typeRun == "FirstInsert")
                 {
                     InsertTopDataApi(apiStatus, respond);
@@ -1474,7 +1489,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 var postData = new[]
                 {
                     new KeyValuePair<string, string>("user_id", UserDetails.UserId?.ToString() ?? "0"),
-                    new KeyValuePair<string, string>("s", UserDetails.AccessToken ?? ""),
+                    new KeyValuePair<string, string>("session", UserDetails.AccessToken ?? ""),
                     new KeyValuePair<string, string>("limit", limit),
                     new KeyValuePair<string, string>("offset", offset ?? "0"),
                     new KeyValuePair<string, string>("filter", string.IsNullOrWhiteSpace(filter) ? "0" : filter),

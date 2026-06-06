@@ -340,14 +340,8 @@ namespace Facesofnaija.Activities.Communities.Communities.Settings
                     //If its from Camera or Gallery
                     case 2019 when resultCode == Result.Ok:
                         {
-                            var manged = CommunitiesActivity.GetInstance()?.MAdapter?.SocialList?.FirstOrDefault(a => a.Community?.CommunityId == CommunityId && a.TypeView == SocialModelType.ManagedCommunities);
-                            if (manged?.Group != null)
-                            {
-                                CommunitiesActivity.GetInstance().MAdapter.SocialList.Remove(manged);
-                                CommunitiesActivity.GetInstance().MAdapter.NotifyDataSetChanged();
-
-                                ListUtils.MyCommunityList.Remove(manged?.Community);
-                            }
+                            CommunitiesDashboardActivity.GetInstance()?.RemoveCommunityFromLists(CommunityId);
+                            ListUtils.MyCommunityList.RemoveAll(a => a?.CommunityId == CommunityId);
                             Intent returnIntent = new Intent();
                             SetResult(Result.Ok, returnIntent);
                             Finish();

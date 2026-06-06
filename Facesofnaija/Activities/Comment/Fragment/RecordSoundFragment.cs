@@ -8,7 +8,7 @@ using AndroidX.Core.Content;
 using AndroidX.Interpolator.View.Animation;
 using AT.Markushi.UI;
 using System;
-using System.Timers;
+using Timer = System.Timers.Timer;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Exception = System.Exception;

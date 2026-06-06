@@ -13,7 +13,7 @@ using Com.Sothree.Slidinguppanel;
 using Google.Android.Material.BottomSheet;
 using System;
 using System.Threading.Tasks;
-using System.Timers;
+using Timer = System.Timers.Timer;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Fonts;
 using Facesofnaija.Helpers.Model;

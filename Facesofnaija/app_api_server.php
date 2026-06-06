@@ -166,6 +166,13 @@ if ($application == 'windows_app') {
         case 'social-login':
             include "api/$application/social-login.php";
             break;
+        case 'create_post_comment':
+        case 'create_comment':
+        case 'post_comment':
+        case 'create_reply':
+        case 'reply_comment':
+            include "api/$application/create_comment.php";
+            break;
     }
 } else if ($application == 'phone') {
     switch ($type) {
@@ -384,6 +391,13 @@ if ($application == 'windows_app') {
             break;
         case 'get_user_list_info':
             include "api/$application/get_user_list_info.php";
+            break;
+        case 'create_post_comment':
+        case 'create_comment':
+        case 'post_comment':
+        case 'create_reply':
+        case 'reply_comment':
+            include "api/$application/create_comment.php";
             break;
     }
 }

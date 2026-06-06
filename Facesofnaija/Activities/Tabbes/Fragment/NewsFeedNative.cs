@@ -419,6 +419,13 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                     if (apiStatus == 200)
                     {
                         if (respond is GetUserStoriesObject result)
+                        {
+                            Android.Util.Log.Warn("FON_STORY_FLOW", $"LoadStory got result StoriesCount={result.Stories?.Count ?? 0}");
+                            if (result.Stories?.Count > 0)
+                            {
+                                var first = result.Stories[0];
+                                Android.Util.Log.Warn("FON_STORY_FLOW", $"First story group: userId={first.UserId} avatar={(first.Avatar?.Length > 60 ? first.Avatar.Substring(0, 60) + "..." : first.Avatar)} storiesCount={first.Stories?.Count}");
+                            }
                             await Task.Factory.StartNew(() =>
                             {
                                 try
@@ -456,15 +463,81 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                         if (string.IsNullOrWhiteSpace(item?.UserId)) continue;
 
                                         item.Avatar = NormalizeStoryUrl(item.Avatar);
-                                        item.DurationsList ??= new List<long>();
+                                        item.DurationsList = new List<long>();
 
                                         var innerStories = item.Stories ?? new List<StoryDataObject.Story>();
+                                        var expandedStories = new List<StoryDataObject.Story>();
                                         foreach (var story in innerStories)
                                         {
                                             story.Thumbnail = NormalizeStoryUrl(story.Thumbnail);
-                                            if (story.Videos?.Count > 0)
-                                                story.Videos[0].Filename = NormalizeStoryUrl(story.Videos[0].Filename);
 
+                                            var hasMultipleImages = story.Images?.Count > 1;
+                                            var hasMultipleVideos = story.Videos?.Count > 1;
+
+                                            if (hasMultipleImages && story.Videos?.Count == 0)
+                                            {
+                                                var firstImg = NormalizeStoryUrl(story.Thumbnail ?? string.Empty);
+                                                if (!string.IsNullOrWhiteSpace(firstImg))
+                                                {
+                                                    expandedStories.Add(new StoryDataObject.Story
+                                                    {
+                                                        Id = story.Id,
+                                                        UserId = story.UserId,
+                                                        Title = story.Title,
+                                                        Description = story.Description,
+                                                        Posted = story.Posted,
+                                                        Expire = story.Expire,
+                                                        Thumbnail = firstImg,
+                                                        TypeView = "Image"
+                                                    });
+                                                }
+                                                foreach (var img in story.Images)
+                                                {
+                                                    var imgUrl = NormalizeStoryUrl(img.Filename ?? string.Empty);
+                                                    if (string.IsNullOrWhiteSpace(imgUrl)) continue;
+                                                    expandedStories.Add(new StoryDataObject.Story
+                                                    {
+                                                        Id = story.Id,
+                                                        UserId = story.UserId,
+                                                        Title = story.Title,
+                                                        Description = story.Description,
+                                                        Posted = story.Posted,
+                                                        Expire = story.Expire,
+                                                        Thumbnail = imgUrl,
+                                                        TypeView = "Image"
+                                                    });
+                                                }
+                                            }
+                                            else if (hasMultipleVideos)
+                                            {
+                                                foreach (var vid in story.Videos)
+                                                {
+                                                    var vidUrl = NormalizeStoryUrl(vid.Filename ?? string.Empty);
+                                                    if (string.IsNullOrWhiteSpace(vidUrl)) continue;
+                                                    expandedStories.Add(new StoryDataObject.Story
+                                                    {
+                                                        Id = story.Id,
+                                                        UserId = story.UserId,
+                                                        Title = story.Title,
+                                                        Description = story.Description,
+                                                        Posted = story.Posted,
+                                                        Expire = story.Expire,
+                                                        Thumbnail = story.Thumbnail,
+                                                        Videos = new List<StoryDataObject.Video> { new StoryDataObject.Video { Filename = vidUrl } },
+                                                        TypeView = "Video"
+                                                    });
+                                                }
+                                            }
+                                            else
+                                            {
+                                                if (story.Videos?.Count > 0)
+                                                    story.Videos[0].Filename = NormalizeStoryUrl(story.Videos[0].Filename);
+                                                expandedStories.Add(story);
+                                            }
+                                        }
+
+                                        foreach (var story in expandedStories)
+                                        {
                                             var thumbnail = story.Thumbnail ?? string.Empty;
                                             var mediaFile = !thumbnail.Contains("avatar") && story.Videos?.Count == 0 ? thumbnail : story.Videos?.FirstOrDefault()?.Filename ?? "";
 
@@ -499,6 +572,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     : AppSettings.StoryVideoDuration * 1000);
                                             }
                                         }
+
+                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Expanded userId={item.UserId} from={innerStories.Count} to={expandedStories.Count} images0={(innerStories.FirstOrDefault()?.Images?.Count ?? 0)}");
+                                        item.Stories = expandedStories;
 
                                         storiesToAdd.Add(item);
                                     }
@@ -570,6 +646,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                     Methods.DisplayReportResultTrack(e);
                                 }
                             }).ConfigureAwait(false);
+                        }
                     }
                     else
                         Methods.DisplayReportResult(Activity, respond);

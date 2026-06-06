@@ -77,7 +77,15 @@ namespace Facesofnaija.Activities.Story.Adapters
 
                 StoryDataObject dataItem = DataStories[position];
                 if (dataItem != null)
-                    bundle.PutString("DataItem", JsonConvert.SerializeObject(dataItem));
+                {
+                    var serialized = JsonConvert.SerializeObject(dataItem);
+                    Android.Util.Log.Warn("FON_STORY_FLOW", $"CreateFragment pos={position} userId={dataItem.UserId} avatar={(dataItem.Avatar?.Length > 60 ? dataItem.Avatar.Substring(0, 60) + "..." : dataItem.Avatar)} storiesCount={dataItem.Stories?.Count} jsonLen={serialized?.Length}");
+                    bundle.PutString("DataItem", serialized);
+                }
+                else
+                {
+                    Android.Util.Log.Warn("FON_STORY_FLOW", $"CreateFragment pos={position} dataItem is NULL");
+                }
 
                 ViewStoryFragment viewStoryFragment = new ViewStoryFragment { Arguments = bundle };
                 return viewStoryFragment;

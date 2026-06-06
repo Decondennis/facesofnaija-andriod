@@ -5,6 +5,8 @@
 		<OutputType>Exe</OutputType>
 		<Nullable>disable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
 		<ApplicationId>com.facesofnaija.tlapp</ApplicationId>
 		<ApplicationVersion>1</ApplicationVersion>
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -59,6 +61,7 @@
 	  <AndroidLibrary Remove="Properties\**" />
 	  <AndroidNativeLibrary Remove="Properties\**" />
 	  <Compile Remove="Properties\**" />
+	  <Compile Remove="tools\**" />
 	  <EmbeddedResource Remove="Properties\**" />
 	  <JavaSourceJar Remove="Properties\**" />
 	  <None Remove="Properties\**" />

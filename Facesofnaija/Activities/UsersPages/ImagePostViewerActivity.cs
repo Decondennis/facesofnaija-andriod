@@ -865,36 +865,43 @@ namespace Facesofnaija.Activities.UsersPages
 
                                 TxtCountLike.Text = Methods.FunString.FormatPriceValue(PostData.Reaction.Count);
 
-                                if (PostData.Reaction.IsReacted != null && PostData.Reaction.IsReacted.Value)
+                                if (!string.IsNullOrEmpty(PostData.Reaction.Type))
                                 {
                                     switch (string.IsNullOrEmpty(PostData.Reaction.Type))
                                     {
                                         case false:
                                             {
-                                                var react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == PostData.Reaction.Type).Value?.Id ?? "";
+                                                var reactName = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == PostData.Reaction.Type).Value?.Name ?? PostData.Reaction.Type;
+                                                var react = new string((reactName ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
                                                 switch (react)
                                                 {
                                                     case "1":
+                                                    case "like":
                                                         LikeButton.SetReactionPack(ReactConstants.Like);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_like);
                                                         break;
                                                     case "2":
+                                                    case "love":
                                                         LikeButton.SetReactionPack(ReactConstants.Love);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_love);
                                                         break;
                                                     case "3":
+                                                    case "haha":
                                                         LikeButton.SetReactionPack(ReactConstants.HaHa);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_haha);
                                                         break;
                                                     case "4":
+                                                    case "wow":
                                                         LikeButton.SetReactionPack(ReactConstants.Wow);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_wow);
                                                         break;
                                                     case "5":
+                                                    case "sad":
                                                         LikeButton.SetReactionPack(ReactConstants.Sad);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_sad);
                                                         break;
                                                     case "6":
+                                                    case "angry":
                                                         LikeButton.SetReactionPack(ReactConstants.Angry);
                                                         ImgLike.SetImageResource(Resource.Drawable.emoji_angry);
                                                         break;

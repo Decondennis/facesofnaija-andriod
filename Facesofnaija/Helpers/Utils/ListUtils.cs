@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -72,6 +72,7 @@ namespace Facesofnaija.Helpers.Utils
         public static ObservableCollection<PostDataObject> VideoReelsList = new ObservableCollection<PostDataObject>();
         public static ObservableCollection<PostDataObject> VideoReelsViewsList = new ObservableCollection<PostDataObject>();
         public static List<PostDataObject> NewPostList = new List<PostDataObject>();
+        public static Dictionary<string, string> LastReactionTypeByPostId = new Dictionary<string, string>();
 
         public static void ClearAllList()
         {
@@ -103,6 +104,7 @@ namespace Facesofnaija.Helpers.Utils
                 SuggestedPageList.Clear();
                 StickersList.Clear();
                 NewPostList.Clear();
+                LastReactionTypeByPostId.Clear();
 
                 StickersList.Clear();
 

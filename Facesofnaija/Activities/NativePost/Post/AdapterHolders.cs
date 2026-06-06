@@ -24,6 +24,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Facesofnaija.Activities.AddPost;
+using Facesofnaija.Activities.Announcements;
 using Facesofnaija.Activities.Articles;
 using Facesofnaija.Activities.Communities.Groups;
 using Facesofnaija.Activities.Communities.Communities;
@@ -786,7 +787,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                     //itemView.SetLayerType(LayerType.Hardware, null);
 
-                    // Direct lookup — no reflection needed, all IDs exist in Post_Content_video_layout.xml
+                    // Direct lookup ï¿½ no reflection needed, all IDs exist in Post_Content_video_layout.xml
                     try
                     {
                         Console.WriteLine($"DEBUG VIDEO HOLDER INIT: itemView type={itemView?.GetType()?.Name ?? "NULL"}, childCount={(itemView as Android.Views.ViewGroup)?.ChildCount}");
@@ -3700,7 +3701,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     IconImageView = MainView.FindViewById<ImageView>(Resource.Id.IconImageview);
                     NormalImageView = MainView.FindViewById<ImageView>(Resource.Id.Imageview);
 
-                    // Enable marquee scrolling — must have Selected = true
+                    // Enable marquee scrolling ï¿½ must have Selected = true
                     if (SubText != null)
                         SubText.Selected = true;
 
@@ -3740,13 +3741,13 @@ namespace Facesofnaija.Activities.NativePost.Post
                                     }
                                 case "Communities":
                                     {
-                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(CommunitiesActivity));
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(CommunitiesDashboardActivity));
                                         PostAdapter.ActivityContext.StartActivity(intent);
                                     }
                                     break;
                                 case "Announcements":
                                     {
-                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(ArticlesActivity));
+                                        var intent = new Intent(PostAdapter.ActivityContext, typeof(AnnouncementsActivity));
                                         PostAdapter.ActivityContext.StartActivity(intent);
                                     }
                                     return;

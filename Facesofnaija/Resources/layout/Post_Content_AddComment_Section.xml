@@ -51,7 +51,7 @@
             android:paddingEnd="10dp"
             android:lines="1"
             
-            android:text="@string/Lbl_Write_comment"
+            android:text="@string/Lbl_Write_post"
             android:textSize="13sp" />
         <ImageView
             android:id="@+id/iv_mic_icon"

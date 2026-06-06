@@ -242,13 +242,13 @@ namespace Facesofnaija
         // Story >>
         //*********************************************************
         //Set a story duration >> Sec
-        public static readonly long StoryImageDuration = 30;
+        public static readonly long StoryImageDuration = 5;
         public static readonly long StoryVideoDuration = 30;
 
         /// <summary>
         /// If it is false, it will appear only for the specified time in the value of the StoryVideoDuration
         /// </summary>
-        public static readonly bool ShowFullVideo = false;
+        public static readonly bool ShowFullVideo = true;
 
         public static readonly bool EnableStorySeenList = true;
         public static readonly bool EnableReplyStory = true;

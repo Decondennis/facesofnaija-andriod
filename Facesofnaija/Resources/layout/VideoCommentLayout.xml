@@ -40,7 +40,7 @@
       android:paddingStart="20dp"
       android:paddingEnd="70dp"
       android:inputType="textMultiLine"
-      android:hint="@string/Lbl_AddCommentHere"
+      android:hint="@string/Lbl_Write_comment"
       android:textColorHint="?attr/colorReact" />
     <ImageView
       android:layout_width="30dp"

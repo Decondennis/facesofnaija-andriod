@@ -350,7 +350,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                         // Communities
                         case 60:
                             {
-                                var intent = new Intent(Context, typeof(CommunitiesActivity));
+                                var intent = new Intent(Context, typeof(CommunitiesDashboardActivity));
                                 StartActivity(intent);
                                 break;
                             }

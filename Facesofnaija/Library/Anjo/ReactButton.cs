@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
@@ -17,6 +17,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Facesofnaija.Activities.NativePost.Post;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -26,6 +27,32 @@ namespace Facesofnaija.Library.Anjo
 {
     public class ReactButton : TextView, PopupWindow.IOnDismissListener
     {
+                private async Task SendPostActionWithFallbackAsync(string action, string reaction = "")
+                {
+                    try
+                    {
+                        var postId = PostData?.NewsFeedClass?.PostId ?? PostData?.NewsFeedClass?.Id;
+                        if (string.IsNullOrEmpty(postId))
+                            return;
+
+                        var (apiStatus, respond) = await RequestsAsync.Posts.PostActionsAsync(postId, action, reaction);
+                        if (apiStatus == 200)
+                            return;
+
+                        var respondText = respond?.ToString() ?? string.Empty;
+                        Log.Info("WoFallback", $"Reaction SDK fail -> fallback postId={postId}, action={action}, reaction={reaction}, sdkStatus={apiStatus}, parserHtml={(!string.IsNullOrWhiteSpace(respondText) && (respondText.IndexOf("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase) >= 0 || respondText.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0))}");
+                        var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.PostActionFallbackAsync(postId, action, reaction);
+                            var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
+                            if (fallbackText.Length > 220)
+                                fallbackText = fallbackText.Substring(0, 220);
+                            Log.Info("WoFallback", $"Reaction fallback result postId={postId}, status={fallbackStatus}, response={fallbackText}");
+                    }
+                    catch (Exception e)
+                    {
+                        Methods.DisplayReportResultTrack(e);
+                    }
+                }
+
         //ReactButton custom view object to make easy to change attribute
         private ReactButton MReactButton;
 
@@ -174,6 +201,10 @@ namespace Facesofnaija.Library.Anjo
 
                                             PostData.NewsFeedClass.Reaction.Type = "";
                                             PostData.NewsFeedClass.Reaction.IsReacted = false;
+
+                                            var unreactPostId = PostData.NewsFeedClass.PostId ?? PostData.NewsFeedClass.Id;
+                                            if (!string.IsNullOrEmpty(unreactPostId))
+                                                ListUtils.LastReactionTypeByPostId.Remove(unreactPostId);
                                         }
 
                                         break;
@@ -273,10 +304,10 @@ namespace Facesofnaija.Library.Anjo
                             {
                                 case PostButtonSystem.ReactionDefault:
                                 case PostButtonSystem.ReactionSubShine:
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction") });
+                                    _ = SendPostActionWithFallbackAsync("reaction");
                                     break;
                                 default:
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "like") });
+                                    _ = SendPostActionWithFallbackAsync("like");
                                     break;
                             }
                             break;
@@ -294,9 +325,14 @@ namespace Facesofnaija.Library.Anjo
 
                                         if (PostData.NewsFeedClass.Reaction.IsReacted != null && !PostData.NewsFeedClass.Reaction.IsReacted.Value)
                                         {
+                                            string like = ResolveReactionIdByNameOrIndex("Like", 0, "1");
                                             PostData.NewsFeedClass.Reaction.Count++;
-                                            PostData.NewsFeedClass.Reaction.Type = "1";
+                                            PostData.NewsFeedClass.Reaction.Type = like;
                                             PostData.NewsFeedClass.Reaction.IsReacted = true;
+
+                                            var reactedPostId = PostData.NewsFeedClass.PostId ?? PostData.NewsFeedClass.Id;
+                                            if (!string.IsNullOrEmpty(reactedPostId))
+                                                ListUtils.LastReactionTypeByPostId[reactedPostId] = like;
                                         }
 
                                         break;
@@ -380,12 +416,12 @@ namespace Facesofnaija.Library.Anjo
                                 case PostButtonSystem.ReactionDefault:
                                 case PostButtonSystem.ReactionSubShine:
                                     {
-                                        string like = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Like").Value?.Id ?? "1";
-                                        PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", like) });
+                                        string like = ResolveReactionIdByNameOrIndex("Like", 0, "1");
+                                        _ = SendPostActionWithFallbackAsync("reaction", like);
                                         break;
                                     }
                                 default:
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "like") });
+                                    _ = SendPostActionWithFallbackAsync("like");
                                     break;
                             }
 
@@ -658,6 +694,36 @@ namespace Facesofnaija.Library.Anjo
         private readonly int longClickDuration = 500; //for long click to trigger after 0.5 seconds
         private int PositionSelect = -1;
 
+        private static string NormalizeReactionKey(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            return new string(value.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        }
+
+        private static string ResolveReactionIdByNameOrIndex(string expectedName, int index, string fallback)
+        {
+            try
+            {
+                var types = ListUtils.SettingsSiteList?.PostReactionsTypes;
+                if (types == null || types.Count == 0)
+                    return fallback;
+
+                var expectedKey = NormalizeReactionKey(expectedName);
+                var matchedByName = types.FirstOrDefault(a => NormalizeReactionKey(a.Value?.Name) == expectedKey).Value?.Id;
+                if (!string.IsNullOrWhiteSpace(matchedByName))
+                    return matchedByName;
+
+                var byIndex = types.ElementAtOrDefault(index).Value?.Id;
+                return !string.IsNullOrWhiteSpace(byIndex) ? byIndex : fallback;
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
         private void ImgButtonOnTouch(ReactionsTouchEventArgs e)
         {
             try
@@ -793,40 +859,45 @@ namespace Facesofnaija.Library.Anjo
 
                 if (data.GetReactText() == ReactConstants.Like)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "1";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Like").Value?.Id ?? "1";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("Like", 0, "1");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
                 else if (data.GetReactText() == ReactConstants.Love)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "2";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Love").Value?.Id ?? "2";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("Love", 1, "2");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
                 else if (data.GetReactText() == ReactConstants.HaHa)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "3";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "HaHa").Value?.Id ?? "3";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("HaHa", 2, "3");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
                 else if (data.GetReactText() == ReactConstants.Wow)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "4";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Wow").Value?.Id ?? "4";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("Wow", 3, "4");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
                 else if (data.GetReactText() == ReactConstants.Sad)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "5";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Sad").Value?.Id ?? "5";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("Sad", 4, "5");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
                 else if (data.GetReactText() == ReactConstants.Angry)
                 {
-                    PostData.NewsFeedClass.Reaction.Type = "6";
-                    string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Angry").Value?.Id ?? "6";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(PostData.NewsFeedClass.PostId, "reaction", react) });
+                    string react = ResolveReactionIdByNameOrIndex("Angry", 5, "6");
+                    PostData.NewsFeedClass.Reaction.Type = react;
+                    _ = SendPostActionWithFallbackAsync("reaction", react);
                 }
+
+                var selectedType = PostData.NewsFeedClass.Reaction?.Type;
+                var selectedPostId = PostData.NewsFeedClass.PostId ?? PostData.NewsFeedClass.Id;
+                if (!string.IsNullOrEmpty(selectedPostId) && !string.IsNullOrEmpty(selectedType))
+                    ListUtils.LastReactionTypeByPostId[selectedPostId] = selectedType;
 
                 if (PostData.NewsFeedClass.Reaction.IsReacted != null && !PostData.NewsFeedClass.Reaction.IsReacted.Value)
                 {
@@ -1353,7 +1424,7 @@ namespace Facesofnaija.Library.Anjo
         /// <returns>true if current reaction type is default</returns>
         public bool IsDefaultReaction()
         {
-            return MCurrentReaction.Equals(MDefaultReaction);
+            return string.Equals(MCurrentReaction?.GetReactType(), MDefaultReaction?.GetReactType(), StringComparison.OrdinalIgnoreCase);
         }
 
     }

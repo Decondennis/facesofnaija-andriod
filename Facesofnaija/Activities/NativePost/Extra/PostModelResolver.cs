@@ -80,7 +80,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
                 {
                     case PostButtonSystem.ReactionDefault:
                     case PostButtonSystem.ReactionSubShine:
-                        item.PostLikes = item.Reaction?.Count == null ? "0" : item.Reaction?.Count.ToString();
+                        if (item.Reaction?.Count > 0)
+                            item.PostLikes = item.Reaction.Count.ToString();
+                        else if (string.IsNullOrEmpty(item.PostLikes))
+                            item.PostLikes = "0";
                         break;
                     default:
                         item.PostLikes = Methods.FunString.FormatPriceValue(Convert.ToInt32(item.PostLikes));

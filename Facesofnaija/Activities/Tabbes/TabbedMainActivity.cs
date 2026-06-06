@@ -1249,8 +1249,7 @@ namespace Facesofnaija.Activities.Tabbes
                 var dialogList = new MaterialAlertDialogBuilder(this);
 
                 arrayAdapter.Add(GetText(Resource.String.image));
-                if (WoWonderTools.CheckAllowedFileSharingInServer("Video"))
-                    arrayAdapter.Add(GetText(Resource.String.video));
+                arrayAdapter.Add(GetText(Resource.String.video));
 
                 dialogList.SetTitle(GetText(Resource.String.Lbl_Addnewstory));
                 dialogList.SetItems(arrayAdapter.ToArray(), new MaterialDialogUtils(arrayAdapter, this));
@@ -1372,13 +1371,10 @@ namespace Facesofnaija.Activities.Tabbes
                 var checkSection = diff?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                 if (checkSection != null)
                 {
-                    //Open View Story Or Create New Story
                     var item = NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.GetItem(e.Position);
+                    Android.Util.Log.Warn("FON_STORY_FLOW", $"Click position={e.Position} item={(item == null ? "NULL" : $"UserId={item.UserId} Type={item.Type} Avatar={(item.Avatar?.Length > 50 ? item.Avatar.Substring(0, 50) + "..." : item.Avatar)} StoriesCount={item.Stories?.Count}")}");
                     if (item != null)
                     {
-                        //var circleIndicator = e.View.FindViewById<CircleImageView>(Resource.Id.profile_indicator); 
-                        //circleIndicator.BorderColor = Color.ParseColor(Settings.StoryReadColor);
-
                         switch (item.Type)
                         {
                             case "Your":
@@ -1388,8 +1384,6 @@ namespace Facesofnaija.Activities.Tabbes
                                 {
                                     if (item.DataLivePost?.LiveTime != null && item.DataLivePost?.LiveTime.Value > 0 && string.IsNullOrEmpty(item.DataLivePost?.AgoraResourceId) && string.IsNullOrEmpty(item.DataLivePost?.PostFile))
                                     {
-                                        //Live
-                                        //Owner >> ClientRoleBroadcaster , Users >> ClientRoleAudience
                                         Intent intent = new Intent(this, typeof(LiveStreamingActivity));
                                         intent.PutExtra(Constants.KeyClientRole, IO.Agora.Rtc2.Constants.ClientRoleAudience);
                                         intent.PutExtra("PostId", item.DataLivePost.PostId);
@@ -1405,6 +1399,7 @@ namespace Facesofnaija.Activities.Tabbes
                                     {
                                         List<StoryDataObject> storyList = new List<StoryDataObject>(NewsFeedTab.PostFeedAdapter?.HolderStory.StoryAdapter.StoryList);
                                         storyList.RemoveAll(o => o.Type == "Your" || o.Type == "Live");
+                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer: storyList.Count={storyList.Count} indexItem={storyList.IndexOf(item)} userId={item.UserId}");
 
                                         var indexItem = storyList.IndexOf(item);
 
@@ -1414,9 +1409,6 @@ namespace Facesofnaija.Activities.Tabbes
                                         intent.PutExtra("StoriesCount", storyList.Count);
                                         intent.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(storyList)));
                                         StartActivity(intent);
-
-                                        //item.ProfileIndicator = AppSettings.StoryReadColor;
-                                        //NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.NotifyItemChanged(e.Position);
                                     }
                                     break;
                                 }

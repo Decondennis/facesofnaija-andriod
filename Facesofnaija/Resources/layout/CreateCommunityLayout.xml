@@ -25,12 +25,12 @@
                 android:id="@+id/toolbar_title" />
         </androidx.appcompat.widget.Toolbar>
     </com.google.android.material.appbar.AppBarLayout>
-    <androidx.core.widget.NestedScrollView
+	<androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/toolbar"
         android:clipToPadding="false"
-        android:padding="20dp"
+		android:padding="16dp"
         android:scrollbars="none"
         android:scrollingCache="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
@@ -38,143 +38,154 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
-	                     
-			<!--Name Section -->
-			<LinearLayout
-				android:id="@+id/LayoutName"
-				android:paddingTop="5dp"
-				android:layout_marginTop="5dp"
-				android:layout_marginEnd="5dp"
+
+			<com.google.android.material.card.MaterialCardView
 				android:layout_width="match_parent"
-				android:orientation="horizontal"
-				android:layout_height="wrap_content">
-				<EditText
-					android:id="@+id/NameText"
-					style="@style/EditTextNormalStyle"
+				android:layout_height="wrap_content"
+				android:layout_marginBottom="14dp"
+				app:cardBackgroundColor="@color/primary"
+				app:cardCornerRadius="14dp"
+				app:cardElevation="2dp">
+
+				<TextView
 					android:layout_width="match_parent"
-					android:layout_height="45dp"
-					android:hint="@string/Lbl_CommunityName"
-					android:textSize="15sp"
-					android:gravity="start|center"
-					android:background="@drawable/round_gray_border"
-					android:layout_alignParentEnd="true"
-					android:layout_marginStart="3dp" />
-			</LinearLayout>
-	          
-	        <!--Country Section -->
-	        <LinearLayout
-		        android:id="@+id/LayoutTitle"
-		        android:paddingTop="5dp"
-		        android:layout_marginTop="5dp"
-		        android:layout_marginEnd="5dp"
-		        android:layout_width="match_parent"
-		        android:orientation="horizontal"
-		        android:layout_height="wrap_content">
-		        <EditText
-			        android:id="@+id/CountryText"
-					android:inputType="text"
-			        style="@style/EditTextNormalStyle"
-			        android:layout_width="match_parent"
-			        android:layout_height="45dp"
-			        android:hint="@string/Lbl_Country"
-			        android:textSize="15sp"
-			        android:gravity="start|center"
-			        android:background="@drawable/round_gray_border"
-			        android:layout_alignParentEnd="true"
-			        android:layout_marginStart="3dp" />
-	        </LinearLayout>
-             
-	        <!--State Section -->
-	        <LinearLayout
-		        android:id="@+id/LayoutState"
-		        android:paddingTop="5dp"
-		        android:layout_marginTop="5dp"
-		        android:layout_marginEnd="5dp"
-		        android:layout_width="match_parent"
-		        android:orientation="horizontal"
-		        android:layout_height="wrap_content">
-		        <EditText
-			        android:id="@+id/StateText"
-					android:inputType="text"
-			        style="@style/EditTextNormalStyle"
-			        android:layout_width="match_parent"
-			        android:layout_height="45dp"
-			        android:hint="@string/Lbl_State"
-			        android:textSize="15sp"
-			        android:gravity="start|center"
-			        android:background="@drawable/round_gray_border"
-			        android:layout_alignParentEnd="true"
-			        android:layout_marginStart="3dp" />
-	        </LinearLayout>
-             
-	        <!--Lga Section -->
-	        <LinearLayout
-		        android:id="@+id/LayoutLga"
-		        android:paddingTop="5dp"
-		        android:layout_marginTop="5dp"
-		        android:layout_marginEnd="5dp"
-		        android:layout_width="match_parent"
-		        android:orientation="horizontal"
-		        android:layout_height="wrap_content">
-		        <EditText
-			        android:id="@+id/LgaText"
-					android:inputType="text"
-			        style="@style/EditTextNormalStyle"
-			        android:layout_width="match_parent"
-			        android:layout_height="45dp"
-			        android:hint="@string/Lbl_Lga"
-			        android:textSize="15sp"
-			        android:gravity="start|center"
-			        android:background="@drawable/round_gray_border"
-			        android:layout_alignParentEnd="true"
-			        android:layout_marginStart="3dp" />
-	        </LinearLayout>
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:text="As a regular user, you can request permission to create a community. An administrator will review your request."
+					android:textColor="@android:color/white"
+					android:textSize="13sp" />
+			</com.google.android.material.card.MaterialCardView>
 
-	        <!--Description Section -->
-	        <LinearLayout
-		        android:id="@+id/LayoutDescription"
-		        android:paddingTop="5dp"
-		        android:layout_marginTop="5dp"
-		        android:layout_marginEnd="5dp"
-		        android:layout_width="match_parent"
-		        android:orientation="horizontal"
-		        android:layout_height="wrap_content">
-		        <EditText
-			        android:id="@+id/DescriptionText"
-					android:inputType="text"
-			        style="@style/EditTextNormalStyle"
-			        android:layout_width="match_parent"
-			        android:layout_height="80dp"
-			        android:background="@drawable/round_gray_border"
-			        android:hint="@string/Lbl_Describe_Community"
-			        android:textSize="15sp"
-			        android:gravity="start"
-			        android:layout_alignParentEnd="true"
-			        android:layout_marginStart="3dp" />
-	        </LinearLayout>
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="Community Name"
+				android:textStyle="bold" />
 
-	        <!--Privacy Section -->
-	        <LinearLayout
-		        android:id="@+id/LayoutGender"
-		        android:paddingTop="5dp"
-		        android:layout_marginTop="5dp"
-		        android:layout_marginEnd="5dp"
-		        android:layout_width="match_parent"
-		        android:orientation="horizontal"
-		        android:layout_height="wrap_content">
-		        <EditText
-			        android:id="@+id/PrivacyText"
-					android:inputType="text"
-			        style="@style/EditTextNormalStyle"
-			        android:layout_width="match_parent"
-			        android:layout_height="45dp"
-			        android:hint="@string/Lbl_Privacy"
-			        android:textSize="15sp"
-			        android:gravity="start|center"
-			        android:background="@drawable/round_gray_border"
-			        android:layout_alignParentEnd="true"
-			        android:layout_marginStart="3dp" />
-	        </LinearLayout>
+			<EditText
+				android:id="@+id/CommunityTitleText"
+				style="@style/EditTextNormalStyle"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:gravity="start|center_vertical"
+				android:hint="@string/Lbl_CommunityName"
+				android:inputType="textCapSentences"
+				android:paddingStart="12dp"
+				android:paddingEnd="12dp"
+				android:textSize="15sp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="Community URL"
+				android:textStyle="bold" />
+
+			<EditText
+				android:id="@+id/CommunityUrlText"
+				style="@style/EditTextNormalStyle"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:gravity="start|center_vertical"
+				android:hint="example-community"
+				android:inputType="text"
+				android:paddingStart="12dp"
+				android:paddingEnd="12dp"
+				android:textSize="15sp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="Description"
+				android:textStyle="bold" />
+
+			<EditText
+				android:id="@+id/DescriptionText"
+				style="@style/EditTextNormalStyle"
+				android:layout_width="match_parent"
+				android:layout_height="88dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:gravity="start|top"
+				android:hint="@string/Lbl_Describe_Community"
+				android:inputType="textMultiLine"
+				android:paddingStart="12dp"
+				android:paddingTop="10dp"
+				android:paddingEnd="12dp"
+				android:textSize="15sp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/Lbl_Privacy"
+				android:textStyle="bold" />
+
+			<Spinner
+				android:id="@+id/PrivacySpinner"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:paddingStart="10dp"
+				android:paddingEnd="10dp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/Lbl_Category"
+				android:textStyle="bold" />
+
+			<EditText
+				android:id="@+id/CategoryText"
+				style="@style/EditTextNormalStyle"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:gravity="start|center_vertical"
+				android:hint="@string/Lbl_Category"
+				android:inputType="textCapSentences"
+				android:paddingStart="12dp"
+				android:paddingEnd="12dp"
+				android:textSize="15sp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="Reason for Request"
+				android:textStyle="bold" />
+
+			<EditText
+				android:id="@+id/ReasonText"
+				style="@style/EditTextNormalStyle"
+				android:layout_width="match_parent"
+				android:layout_height="88dp"
+				android:layout_marginTop="6dp"
+				android:layout_marginBottom="12dp"
+				android:background="@drawable/round_gray_border"
+				android:gravity="start|top"
+				android:hint="Why do you want to create this community?"
+				android:inputType="textMultiLine"
+				android:paddingStart="12dp"
+				android:paddingTop="10dp"
+				android:paddingEnd="12dp"
+				android:textSize="15sp" />
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="4dp"
+				android:text="You can submit this request once all required fields are filled."
+				android:textColor="@color/text_color_in_between"
+				android:textSize="12sp" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

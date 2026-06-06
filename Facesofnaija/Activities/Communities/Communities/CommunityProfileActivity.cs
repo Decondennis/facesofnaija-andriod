@@ -712,17 +712,11 @@ namespace Facesofnaija.Activities.Communities.Communities
                                                                             var photoUri = FileProvider.GetUriForFile(this, PackageName + ".fileprovider", file2);
                                                                             Glide.With(this).Load(photoUri).Apply(new RequestOptions().CircleCrop()).Into(UserProfileImage);
 
-                                                                            var dataCommunity = CommunitiesActivity.GetInstance()?.MAdapter.SocialList?.FirstOrDefault(a => a.Community?.CommunityId == CommunityId && a.TypeView == SocialModelType.ManagedCommunities);
-                                                                            if (dataCommunity?.Community != null)
+                                                                            CommunitiesDashboardActivity.GetInstance()?.UpdateCommunityAvatar(CommunityId, pathImg);
+                                                                            var dataGroup2 = ListUtils.MyCommunityList.FirstOrDefault(a => a.CommunityId == CommunityId);
+                                                                            if (dataGroup2 != null)
                                                                             {
-                                                                                dataCommunity.Community.Avatar = pathImg;
-                                                                                CommunitiesActivity.GetInstance()?.MAdapter?.NotifyDataSetChanged();
-
-                                                                                var dataGroup2 = ListUtils.MyCommunityList.FirstOrDefault(a => a.CommunityId == CommunityId);
-                                                                                if (dataGroup2 != null)
-                                                                                {
-                                                                                    dataGroup2.Avatar = pathImg;
-                                                                                }
+                                                                                dataGroup2.Avatar = pathImg;
                                                                             }
 
                                                                             //UpdateImageGroup_Api(ImageType, pathImg);
@@ -851,14 +845,8 @@ namespace Facesofnaija.Activities.Communities.Communities
                         }
                     case 2019 when resultCode == Result.Ok:
                         {
-                            var managed = CommunitiesActivity.GetInstance()?.MAdapter?.SocialList?.FirstOrDefault(a => a.Community?.CommunityId == CommunityId && a.TypeView == SocialModelType.ManagedCommunities);
-                            if (managed?.Community != null)
-                            {
-                                CommunitiesActivity.GetInstance().MAdapter.SocialList.Remove(managed);
-                                CommunitiesActivity.GetInstance().MAdapter.NotifyDataSetChanged();
-
-                                ListUtils.MyCommunityList.Remove(managed.Community);
-                            }
+                            CommunitiesDashboardActivity.GetInstance()?.RemoveCommunityFromLists(CommunityId);
+                            ListUtils.MyCommunityList.RemoveAll(a => a?.CommunityId == CommunityId);
                              
                             Finish();
                             break;

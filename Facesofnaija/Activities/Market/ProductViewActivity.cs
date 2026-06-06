@@ -1,6 +1,7 @@
 ﻿using Android.App;
 using Android.Content;
 using Android.Content.PM;
+using Android.Util;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.OS;
@@ -39,6 +40,8 @@ using WoWonderClient.Classes.Message;
 using WoWonderClient.Classes.Posts;
 using WoWonderClient.Classes.Product;
 using WoWonderClient.Requests;
+using WoWonderClient;
+using Facesofnaija.CustomApi.Requests;
 using Exception = System.Exception;
 using Reaction = WoWonderClient.Classes.Posts.Reaction;
 using String = Java.Lang.String;
@@ -1252,10 +1255,24 @@ namespace Facesofnaija.Activities.Market
             if (Methods.CheckConnectivity())
             {
                 var countList = MAdapter.CommentList.Count;
+                var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
                 var (apiStatus, respond) = await RequestsAsync.Comment.GetPostCommentsAsync(PostId, "10", offset);
-                if (apiStatus != 200 || respond is not CommentObject result || result.CommentList == null)
+                CommentObject result = respond as CommentObject;
+                if (apiStatus != 200 || result?.CommentList == null)
                 {
-                    Methods.DisplayReportResult(this, respond);
+                    Log.Info("WoFallback", $"ProductView SDK loading failed, trying web API fallback apiStatus={apiStatus}");
+                    var (fbStatus, fbRespond) = await CustomRequests.Posts.FetchCommentsWebApiAsync(sessionId, PostId, "10", offset);
+                    if (fbStatus == 200 && fbRespond is CommentObject fbResult && fbResult.CommentList != null)
+                    {
+                        respond = fbResult;
+                        result = fbResult;
+                        apiStatus = 200;
+                    }
+                }
+
+                if (apiStatus != 200 || result?.CommentList == null)
+                {
+                    try { Methods.DisplayReportResult(this, respond); } catch (Exception) { }
                 }
                 else
                 {

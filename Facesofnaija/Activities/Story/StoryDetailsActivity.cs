@@ -8,6 +8,7 @@ using AndroidX.ViewPager2.Widget;
 using Newtonsoft.Json;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Facesofnaija.Activities.Story.Adapters;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.Library.Anjo.Stories;
@@ -55,7 +56,9 @@ namespace Facesofnaija.Activities.Story
                     UserId = Intent.GetStringExtra("UserId") ?? "";
                     StoriesCount = Intent.GetIntExtra("StoriesCount", 0);
                     SelectedPage = Intent.GetIntExtra("IndexItem", 0);
-                    DataStories = JsonConvert.DeserializeObject<ObservableCollection<StoryDataObject>>(Intent?.GetStringExtra("DataItem") ?? "");
+                    var dataItemStr = Intent?.GetStringExtra("DataItem") ?? "";
+                    DataStories = JsonConvert.DeserializeObject<ObservableCollection<StoryDataObject>>(dataItemStr);
+                    Android.Util.Log.Warn("FON_STORY_FLOW", $"StoryDetails OnCreate: UserId={UserId} StoriesCount={StoriesCount} SelectedPage={SelectedPage} DataStories={(DataStories == null ? "NULL" : $"Count={DataStories.Count} firstUserId={DataStories.FirstOrDefault()?.UserId} firstAvatar={(DataStories.FirstOrDefault()?.Avatar?.Length > 60 ? DataStories.FirstOrDefault()?.Avatar.Substring(0, 60) + "..." : DataStories.FirstOrDefault()?.Avatar)}")}");
                 }
 
                 //Get Value And Set Toolbar

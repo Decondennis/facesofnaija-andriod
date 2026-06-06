@@ -138,8 +138,7 @@ namespace Facesofnaija.Activities.Search.Adapters
                         holder.Button.SetTextColor(Color.White);
                         holder.Button.Text = ActivityContext.GetText(Resource.String.Btn_Join_Community);
                         holder.Button.Tag = "0";
-
-                        holder.Button.Visibility = ViewStates.Gone;
+                        holder.Button.Visibility = ViewStates.Visible;
                     }
                 }
             }
@@ -158,7 +157,7 @@ namespace Facesofnaija.Activities.Search.Adapters
 
                 switch (holder)
                 {
-                    case SearchGroupAdapterViewHolder viewHolder:
+                    case SearchCommunityAdapterViewHolder viewHolder:
                         Glide.With(ActivityContext).Clear(viewHolder.Image);
                         break;
                 }

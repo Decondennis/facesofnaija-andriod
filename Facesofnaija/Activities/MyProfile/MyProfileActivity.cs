@@ -425,6 +425,18 @@ namespace Facesofnaija.Activities.MyProfile
             }
         }
 
+        public void ReloadProfileFeed()
+        {
+            try
+            {
+                RunOnUiThread(StartApiService);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
         private void DestroyBasic()
         {
             try
@@ -519,7 +531,7 @@ namespace Facesofnaija.Activities.MyProfile
             }
         }
 
-        private void SwipeRefreshLayoutOnRefresh(object sender, EventArgs e)
+        public void SwipeRefreshLayoutOnRefresh(object sender, EventArgs e)
         {
             try
             {

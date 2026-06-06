@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using System.Net.Http;
+using Android.Util;
 using System;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -12,10 +13,12 @@ using System.Linq;
 using WoWonderClient.Requests;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Classes.Posts;
+using WoWonderClient.Classes.Comments;
 using System.Collections.ObjectModel;
 using System.IO;
 using Facesofnaija.CustomApi.Classes.Search;
 using System.Net.Http.Headers;
+using Facesofnaija.Helpers.Utils;
 
 namespace Facesofnaija.CustomApi.Requests
 {
@@ -27,28 +30,24 @@ namespace Facesofnaija.CustomApi.Requests
             public static string UserId { get; set; }
             public static string AccessToken { get; set; }
 
-            public static async Task<(long?, dynamic)> GetJoinedCommunitiesAsync()//string userId, string offset, string limit
+            private static async Task<(long?, dynamic)> GetCommunitiesByFetchAsync(string fetch)
             {
-                Console.WriteLine("This is GetJoinedCommunitiesAsync");
                 try
                 {
-                    Console.WriteLine("This is the joined communities");
                     var client = new HttpClient();
                     var content = new FormUrlEncodedContent(new[]
                     {
-                        new KeyValuePair<string, string>("fetch", "joined_communities"),
+                        new KeyValuePair<string, string>("fetch", fetch),
                         new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
                         new KeyValuePair<string, string>("user_id", UserDetails.UserId)
                     });
+
                     var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/get-community?access_token=" + UserDetails.AccessToken, content);
-                    Console.WriteLine(InitializeWoWonder.WebsiteUrl + "/api/get-community?access_token=" + UserDetails.AccessToken);
-                    string json = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine(json);
-                    ListCommunitiesObject list = JsonConvert.DeserializeObject<ListCommunitiesObject>(json);
+                    var json = await response.Content.ReadAsStringAsync();
+
+                    var list = JsonConvert.DeserializeObject<ListCommunitiesObject>(json);
                     if (list != null)
-                    {
                         return (list.Status, list);
-                    }
 
                     var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
                     return (400, error);
@@ -57,6 +56,12 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     return (404, e.Message);
                 }
+            }
+
+            public static Task<(long?, dynamic)> GetJoinedCommunitiesAsync()//string userId, string offset, string limit
+            {
+                Console.WriteLine("This is GetJoinedCommunitiesAsync");
+                return GetCommunitiesByFetchAsync("joined_communities");
             }
 
             public static async Task<(long?, dynamic)> GetMyCommunitiesAsync(string offset, string limit)
@@ -93,34 +98,35 @@ namespace Facesofnaija.CustomApi.Requests
             public static async Task<(long?, dynamic)> GetRecommendedCommunitiesAsync(string limit, string offset)
             {
                 Console.WriteLine("This is GetRecommendedCommunitiesAsync");
+                return await GetCommunitiesByFetchAsync("random_communities");
+            }
 
-                try
+            public static async Task<(long?, dynamic)> GetSuggestedCommunitiesAsync(string limit = "20", string offset = "")
+            {
+                return await GetCommunitiesByFetchAsync("random_communities");
+            }
+
+            public static async Task<(long?, dynamic)> GetRequestedCommunitiesAsync()
+            {
+                var (apiStatus, respond) = await GetCommunitiesByFetchAsync("joined_communities");
+                if (apiStatus != 200 || respond is not ListCommunitiesObject result || result.Data == null)
+                    return (apiStatus, respond);
+
+                var requested = new List<CommunityDataObject>();
+                foreach (var item in result.Data)
                 {
-                    var client = new HttpClient();
-                    var content = new FormUrlEncodedContent(new[]
-                    {
-                        new KeyValuePair<string, string>("fetch", "joined_groups"),
-                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey),
-                        new KeyValuePair<string, string>("user_id", UserDetails.UserId)
-                    });
-                    var response = await client.PostAsync(InitializeWoWonder.WebsiteUrl + "/api/get-community?access_token=" + UserDetails.AccessToken, content);
-                    Console.WriteLine(InitializeWoWonder.WebsiteUrl + "/api/get-community?access_token=" + UserDetails.AccessToken);
-                    string json = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine(json);
+                    if (item == null)
+                        continue;
 
-                    ListCommunitiesObject list = JsonConvert.DeserializeObject<ListCommunitiesObject>(json);
-                    if (list != null)
-                    {
-                        return (list.Status, list);
-                    }
-
-                    var error = JsonConvert.DeserializeObject<Helpers.Model.Classes.ExErrorObject>(json);
-                    return (400, error);
+                    if (WoWonderTools.IsJoinedCommunity(item) == "2" || item.IsCommunityJoined == 2)
+                        requested.Add(item);
                 }
-                catch (Exception e)
+
+                return (200, new ListCommunitiesObject
                 {
-                    return (404, e.Message);
-                }
+                    Status = 200,
+                    Data = requested
+                });
             }
 
             public static async Task<(long?, dynamic)> GetCommunityDataAsync(string communityId)
@@ -310,6 +316,16 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     return (404, e.Message);
                 }
+            }
+
+            public static Task<(long?, dynamic)> LeaveCommunityAsync(string communityId)
+            {
+                return JoinCommunityAsync(communityId);
+            }
+
+            public static Task<(long?, dynamic)> CancelCommunityRequestAsync(string communityId)
+            {
+                return JoinCommunityAsync(communityId);
             }
 
             public static async Task<(long?, dynamic)> JoinRequestActionAsync(string communityId, string userId, bool requestAction)
@@ -764,7 +780,7 @@ namespace Facesofnaija.CustomApi.Requests
         }
 
         // ---------------------------------------------------------------------------
-        // Custom Posts — bypasses the SDK's internal HttpClient which points to the
+        // Custom Posts ï¿½ bypasses the SDK's internal HttpClient which points to the
         // wrong domain (facesofnaija.com) and instead uses InitializeWoWonder.WebsiteUrl
         // (the working IP from analytic.xml).
         // ---------------------------------------------------------------------------
@@ -950,6 +966,939 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                 }
 
+                public static async Task<(int, dynamic)> PostActionFallbackAsync(string postId, string action, string reaction = "", string postText = "", string privacy = "")
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postId))
+                            return (400, "Missing session or post id");
+
+                        if (string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(action, "delete_post", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(action, "remove_post", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var (quickDeleteStatus, quickDeleteRespond) = await ExecuteDeletePostFallbackQuickAsync(sessionId, postId);
+                            return (quickDeleteStatus, quickDeleteRespond);
+                        }
+
+                        var typeCandidates = new[]
+                        {
+                            action,
+                            "delete_post",
+                            "remove_post",
+                            "delete",
+                            "post_actions",
+                            "post_action",
+                            "posts_action",
+                            "like_post",
+                            "like"
+                        };
+                        var payloadCandidates = new List<Dictionary<string, string>>
+                        {
+                            new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "user_id", UserDetails.UserId ?? string.Empty },
+                                { "s", sessionId },
+                                { "post_id", postId },
+                                { "id", postId },
+                                { "action", action ?? string.Empty },
+                                { "reaction", reaction ?? string.Empty },
+                                { "reaction_id", reaction ?? string.Empty },
+                                { "reaction_type", reaction ?? string.Empty },
+                                { "postText", postText ?? string.Empty },
+                                { "postPrivacy", string.IsNullOrWhiteSpace(privacy) ? "0" : privacy }
+                            },
+                            new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "user_id", UserDetails.UserId ?? string.Empty },
+                                { "s", sessionId },
+                                { "post_id", postId },
+                                { "do", string.IsNullOrWhiteSpace(action) ? "reaction" : action },
+                                { "action", string.IsNullOrWhiteSpace(action) ? "like" : action },
+                                { "reaction", reaction ?? string.Empty },
+                                { "reaction_id", reaction ?? string.Empty }
+                            },
+                            new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "s", sessionId },
+                                { "post_id", postId },
+                                { "type", string.IsNullOrWhiteSpace(action) ? "reaction" : action },
+                                { "action", string.IsNullOrWhiteSpace(action) ? "like" : action },
+                                { "reaction", reaction ?? string.Empty }
+                            }
+                        };
+
+                        foreach (var payload in payloadCandidates)
+                        {
+                            if (!payload.ContainsKey("access_token"))
+                                payload["access_token"] = sessionId;
+                            if (!payload.ContainsKey("accessToken"))
+                                payload["accessToken"] = sessionId;
+                        }
+
+                        foreach (var payload in payloadCandidates)
+                        {
+                            foreach (var type in typeCandidates)
+                            {
+                                if (string.IsNullOrWhiteSpace(type))
+                                    continue;
+
+                                var timeout = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase) ? 8 : 45;
+                                var (apiStatus, respond) = await ExecutePhoneApiFormAsync(type, payload, timeout);
+                                if (apiStatus == 200)
+                                    return (apiStatus, respond);
+                            }
+                        }
+
+                        var (webStatus, webRespond) = await ExecuteWebApiPostActionAsync(sessionId, postId, action, reaction);
+                        if (webStatus == 200)
+                            return (webStatus, webRespond);
+
+                        return (400, "Post action fallback failed");
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
+                }
+
+                private static async Task<(int, dynamic)> ExecuteDeletePostFallbackQuickAsync(string sessionId, string postId)
+                {
+                    var requestCandidates = new[]
+                    {
+                        (Type: "delete_post", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" }
+                        }),
+                        (Type: "delete_post", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" },
+                            { "do", "delete" }
+                        }),
+                        (Type: "delete_post", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete_post" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "delete_post", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "delete_post", "1" },
+                            { "action", "delete_post" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "delete_post", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "do", "delete_post" },
+                            { "action", "delete_post" }
+                        }),
+                        (Type: "post_actions", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "post_actions", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete_post" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "posts_action", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "post_action", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" },
+                            { "type", "delete_post" }
+                        }),
+                        (Type: "delete", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "type", "delete" },
+                            { "action", "delete" }
+                        }),
+                        (Type: "delete", Payload: new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "type", "delete" },
+                            { "do", "delete" }
+                        })
+                    };
+
+                    string lastError = "Delete fallback failed";
+                    foreach (var payload in requestCandidates.Select(r => r.Payload))
+                    {
+                        if (!payload.ContainsKey("access_token"))
+                            payload["access_token"] = sessionId;
+                        if (!payload.ContainsKey("accessToken"))
+                            payload["accessToken"] = sessionId;
+                    }
+
+                    foreach (var request in requestCandidates)
+                    {
+                        Log.Info("WoFallback", $"Delete fallback candidate type={request.Type} postId={postId} keys={string.Join(",", request.Payload.Keys.OrderBy(k => k))}");
+                        var (apiStatus, respond) = await ExecutePhoneApiFormAsync(request.Type, request.Payload, 8);
+                        if (apiStatus == 200)
+                            return (apiStatus, respond);
+
+                        lastError = respond?.ToString() ?? lastError;
+                    }
+
+                    return (400, lastError);
+                }
+
+                private static async Task<(int, dynamic)> ExecutePhoneApiFormSingleEndpointAsync(string type, Dictionary<string, string> fields, int timeoutSeconds = 5)
+                {
+                    using var handler = new HttpClientHandler();
+                    using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(timeoutSeconds < 4 ? 4 : timeoutSeconds) };
+                    client.DefaultRequestHeaders.ConnectionClose = true;
+
+                    fields.TryGetValue("s", out var sessionId);
+                    sessionId ??= string.Empty;
+
+                    var endpoint = $"{GetApiBase()}/app_api.php?application=phone&type={type}&s={Uri.EscapeDataString(sessionId)}";
+                    Log.Info("WoFallback", $"HttpForm request type={type} endpoint={endpoint} timeout={timeoutSeconds} keys={string.Join(",", fields.Keys.OrderBy(k => k))}");
+
+                    try
+                    {
+                        var postFields = new Dictionary<string, string>(fields);
+                        if (postFields.ContainsKey("s") && !postFields.ContainsKey("session"))
+                            postFields["session"] = postFields["s"];
+                        postFields.Remove("s");
+                        using var form = new FormUrlEncodedContent(postFields.Where(a => !string.IsNullOrEmpty(a.Key)));
+                        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                        {
+                            Content = form
+                        };
+                        request.Headers.ConnectionClose = true;
+
+                        var response = await client.SendAsync(request);
+                        var json = await response.Content.ReadAsStringAsync();
+                        var normalizedJson = (json ?? string.Empty).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+
+                        if (string.IsNullOrWhiteSpace(normalizedJson) || !normalizedJson.StartsWith("{"))
+                        {
+                            if (response.StatusCode == System.Net.HttpStatusCode.OK
+                                && string.IsNullOrWhiteSpace(normalizedJson)
+                                && type.IndexOf("delete", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                Log.Info("WoFallback", $"HttpForm success: delete type={type} endpoint={endpoint} empty-body-treated-as-success");
+                                return (200, $"type={type}; endpoint={endpoint}; http=200; empty-body-treated-as-success");
+                            }
+
+                            var shortBody = normalizedJson.Replace("\r", " ").Replace("\n", " ");
+                            if (shortBody.Length > 180)
+                                shortBody = shortBody.Substring(0, 180);
+                            Log.Warn("WoFallback", $"HttpForm non-JSON response: type={type} endpoint={endpoint} status={(int)response.StatusCode} body={shortBody}");
+                            return (400, $"type={type}; endpoint={endpoint}; http={(int)response.StatusCode}; nonjson={shortBody}");
+                        }
+
+                        var token = JObject.Parse(normalizedJson);
+                        var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                        if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                            return (200, token);
+
+                        var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? token["message"]?.ToString() ?? token.ToString(Formatting.None);
+                        if (!string.IsNullOrEmpty(errorText) && errorText.Length > 220)
+                            errorText = errorText.Substring(0, 220);
+
+                        return (400, $"type={type}; endpoint={endpoint}; http={(int)response.StatusCode}; api={apiStatus}; error={errorText}");
+                    }
+                    catch (Exception ex)
+                    {
+                        var err = ex.Message ?? string.Empty;
+                        if (err.Length > 220)
+                            err = err.Substring(0, 220);
+                        return (400, $"type={type}; endpoint={endpoint}; ex={err}");
+                    }
+                }
+
+                public static async Task<(int, dynamic)> CreateCommentFastPhoneApiAsync(string postOrCommentId, string text, string imagePath = "", string voicePath = "", string imageUrl = "", string mode = "")
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postOrCommentId))
+                            return (400, "Missing session or target id");
+
+                        var isReply = string.Equals(mode, "create_reply", StringComparison.OrdinalIgnoreCase);
+                        var typeCandidates = isReply
+                            ? new[] { "create_post_comment", "create_reply", "reply_comment" }
+                            : new[] { "create_post_comment", "create_comment", "post_comment" };
+
+                        var payloads = new[]
+                        {
+                            new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "user_id", UserDetails.UserId ?? string.Empty },
+                                { "s", sessionId },
+                                { "text", text ?? string.Empty },
+                                { "post_id", postOrCommentId },
+                                { "id", postOrCommentId }
+                            },
+                            new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "s", sessionId },
+                                { "comment_text", text ?? string.Empty },
+                                { "post_id", postOrCommentId },
+                                { "type", "create_comment" }
+                            }
+                        };
+
+                        if (isReply)
+                        {
+                            foreach (var p in payloads)
+                            {
+                                p.Remove("post_id");
+                                p.Remove("id");
+                                p["comment_id"] = postOrCommentId;
+                                p["mode"] = "create_reply";
+                            }
+                        }
+
+                        foreach (var payload in payloads)
+                        {
+                            foreach (var type in typeCandidates)
+                            {
+                                var (status, resp) = await ExecutePhoneApiFormAsync(type, payload, 6);
+                                if (status == 200)
+                                {
+                                    Log.Info("WoFallback", $"CreateCommentFastPhoneApi succeeded type={type}");
+                                    if (resp is JObject token)
+                                    {
+                                        // Wrap under "data" key to match SDK format expected by call sites
+                                        var wrapped = new JObject
+                                        {
+                                            ["api_status"] = "200",
+                                            ["data"] = token
+                                        };
+                                        return (200, wrapped);
+                                    }
+                                    return (200, resp);
+                                }
+                            }
+                        }
+                        return (400, "Fast phone API comment creation failed");
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
+                }
+
+                public static async Task<(int, dynamic)> CreateCommentFallbackAsync(string postOrCommentId, string text, string imagePath = "", string voicePath = "", string imageUrl = "", string mode = "")
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postOrCommentId))
+                            return (400, "Missing session or target id");
+
+                        var basePayload = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "text", text ?? string.Empty },
+                            { "comment_text", text ?? string.Empty },
+                            { "comment", text ?? string.Empty },
+                            { "message", text ?? string.Empty },
+                            { "c_file", imagePath ?? string.Empty },
+                            { "record", voicePath ?? string.Empty },
+                            { "image", imageUrl ?? string.Empty }
+                        };
+
+                        var isReply = string.Equals(mode, "create_reply", StringComparison.OrdinalIgnoreCase);
+                        var payloadCandidates = new List<Dictionary<string, string>>();
+
+                        // Minimal payload variants first (most compatible with legacy app_api routes).
+                        var minimalPayload1 = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "text", text ?? string.Empty }
+                        };
+
+                        var minimalPayload2 = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "s", sessionId },
+                            { "comment_text", text ?? string.Empty }
+                        };
+
+                        var payload1 = new Dictionary<string, string>(basePayload);
+                        var payload2 = new Dictionary<string, string>(basePayload);
+                        var payload3 = new Dictionary<string, string>(basePayload);
+
+                        if (string.Equals(mode, "create_reply", StringComparison.OrdinalIgnoreCase))
+                        {
+                            minimalPayload1["comment_id"] = postOrCommentId;
+                            minimalPayload1["mode"] = "create_reply";
+                            minimalPayload2["comment_id"] = postOrCommentId;
+                            minimalPayload2["type"] = "create_reply";
+
+                            payload1["mode"] = "create_reply";
+                            payload1["type"] = "create_reply";
+                            payload1["comment_id"] = postOrCommentId;
+                            payload1["id"] = postOrCommentId;
+
+                            payload2["type"] = "reply_comment";
+                            payload2["commentId"] = postOrCommentId;
+                            payload2["parent_comment_id"] = postOrCommentId;
+                            payload2["id"] = postOrCommentId;
+
+                            payload3["do"] = "create_reply";
+                            payload3["comment_id"] = postOrCommentId;
+                            payload3["commentId"] = postOrCommentId;
+                        }
+                        else
+                        {
+                            minimalPayload1["post_id"] = postOrCommentId;
+                            minimalPayload2["post_id"] = postOrCommentId;
+                            minimalPayload2["postId"] = postOrCommentId;
+
+                            payload1["post_id"] = postOrCommentId;
+                            payload1["id"] = postOrCommentId;
+
+                            payload2["postId"] = postOrCommentId;
+                            payload2["post_id"] = postOrCommentId;
+                            payload2["action"] = "create_comment";
+
+                            payload3["do"] = "comment";
+                            payload3["post_id"] = postOrCommentId;
+                        }
+
+                        payloadCandidates.Add(minimalPayload1);
+                        payloadCandidates.Add(payload1);
+                        payloadCandidates.Add(payload2);
+
+                        var typeCandidates = isReply
+                            ? new[] { "create_post_comment", "create_reply", "reply_comment" }
+                            : new[] { "create_post_comment", "create_comment", "post_comment" };
+
+                        string lastError = "Create comment fallback failed";
+                        Log.Info("WoFallback", $"CreateCommentFallbackAsync start targetId={postOrCommentId} isReply={isReply} textLength={text?.Length ?? 0} image={!string.IsNullOrEmpty(imagePath)} voice={!string.IsNullOrEmpty(voicePath)} imageUrl={!string.IsNullOrEmpty(imageUrl)}");
+
+                        foreach (var payload in payloadCandidates)
+                        {
+                            foreach (var type in typeCandidates)
+                            {
+                                Log.Info("WoFallback", $"Create comment fallback candidate type={type} keys={string.Join(",", payload.Keys.OrderBy(k => k))}");
+                                var (apiStatus, respond) = await ExecutePhoneApiFormAsync(type, payload, 8);
+                                if (apiStatus == 200)
+                                {
+                                    return (200, respond);
+                                }
+
+                                lastError = respond?.ToString() ?? lastError;
+                            }
+                        }
+                        Log.Warn("WoFallback", $"CreateCommentFallbackAsync final fail targetId={postOrCommentId} error={lastError}");
+                        return (400, lastError);
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
+                }
+
+                public static async Task<(int, dynamic)> SharePostFallbackAsync(string postId, string targetId, string shareMode, string text)
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postId))
+                            return (400, "Missing session or post id");
+
+                        Dictionary<string, string> BuildBasePayload()
+                        {
+                            var payload = new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "user_id", UserDetails.UserId ?? string.Empty },
+                                { "s", sessionId },
+                                { "post_id", postId },
+                                { "id", postId },
+                                { "postId", postId },
+                                { "share_id", postId },
+                                { "shared_post_id", postId },
+                                { "text", text ?? string.Empty },
+                                { "share_text", text ?? string.Empty },
+                                { "share_type", shareMode ?? string.Empty },
+                                { "type", shareMode ?? string.Empty },
+                                { "target_id", targetId ?? string.Empty },
+                                { "recipient_id", targetId ?? string.Empty }
+                            };
+
+                            if (string.Equals(shareMode, "share_post_on_group", StringComparison.OrdinalIgnoreCase))
+                                payload["group_id"] = targetId ?? string.Empty;
+                            else if (string.Equals(shareMode, "share_post_on_page", StringComparison.OrdinalIgnoreCase))
+                                payload["page_id"] = targetId ?? string.Empty;
+
+                            return payload;
+                        }
+
+                        var requestCandidates = new List<(string Type, Dictionary<string, string> Payload)>();
+
+                        if (!string.IsNullOrWhiteSpace(shareMode))
+                            requestCandidates.Add((shareMode, BuildBasePayload()));
+
+                        var legacySharePayload = BuildBasePayload();
+                        legacySharePayload["action"] = "share";
+                        legacySharePayload["type"] = "share_post";
+                        legacySharePayload["share_type"] = shareMode ?? string.Empty;
+                        requestCandidates.Add(("share_post", legacySharePayload));
+
+                        var postActionsPayload = BuildBasePayload();
+                        postActionsPayload["action"] = "share";
+                        postActionsPayload["type"] = "share_post";
+                        postActionsPayload["share_type"] = shareMode ?? string.Empty;
+                        requestCandidates.Add(("post_actions", postActionsPayload));
+
+                        var genericPayload = BuildBasePayload();
+                        genericPayload["do"] = "share";
+                        genericPayload["action"] = "share";
+                        genericPayload["type"] = !string.IsNullOrWhiteSpace(shareMode) ? shareMode : "share_post";
+                        requestCandidates.Add(("share", genericPayload));
+
+                        var alternatePayload = BuildBasePayload();
+                        alternatePayload["do"] = "share";
+                        alternatePayload["action"] = "share";
+                        alternatePayload["type"] = "share_post";
+                        alternatePayload["share_type"] = shareMode ?? string.Empty;
+                        requestCandidates.Add(("share_post", alternatePayload));
+
+                        string lastError = "Share fallback failed";
+
+                        var (webStatus, webRespond) = await SharePostWebApiAsync(sessionId, postId, targetId, shareMode, text);
+                        if (webStatus == 200)
+                            return (webStatus, webRespond);
+
+                        lastError = webRespond?.ToString() ?? lastError;
+
+                        var (postActionsStatus, postActionsRespond) = await ExecuteWebApiPostActionAsync(sessionId, postId, "share", string.Empty, shareMode);
+                        if (postActionsStatus == 200)
+                            return (postActionsStatus, postActionsRespond);
+
+                        lastError = postActionsRespond?.ToString() ?? lastError;
+
+                        foreach (var request in requestCandidates)
+                        {
+                            Log.Info("WoFallback", $"Share fallback candidate type={request.Type} postId={postId} targetId={targetId} mode={shareMode} keys={string.Join(",", request.Payload.Keys.OrderBy(k => k))}");
+                            var (apiStatus, respond) = await ExecutePhoneApiFormAsync(request.Type, request.Payload, 12);
+                            if (apiStatus == 200)
+                                return (apiStatus, respond);
+
+                            lastError = respond?.ToString() ?? lastError;
+                        }
+
+                        return (400, lastError);
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
+                }
+
+                private static async Task<(int, dynamic)> ExecutePhoneApiFormAsync(string type, Dictionary<string, string> fields, int timeoutSeconds = 45)
+                {
+                    using var handler = new HttpClientHandler();
+                    using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(timeoutSeconds < 4 ? 4 : timeoutSeconds) };
+                    client.DefaultRequestHeaders.ConnectionClose = true;
+                    fields.TryGetValue("s", out var sessionId);
+                    sessionId ??= string.Empty;
+                    // rename s to session in POST body to work around server-side filter
+                    var postFields = new Dictionary<string, string>(fields);
+                    if (postFields.ContainsKey("s") && !postFields.ContainsKey("session"))
+                        postFields["session"] = postFields["s"];
+                    postFields.Remove("s");
+                    var endpoints = new[]
+                    {
+                        $"{GetApiBase()}/app_api.php?application=phone&type={type}&s={Uri.EscapeDataString(sessionId)}",
+                        $"{GetApiBase()}/app_api.php?type={type}&s={Uri.EscapeDataString(sessionId)}",
+                        $"{GetApiBase()}/app_api.php?application=phone&type={type}",
+                        $"{GetApiBase()}/app_api.php?type={type}"
+                    };
+
+                    string lastError = "Bad request";
+                    var maxAttempts = timeoutSeconds <= 8 ? 1 : 2;
+                    foreach (var endpoint in endpoints)
+                    {
+                        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+                        {
+                            Log.Info("WoFallback", $"ExecutePhoneApiFormAsync start type={type} endpoint={endpoint} attempt={attempt} timeout={timeoutSeconds}");
+                            try
+                            {
+                                using var form = new FormUrlEncodedContent(postFields.Where(a => !string.IsNullOrEmpty(a.Key)));
+                                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                                {
+                                    Content = form
+                                };
+                                request.Headers.ConnectionClose = true;
+
+                                var response = await client.SendAsync(request);
+                                var json = await response.Content.ReadAsStringAsync();
+                                var trimmed = json?.Trim() ?? string.Empty;
+
+                                if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                                {
+                                    if (response.StatusCode == System.Net.HttpStatusCode.OK)
+                                    {
+                                        if (string.IsNullOrWhiteSpace(trimmed)
+                                            || string.Equals(trimmed, "ok", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(trimmed, "success", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(trimmed, "1", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            var typeKey = type ?? string.Empty;
+                                            if (typeKey.IndexOf("comment", StringComparison.OrdinalIgnoreCase) >= 0
+                                                || typeKey.IndexOf("share", StringComparison.OrdinalIgnoreCase) >= 0
+                                                || typeKey.IndexOf("post", StringComparison.OrdinalIgnoreCase) >= 0)
+                                            {
+                                                Log.Info("WoFallback", $"ExecutePhoneApiFormAsync empty-or-simple-success treated as success type={type} endpoint={endpoint} body={trimmed}");
+                                                return (200, $"type={type}; endpoint={endpoint}; http=200; simple-success-response={trimmed}");
+                                            }
+                                        }
+                                    }
+
+                                    var shortBody = trimmed.Replace("\r", " ").Replace("\n", " ");
+                                    if (shortBody.Length > 180)
+                                        shortBody = shortBody.Substring(0, 180);
+                                    lastError = $"type={type}; endpoint={endpoint}; http={(int)response.StatusCode}; nonjson={shortBody}";
+                                    continue;
+                                }
+
+                                var token = JObject.Parse(json);
+                                var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                                if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                                {
+                                    Log.Info("WoFallback", $"ExecutePhoneApiFormAsync success type={type} endpoint={endpoint} apiStatus={apiStatus}");
+                                    return (200, token);
+                                }
+
+                                var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? token["message"]?.ToString() ?? token.ToString(Formatting.None);
+                                if (!string.IsNullOrEmpty(errorText) && errorText.Length > 220)
+                                    errorText = errorText.Substring(0, 220);
+                                lastError = $"type={type}; endpoint={endpoint}; http={(int)response.StatusCode}; api={apiStatus}; error={errorText}";
+                                Log.Warn("WoFallback", lastError);
+                            }
+                            catch (Exception ex)
+                            {
+                                var err = ex.Message ?? string.Empty;
+                                if (err.Length > 220)
+                                    err = err.Substring(0, 220);
+                                lastError = $"type={type}; endpoint={endpoint}; attempt={attempt}; ex={err}";
+                                Log.Warn("WoFallback", lastError);
+
+                                // Retry once on transient transport errors that commonly appear on Android/OkHttp.
+                                if (attempt >= 2 || err.IndexOf("unexpected end of stream", StringComparison.OrdinalIgnoreCase) < 0)
+                                    break;
+                            }
+                        }
+                    }
+
+                    return (400, lastError);
+                }
+
+                private static async Task<(int, dynamic)> ExecuteWebApiPostActionAsync(string sessionId, string postId, string action, string reaction, string shareType = null)
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+                    var endpointCandidates = new[]
+                    {
+                        $"{GetApiBase()}/api/post-actions?access_token={sessionId}",
+                        $"{GetApiBase()}/api/post-actions"
+                    };
+
+                    Log.Info("WoFallback", $"WebApiPostAction: action={action} postId={postId} shareType={shareType} sessionId={(string.IsNullOrWhiteSpace(sessionId) ? "<none>" : "<present>")}");
+                    foreach (var endpoint in endpointCandidates)
+                    {
+                        Log.Info("WoFallback", $"WebApiPostAction trying endpoint={endpoint}");
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "post_id", postId },
+                            { "shared_post_id", postId },
+                            { "postId", postId },
+                            { "action", action ?? string.Empty },
+                            { "reaction", reaction ?? string.Empty },
+                            { "reaction_type", reaction ?? string.Empty },
+                            { "share_type", shareType ?? string.Empty },
+                            { "s", sessionId }
+                        };
+
+                        if (!string.IsNullOrWhiteSpace(shareType))
+                            payload["type"] = shareType;
+
+                        using var form = new FormUrlEncodedContent(payload.Where(a => !string.IsNullOrWhiteSpace(a.Key)));
+                        var response = await client.PostAsync(endpoint, form);
+                        var json = await response.Content.ReadAsStringAsync();
+                        var trimmed = json?.Trim() ?? string.Empty;
+
+                        if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                        {
+                            if (response.StatusCode == System.Net.HttpStatusCode.OK
+                                && (string.IsNullOrWhiteSpace(trimmed)
+                                    || string.Equals(trimmed, "ok", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "success", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "1", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                Log.Info("WoFallback", $"WebApiPostAction empty-or-simple-success treated as success endpoint={endpoint} body={trimmed}");
+                                return (200, $"endpoint={endpoint}; http=200; simple-success-response={trimmed}");
+                            }
+
+                            Log.Warn("WoFallback", $"WebApiPostAction skipped non-JSON or empty response from endpoint={endpoint}");
+                            continue;
+                        }
+
+                        var token = JObject.Parse(json);
+                        var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                        if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                            return (200, token);
+                    }
+
+                    return (400, "Web post action fallback failed");
+                }
+
+                private static async Task<(int, dynamic)> ExecuteSdkStyleCreateCommentAsync(string sessionId, string targetId, string text, string imageUrl, bool isReply, string imagePath, string voicePath)
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+                    var endpoint = $"{GetApiBase()}/api/comment?access_token={sessionId}";
+                    try
+                    {
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "access_token", sessionId },
+                            { "type", isReply ? "create_reply" : "create" },
+                            { "text", text ?? string.Empty },
+                            { "image_url", imageUrl ?? string.Empty }
+                        };
+
+                        if (isReply)
+                            payload["comment_id"] = targetId;
+                        else
+                            payload["post_id"] = targetId;
+
+                        var hasImageFile = !string.IsNullOrEmpty(imagePath) && System.IO.File.Exists(imagePath);
+                        var hasVoiceFile = !string.IsNullOrEmpty(voicePath) && System.IO.File.Exists(voicePath);
+
+                        if (hasImageFile || hasVoiceFile)
+                        {
+                            using var form = new MultipartFormDataContent();
+                            foreach (var kv in payload.Where(a => !string.IsNullOrWhiteSpace(a.Value)))
+                                form.Add(new StringContent(kv.Value), kv.Key);
+
+                            if (hasImageFile)
+                            {
+                                var imageContent = new StreamContent(System.IO.File.OpenRead(imagePath));
+                                imageContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(imagePath));
+                                form.Add(imageContent, "image", System.IO.Path.GetFileName(imagePath));
+                            }
+
+                            if (hasVoiceFile)
+                            {
+                                var voiceContent = new StreamContent(System.IO.File.OpenRead(voicePath));
+                                voiceContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(voicePath));
+                                form.Add(voiceContent, "audio", System.IO.Path.GetFileName(voicePath));
+                            }
+
+                            var response = await client.PostAsync(endpoint, form);
+                            var json = await response.Content.ReadAsStringAsync();
+                            Log.Info("WoFallback", $"SdkStyleComment multipart endpoint={endpoint} http={(int)response.StatusCode} bodyLen={json?.Length ?? 0}");
+                            return await ProcessCommentWebResponseAsync(json, endpoint);
+                        }
+                        else
+                        {
+                            using var form = new FormUrlEncodedContent(payload.Where(a => !string.IsNullOrWhiteSpace(a.Value)));
+                            var response = await client.PostAsync(endpoint, form);
+                            var json = await response.Content.ReadAsStringAsync();
+                            Log.Info("WoFallback", $"SdkStyleComment form endpoint={endpoint} http={(int)response.StatusCode} bodyLen={json?.Length ?? 0}");
+                            return await ProcessCommentWebResponseAsync(json, endpoint);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn("WoFallback", $"SdkStyleComment exception endpoint={endpoint} ex={ex.Message}");
+                        return (400, $"SdkStyleComment exception: {ex.Message}");
+                    }
+                }
+
+                private static async Task<(int, dynamic)> ProcessCommentWebResponseAsync(string json, string endpoint)
+                {
+                    var trimmed = json?.Trim() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                    {
+                        if (string.IsNullOrWhiteSpace(trimmed)
+                            || string.Equals(trimmed, "ok", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(trimmed, "success", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(trimmed, "1", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Log.Info("WoFallback", $"ProcessCommentWebResponse simple-success endpoint={endpoint}");
+                            return (200, trimmed);
+                        }
+
+                        var shortBody = trimmed.Replace("\r", " ").Replace("\n", " ");
+                        if (shortBody.Length > 180) shortBody = shortBody.Substring(0, 180);
+                        return (400, $"http=200; nonjson={shortBody}");
+                    }
+
+                    var token = JObject.Parse(json);
+                    var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                    if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                    {
+                        Log.Info("WoFallback", $"ProcessCommentWebResponse success endpoint={endpoint} apiStatus={apiStatus}");
+                        return (200, token);
+                    }
+
+                    var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? token["message"]?.ToString() ?? token.ToString(Formatting.None);
+                    if (!string.IsNullOrEmpty(errorText) && errorText.Length > 220)
+                        errorText = errorText.Substring(0, 220);
+                    return (400, $"api={apiStatus}; error={errorText}");
+                }
+
+                private static async Task<(int, dynamic)> ExecuteWebApiCreateCommentAsync(string sessionId, string targetId, string text, bool isReply)
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+                    var endpointCandidates = new[]
+                    {
+                        $"{GetApiBase()}/api/create-comment?access_token={sessionId}",
+                        $"{GetApiBase()}/api/create-comment",
+                        $"{GetApiBase()}/api/comment?access_token={sessionId}",
+                        $"{GetApiBase()}/api/comment",
+                        $"{GetApiBase()}/api/comments/create?access_token={sessionId}",
+                        $"{GetApiBase()}/api/comments/create"
+                    };
+
+                    string lastError = "Web comment fallback failed";
+                    foreach (var endpoint in endpointCandidates)
+                    {
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "access_token", sessionId },
+                            { "type", isReply ? "create_reply" : "create" },
+                            { "text", text ?? string.Empty },
+                            { "comment_text", text ?? string.Empty },
+                            { "comment", text ?? string.Empty }
+                        };
+
+                        if (isReply)
+                            payload["comment_id"] = targetId;
+                        else
+                            payload["post_id"] = targetId;
+
+                        using var form = new FormUrlEncodedContent(payload.Where(a => !string.IsNullOrWhiteSpace(a.Key)));
+                        var response = await client.PostAsync(endpoint, form);
+                        var json = await response.Content.ReadAsStringAsync();
+                        var trimmed = json?.Trim() ?? string.Empty;
+
+                        if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                        {
+                            if (response.StatusCode == System.Net.HttpStatusCode.OK
+                                && (string.IsNullOrWhiteSpace(trimmed)
+                                    || string.Equals(trimmed, "ok", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "success", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "1", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                Log.Info("WoFallback", $"WebApiCreateComment empty-or-simple-success treated as success endpoint={endpoint} body={trimmed}");
+                                return (200, $"endpoint={endpoint}; http=200; simple-success-response={trimmed}");
+                            }
+
+                            var shortBody = trimmed.Replace("\r", " ").Replace("\n", " ");
+                            if (shortBody.Length > 180)
+                                shortBody = shortBody.Substring(0, 180);
+                            lastError = $"endpoint={endpoint}; http={(int)response.StatusCode}; nonjson={shortBody}";
+                            continue;
+                        }
+
+                        var token = JObject.Parse(json);
+                        var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                        if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                            return (200, token);
+
+                        var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? token["message"]?.ToString() ?? token.ToString(Formatting.None);
+                        if (!string.IsNullOrEmpty(errorText) && errorText.Length > 220)
+                            errorText = errorText.Substring(0, 220);
+                        lastError = $"endpoint={endpoint}; http={(int)response.StatusCode}; api={apiStatus}; error={errorText}";
+                    }
+
+                    return (400, lastError);
+                }
+
                 private static string GetMimeType(string fileName)
                 {
                     var ext = Path.GetExtension(fileName)?.ToLowerInvariant();
@@ -980,6 +1929,156 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     var ext = Path.GetExtension(fileName)?.ToLowerInvariant();
                     return ext is ".mp4" or ".mov" or ".m4v" or ".webm" or ".flv" or ".mpeg" or ".mpg" or ".mkv" or ".avi" or ".3gp";
+                }
+
+                public static async Task<(int, dynamic)> FetchCommentsWebApiAsync(string sessionId, string targetId, string limit = "10", string offset = "0", string type = "fetch_comments")
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                    var isReply = type == "fetch_comments_reply";
+                    var idKey = isReply ? "comment_id" : "post_id";
+                    var endpoints = new[]
+                    {
+                        $"{GetApiBase()}/api/comments?access_token={sessionId}&{idKey}={targetId}&limit={limit}&offset={offset}",
+                        $"{GetApiBase()}/api/comment?access_token={sessionId}&{idKey}={targetId}&limit={limit}&offset={offset}&type={type}",
+                    };
+
+                    foreach (var endpoint in endpoints)
+                    {
+                        try
+                        {
+                            Log.Info("WoFallback", $"FetchCommentsWebApi trying endpoint={endpoint}");
+                            var response = await client.GetAsync(endpoint);
+                            var json = await response.Content.ReadAsStringAsync();
+
+                            if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                                continue;
+
+                            var token = JObject.Parse(json);
+                            var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                            if (apiStatus == "200" || apiStatus == "201")
+                            {
+                                var data = token["data"] as JArray ?? token["comment_list"] as JArray ?? token["comments"] as JArray;
+                                if (data != null)
+                                {
+                                    var comments = data.ToObject<List<GetCommentObject>>();
+                                    if (comments != null)
+                                        return (200, new CommentObject { Status = 200, CommentList = comments });
+                                }
+                                return (200, token);
+                            }
+
+                            var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? json;
+                            Log.Warn("WoFallback", $"FetchCommentsWebApi failed endpoint={endpoint} apiStatus={apiStatus} error={errorText}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn("WoFallback", $"FetchCommentsWebApi exception endpoint={endpoint} ex={ex.Message}");
+                        }
+                    }
+
+                    return (400, "Comment loading web API fallback failed");
+                }
+
+                public static async Task<(int, dynamic)> SharePostWebApiAsync(string sessionId, string postId, string targetId, string shareMode, string text)
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                    var endpoints = new[]
+                    {
+                        $"{GetApiBase()}/api/share-post?access_token={sessionId}",
+                        $"{GetApiBase()}/api/share-post",
+                        $"{GetApiBase()}/api/share?access_token={sessionId}",
+                        $"{GetApiBase()}/api/share",
+                    };
+
+                    foreach (var endpoint in endpoints)
+                    {
+                        try
+                        {
+                            var payload = new Dictionary<string, string>
+                            {
+                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                                { "user_id", UserDetails.UserId ?? string.Empty },
+                                { "s", sessionId },
+                                { "post_id", postId },
+                                { "id", postId },
+                                { "text", text ?? string.Empty },
+                                { "type", shareMode ?? string.Empty },
+                                { "share_type", shareMode ?? string.Empty },
+                            };
+                            if (!string.IsNullOrWhiteSpace(targetId))
+                            {
+                                payload["recipient_id"] = targetId;
+                                payload["target_id"] = targetId;
+                                if (shareMode?.IndexOf("group", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    payload["group_id"] = targetId;
+                                else if (shareMode?.IndexOf("page", StringComparison.OrdinalIgnoreCase) >= 0)
+                                    payload["page_id"] = targetId;
+                            }
+
+                            using var form = new FormUrlEncodedContent(payload.Where(a => !string.IsNullOrWhiteSpace(a.Key)));
+                            var response = await client.PostAsync(endpoint, form);
+                            var json = await response.Content.ReadAsStringAsync();
+                            var trimmed = json?.Trim() ?? string.Empty;
+
+                            Log.Info("WoFallback", $"SharePostWebApi endpoint={endpoint} status={response.StatusCode}");
+
+                            if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                            {
+                                if (response.StatusCode == System.Net.HttpStatusCode.OK
+                                    && (string.IsNullOrWhiteSpace(trimmed)
+                                        || string.Equals(trimmed, "ok", StringComparison.OrdinalIgnoreCase)
+                                        || string.Equals(trimmed, "success", StringComparison.OrdinalIgnoreCase)
+                                        || string.Equals(trimmed, "1", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    Log.Info("WoFallback", $"SharePostWebApi simple-success endpoint={endpoint}");
+                                    return (200, trimmed);
+                                }
+                                continue;
+                            }
+
+                            var token = JObject.Parse(json);
+                            var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                            if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                                return (200, token);
+
+                            var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? json;
+                            Log.Warn("WoFallback", $"SharePostWebApi failed endpoint={endpoint} apiStatus={apiStatus} error={errorText}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn("WoFallback", $"SharePostWebApi exception endpoint={endpoint} ex={ex.Message}");
+                        }
+                    }
+
+                    return (400, "Share post web API fallback failed");
+                }
+
+                public static async Task<(int, dynamic)> GetPostCommentsFallbackAsync(string postId, string limit, string offset)
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId))
+                            return (400, "Session missing");
+
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "post_id", postId },
+                            { "id", postId },
+                            { "postId", postId },
+                            { "limit", limit ?? "10" },
+                            { "offset", offset ?? "0" }
+                        };
+
+                        return await ExecutePhoneApiFormAsync("fetch_comments", payload);
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
                 }
             }
         }

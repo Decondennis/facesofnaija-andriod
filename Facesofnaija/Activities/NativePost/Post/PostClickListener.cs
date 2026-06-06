@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
@@ -39,6 +39,7 @@ using Facesofnaija.Activities.Upgrade;
 using Facesofnaija.Activities.UsersPages;
 using Facesofnaija.Activities.Videos;
 using Facesofnaija.Activities.Wallet;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -184,7 +185,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var dialog = new MaterialAlertDialogBuilder(MainContext);
                     dialog.SetTitle(MainContext.GetText(Resource.String.Lbl_DeletePost));
                     dialog.SetMessage(MainContext.GetText(Resource.String.Lbl_AreYouSureDeletePost));
-                    dialog.SetPositiveButton(MainContext.GetText(Resource.String.Lbl_Yes),(materialDialog, action) =>
+                    dialog.SetPositiveButton(MainContext.GetText(Resource.String.Lbl_Yes), async (materialDialog, action) =>
                     {
                         try
                         {
@@ -193,114 +194,62 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 ToastUtils.ShowToast(MainContext, MainContext.GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
                                 return;
                             }
-                            PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Posts.PostActionsAsync(item.Id, "delete") });
 
-                            var feedTab = TabbedMainActivity.GetInstance()?.NewsFeedTab;
-                            if (item.SharedInfo.SharedInfoClass != null)
+                            var deleteIdCandidates = GetPostIdsForDelete(item);
+                            var deletePostId = deleteIdCandidates.FirstOrDefault();
+                            if (string.IsNullOrEmpty(deletePostId))
                             {
-                                var data = feedTab?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
-                                switch (data?.Count)
-                                {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                feedTab.MainRecyclerView?.RemoveByRowIndex(post);
-                                            }
-
-                                            break;
-                                        }
-                                }
-                            }
-                            else
-                            {
-                                var data = feedTab?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id).ToList();
-                                switch (data?.Count)
-                                {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                feedTab.MainRecyclerView?.RemoveByRowIndex(post);
-                                            }
-
-                                            break;
-                                        }
-                                }
+                                ToastUtils.ShowToast(MainContext, MainContext.GetText(Resource.String.Lbl_Error), ToastLength.Short);
+                                return;
                             }
 
-                            feedTab?.MainRecyclerView?.StopVideo();
-
-                            var profileActivity = MyProfileActivity.GetInstance();
-                            if (item.SharedInfo.SharedInfoClass != null)
+                            Log.Info("PostDeleteDebug", $"DeletePostEvent requested postId={deletePostId}");
+                            var (apiStatus, respond) = await RequestsAsync.Posts.PostActionsAsync(deletePostId, "delete");
+                            var responseText = respond?.ToString() ?? string.Empty;
+                            if (apiStatus != 200 || IsUnexpectedServerResponse(responseText))
                             {
-                                var data = profileActivity?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
-                                switch (data?.Count)
-                                {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                profileActivity.MainRecyclerView?.RemoveByRowIndex(post);
-                                            }
+                                Log.Warn("PostDeleteDebug", $"DeletePostEvent failed postId={deletePostId} status={apiStatus} response={respond}");
+                                Log.Warn("PostDeleteDebug", $"DeletePostEvent attempting fallback deleteIds=[{string.Join(",", deleteIdCandidates)}] responseText={responseText}");
 
+                                var fallbackSucceeded = false;
+                                foreach (var candidateId in deleteIdCandidates)
+                                {
+                                    var fallbackTask = CustomRequests.Posts.PostActionFallbackAsync(candidateId, "delete");
+                                    var completedTask = await Task.WhenAny(fallbackTask, Task.Delay(TimeSpan.FromSeconds(12)));
+                                    if (completedTask == fallbackTask)
+                                    {
+                                        var (fallbackStatus, fallbackRespond) = await fallbackTask;
+                                        Log.Info("PostDeleteDebug", $"DeletePostEvent fallback status={fallbackStatus} candidateId={candidateId} response={fallbackRespond}");
+                                        if (fallbackStatus == 200)
+                                        {
+                                            fallbackSucceeded = true;
                                             break;
                                         }
+                                    }
+                                    else
+                                    {
+                                        Log.Warn("PostDeleteDebug", $"DeletePostEvent fallback timeout candidateId={candidateId}");
+                                    }
                                 }
-                            }
-                            else
-                            {
-                                var data = profileActivity?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id).ToList();
-                                switch (data?.Count)
+
+                                if (!fallbackSucceeded)
                                 {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                profileActivity.MainRecyclerView?.RemoveByRowIndex(post);
-                                            }
+                                    if (IsUnexpectedServerResponse(responseText))
+                                        Methods.DisplayAndHudErrorResult(MainContext, "Unable to delete this post right now. Please try again.");
+                                    else
+                                        Methods.DisplayAndHudErrorResult(MainContext, respond);
 
-                                            break;
-                                        }
+                                    return;
                                 }
+
+                                RemovePostFromFeedsAfterDelete(item);
+                                ToastUtils.ShowToast(MainContext, MainContext.GetText(Resource.String.Lbl_postSuccessfullyDeleted), ToastLength.Short);
+                                return;
                             }
 
-                            var recyclerView = WRecyclerView.GetInstance();
-                            if (item.SharedInfo.SharedInfoClass != null)
-                            {
-                                var data = recyclerView?.NativeFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
-                                switch (data?.Count)
-                                {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                recyclerView?.RemoveByRowIndex(post);
-                                            }
+                            Log.Info("PostDeleteDebug", $"DeletePostEvent success postId={deletePostId}");
 
-                                            break;
-                                        }
-                                }
-                            }
-                            else
-                            {
-                                var data = recyclerView?.NativeFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id).ToList();
-                                switch (data?.Count)
-                                {
-                                    case > 0:
-                                        {
-                                            foreach (var post in data)
-                                            {
-                                                recyclerView?.RemoveByRowIndex(post);
-                                            }
-
-                                            break;
-                                        }
-                                }
-                            }
-
-                            recyclerView?.StopVideo();
-
+                            RemovePostFromFeedsAfterDelete(item);
                             ToastUtils.ShowToast(MainContext, MainContext.GetText(Resource.String.Lbl_postSuccessfullyDeleted), ToastLength.Short);
                         }
                         catch (Exception e)
@@ -308,6 +257,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                             Methods.DisplayReportResultTrack(e);
                         }
                     });
+
                     dialog.SetNegativeButton(MainContext.GetText(Resource.String.Lbl_No), new MaterialDialogUtils());
                    
                     dialog.Show();
@@ -323,7 +273,88 @@ namespace Facesofnaija.Activities.NativePost.Post
             }
         }
 
+
+        private void RemovePostFromFeedsAfterDelete(PostDataObject item)
+        {
+            try
+            {
+                var deleteIds = GetPostIdsForDelete(item);
+                if (deleteIds.Count == 0)
+                    return;
+
+                var feedTab = TabbedMainActivity.GetInstance()?.NewsFeedTab;
+                var feedData = feedTab?.PostFeedAdapter?.ListDiffer?.Where(a => deleteIds.Contains(a.PostData?.Id, StringComparer.OrdinalIgnoreCase) || deleteIds.Contains(a.PostData?.PostId, StringComparer.OrdinalIgnoreCase)).ToList();
+                if (feedData?.Count > 0)
+                {
+                    foreach (var post in feedData)
+                        feedTab.MainRecyclerView?.RemoveByRowIndex(post);
+                }
+
+                feedTab?.MainRecyclerView?.StopVideo();
+
+                var profileActivity = MyProfileActivity.GetInstance();
+                var profileData = profileActivity?.PostFeedAdapter?.ListDiffer?.Where(a => deleteIds.Contains(a.PostData?.Id, StringComparer.OrdinalIgnoreCase) || deleteIds.Contains(a.PostData?.PostId, StringComparer.OrdinalIgnoreCase)).ToList();
+                if (profileData?.Count > 0)
+                {
+                    foreach (var post in profileData)
+                        profileActivity.MainRecyclerView?.RemoveByRowIndex(post);
+                }
+
+                var recyclerView = WRecyclerView.GetInstance();
+                var nativeData = recyclerView?.NativeFeedAdapter?.ListDiffer?.Where(a => deleteIds.Contains(a.PostData?.Id, StringComparer.OrdinalIgnoreCase) || deleteIds.Contains(a.PostData?.PostId, StringComparer.OrdinalIgnoreCase)).ToList();
+                if (nativeData?.Count > 0)
+                {
+                    foreach (var post in nativeData)
+                        recyclerView?.RemoveByRowIndex(post);
+                }
+
+                recyclerView?.StopVideo();
+            }
+            catch (Exception ex)
+            {
+                Methods.DisplayReportResultTrack(ex);
+            }
+        }
+
         //ReportPost
+        private bool IsUnexpectedServerResponse(string responseText)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(responseText))
+                    return false;
+
+                return responseText.IndexOf("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase) >= 0
+                       || responseText.IndexOf("Unexpected server response", StringComparison.OrdinalIgnoreCase) >= 0
+                       || responseText.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static List<string> GetPostIdsForDelete(PostDataObject item)
+        {
+            var ids = new List<string>();
+            if (item == null)
+                return ids;
+
+            void AddId(string id)
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                    return;
+                if (!ids.Contains(id, StringComparer.OrdinalIgnoreCase))
+                    ids.Add(id);
+            }
+
+            AddId(item.PostId);
+            AddId(item.Id);
+            AddId(item.SharedInfo.SharedInfoClass?.PostId);
+            AddId(item.SharedInfo.SharedInfoClass?.Id);
+            return ids;
+        }
+        
         private void ReportPostEvent(PostDataObject item)
         {
             try
@@ -363,7 +394,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var feedTab = TabbedMainActivity.GetInstance()?.NewsFeedTab;
                     if (item.SharedInfo.SharedInfoClass != null)
                     {
-                        var data = feedTab?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
+                        var sharedItemId = item.SharedInfo.SharedInfoClass.Id;
+                        var data = feedTab?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == sharedItemId).ToList();
                         switch (data?.Count)
                         {
                             case > 0:
@@ -399,7 +431,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var profileActivity = MyProfileActivity.GetInstance();
                     if (item.SharedInfo.SharedInfoClass != null)
                     {
-                        var data = profileActivity?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
+                        var sharedItemId = item.SharedInfo.SharedInfoClass.Id;
+                        var data = profileActivity?.PostFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == sharedItemId).ToList();
                         switch (data?.Count)
                         {
                             case > 0:
@@ -433,7 +466,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var recyclerView = WRecyclerView.GetInstance();
                     if (item.SharedInfo.SharedInfoClass != null)
                     {
-                        var data = recyclerView?.NativeFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == item?.SharedInfo.SharedInfoClass?.Id).ToList();
+                        var sharedItemId = item.SharedInfo.SharedInfoClass.Id;
+                        var data = recyclerView?.NativeFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == item?.Id || a.PostData?.Id == sharedItemId).ToList();
                         switch (data?.Count)
                         {
                             case > 0:

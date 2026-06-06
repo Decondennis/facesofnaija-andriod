@@ -38,6 +38,7 @@ namespace Facesofnaija.Activities.Story.Adapters
 
         public override RecyclerView.ViewHolder OnCreateViewHolder(ViewGroup parent, int viewType)
         {
+            // Use ViewStoryLayout with rounded corners (no circle logic)
             var itemView = LayoutInflater.From(parent.Context)?.Inflate(Resource.Layout.ViewStoryLayout, parent, false);
             return new StoryShowAdapterViewHolder(itemView, this);
         }
@@ -82,13 +83,13 @@ namespace Facesofnaija.Activities.Story.Adapters
 
                 var thumbnail = item.Thumbnail ?? string.Empty;
                 var videoUrl = item.Videos?.FirstOrDefault()?.Filename ?? string.Empty;
-                var mediaFile = !thumbnail.Contains("avatar") && (item.Videos?.Count ?? 0) == 0 ? thumbnail : videoUrl;
 
-                // Fallback to thumbnail if video URL is absent.
-                if (string.IsNullOrWhiteSpace(mediaFile))
-                    mediaFile = thumbnail;
+                // For video stories: use thumbnail in ImageView, video URL for player.
+                // For image stories: use thumbnail directly.
+                var hasVideos = item.Videos?.Count > 0;
+                var imageUrl = hasVideos ? thumbnail : (!string.IsNullOrWhiteSpace(thumbnail) ? thumbnail : videoUrl);
 
-                if (!string.IsNullOrWhiteSpace(mediaFile))
+                if (!string.IsNullOrWhiteSpace(imageUrl))
                 {
                     if (vh.StoryImageView == null)
                     {
@@ -96,9 +97,12 @@ namespace Facesofnaija.Activities.Story.Adapters
                         return;
                     }
 
-                    Log.Warn("FON_STORY_VIEW", $"Bind story id={item.Id} media={mediaFile}");
-                    Glide.With(ActivityContext).Load(mediaFile).Apply(new RequestOptions()).Into(vh.StoryImageView);
-                    Glide.With(ActivityContext).Load(mediaFile).Apply(new RequestOptions()).Into(vh.ImageBlurView);
+                    Log.Warn("FON_STORY_VIEW", $"Bind story id={item.Id} image={imageUrl} video={videoUrl}");
+
+                    var options = new RequestOptions().CenterCrop();
+
+                    Glide.With(ActivityContext).Load(imageUrl).Apply(options).Into(vh.StoryImageView);
+                    Glide.With(ActivityContext).Load(imageUrl).Apply(options).Into(vh.ImageBlurView);
                 }
                 else
                 {

@@ -1,5 +1,6 @@
 ﻿using Android.Content;
 using Android.OS;
+using Android.Util;
 using Android.Views;
 using Android.Widget;
 using Google.Android.Material.BottomSheet;
@@ -21,6 +22,8 @@ namespace Facesofnaija.Activities.NativePost.Share
     public class ShareBottomDialogFragment : BottomSheetDialogFragment 
     {
         #region  Variables Basic
+
+        private const string ShareTag = "ShareDebug";
 
         private LinearLayout ShareTimelineLayout, ShareGroupLayout, ShareOptionsLayout, SharePageLayout;
         private PostDataObject DataPost;
@@ -131,6 +134,53 @@ namespace Facesofnaija.Activities.NativePost.Share
             }
         }
 
+        private void ShareWithNativeChooser(string title, string text)
+        {
+            try
+            {
+                ShareFileImplementation.ShareText(Activity, text, title);
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private string BuildShareText()
+        {
+            try
+            {
+                var postText = CleanShareText(DataPost?.PostText);
+                if (!string.IsNullOrWhiteSpace(postText))
+                    return postText;
+
+                if (TypePost == PostModelType.LinkPost || TypePost == PostModelType.YoutubePost)
+                    return "Shared a link";
+
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private string CleanShareText(string text)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                    return string.Empty;
+
+                var decoded = System.Net.WebUtility.HtmlDecode(text);
+                return System.Text.RegularExpressions.Regex.Replace(decoded, "<.*?>", string.Empty).Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         #endregion
 
         #region Events
@@ -170,7 +220,20 @@ namespace Facesofnaija.Activities.NativePost.Share
         {
             try
             {
-                if (!CrossShare.IsSupported) return;
+                Log.Info(ShareTag, $"ShareOptionsLayoutOnClick type={TypePost} hasPost={DataPost != null}");
+                if (DataPost == null)
+                {
+                    ShareWithNativeChooser(Context.GetText(Resource.String.Lbl_Send_to), "");
+                    Dismiss();
+                    return;
+                }
+
+                if (!CrossShare.IsSupported)
+                {
+                    ShareWithNativeChooser(Context.GetText(Resource.String.Lbl_Send_to), BuildShareText());
+                    Dismiss();
+                    return;
+                }
 
                 switch (TypePost)
                 {
@@ -200,8 +263,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                                     await CrossShare.Current.Share(new ShareMessage
                                     {
                                         Title = "",
-                                        Text = DataPost.Url,
-                                        Url = DataPost.Url
+                                        Text = BuildShareText()
                                     });
                                     break;
                             }
@@ -221,16 +283,14 @@ namespace Facesofnaija.Activities.NativePost.Share
                             await CrossShare.Current.Share(new ShareMessage
                             {
                                 Title = "",
-                                Text = DataPost.Url,
-                                Url = DataPost.Url
+                                Text = BuildShareText()
                             });
                             break;
                         }
                     case PostModelType.LinkPost:
                     case PostModelType.YoutubePost:
                         {
-                            var linkUrl = DataPost.Url;
-                            ShareFileImplementation.ShareText(Activity, linkUrl, Context.GetText(Resource.String.Lbl_Send_to));
+                            ShareFileImplementation.ShareText(Activity, BuildShareText(), Context.GetText(Resource.String.Lbl_Send_to));
                             break;
                         }
                     case PostModelType.VideoPost:
@@ -247,8 +307,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                                     await CrossShare.Current.Share(new ShareMessage
                                     {
                                         Title = "",
-                                        Text = DataPost.Url,
-                                        Url = DataPost.Url
+                                        Text = BuildShareText()
                                     });
                                     break;
                             }
@@ -268,8 +327,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                                     await CrossShare.Current.Share(new ShareMessage
                                     {
                                         Title = "",
-                                        Text = DataPost.Url,
-                                        Url = DataPost.Url
+                                        Text = BuildShareText()
                                     });
                                     break;
                             }
@@ -388,6 +446,7 @@ namespace Facesofnaija.Activities.NativePost.Share
             }
             catch (Exception exception)
             {
+                ShareWithNativeChooser(Context.GetText(Resource.String.Lbl_Send_to), BuildShareText());
                 Methods.DisplayReportResultTrack(exception);
             }
         }
@@ -426,6 +485,7 @@ namespace Facesofnaija.Activities.NativePost.Share
         {
             try
             {
+                Log.Info(ShareTag, $"ShareTimelineLayoutOnClick type={TypePost} postId={DataPost?.PostId} id={DataPost?.Id}");
                 if (Methods.CheckConnectivity())
                 {
                     TypeDialog = "ShareToMyTimeline";

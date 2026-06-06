@@ -8,9 +8,9 @@ using Android.Widget;
 using AndroidX.Browser.CustomTabs;
 using AndroidX.Core.Content;
 using Com.Zhihu.Matisse;
-using Java.IO;
 using Java.Text;
 using Java.Util;
+using JFile = Java.IO.File;
 using System;
 using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Model;
@@ -113,7 +113,7 @@ namespace Facesofnaija.Helpers.Controller
                     if (imageCropping && Build.Manufacturer!.ToLower() == "samsung")
                     {
                         intent.PutExtra("crop", "true");
-                        var myUri = Uri.FromFile(new File(Methods.Path.FolderDcimImage, Methods.GetTimestamp(DateTime.Now) + ".jpg"));
+                        var myUri = Uri.FromFile(new JFile(Methods.Path.FolderDcimImage, Methods.GetTimestamp(DateTime.Now) + ".jpg"));
                         intent.PutExtra(MediaStore.ExtraOutput, myUri);
                         //intent.PutExtra("outputFormat", Bitmap.CompressFormat.Jpeg.ToString());
                     }
@@ -224,7 +224,7 @@ namespace Facesofnaija.Helpers.Controller
             }
         }
 
-        private File CreateImageFile()
+        private JFile CreateImageFile()
         {
             // Create an image file name
             string timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").Format(new Date());
@@ -233,7 +233,7 @@ namespace Facesofnaija.Helpers.Controller
 
             try
             {
-                File image = File.CreateTempFile(imageFileName, ".jpg", new File(storageDir));
+                JFile image = JFile.CreateTempFile(imageFileName, ".jpg", new JFile(storageDir));
 
                 // Save a file: path for use with ACTION_VIEW intents
                 CurrentPhotoPath = image.AbsolutePath;
@@ -242,7 +242,7 @@ namespace Facesofnaija.Helpers.Controller
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
-                File image = new File(storageDir + "/" + imageFileName, ".jpg");
+                JFile image = new JFile(storageDir + "/" + imageFileName, ".jpg");
                 // Save a file: path for use with ACTION_VIEW intents
                 CurrentPhotoPath = image.AbsolutePath;
                 return image;
@@ -271,7 +271,7 @@ namespace Facesofnaija.Helpers.Controller
                     if (packageManager != null)
                     {
                         // Create the File where the photo should go
-                        File photoFile;
+                                JFile photoFile;
                         try
                         {
                             photoFile = CreateImageFile();
@@ -280,7 +280,7 @@ namespace Facesofnaija.Helpers.Controller
                         catch (Exception ex)
                         {
                             string timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").Format(new Date());
-                            photoFile = new File(Methods.Path.FolderDcimImage + "/" + timeStamp + ".jpg");
+                            photoFile = new JFile(Methods.Path.FolderDcimImage + "/" + timeStamp + ".jpg");
                             CurrentPhotoPath = photoFile.AbsolutePath;
 
                             // Error occurred while create  ...
@@ -309,14 +309,14 @@ namespace Facesofnaija.Helpers.Controller
             }
         }
 
-        private File CreateVideoFile()
+        private JFile CreateVideoFile()
         {
             // Create an image file name
             string timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").Format(new Date());
             string videoFileName = "Video_" + timeStamp + "_";
             string storageDir = Methods.Path.FolderDcimVideo;
 
-            File video = new File(storageDir + "/" + videoFileName + ".mp4");
+            JFile video = new JFile(storageDir + "/" + videoFileName + ".mp4");
 
             // Save a file: path for use with ACTION_VIEW intents
             CurrentVideoPath = video.AbsolutePath;
@@ -341,7 +341,7 @@ namespace Facesofnaija.Helpers.Controller
                 {
                     Intent intent = new Intent(MediaStore.ActionVideoCapture);
 
-                    File mediaFile;
+                    JFile mediaFile;
                     try
                     {
                         mediaFile = CreateVideoFile();
@@ -349,7 +349,7 @@ namespace Facesofnaija.Helpers.Controller
                     catch (Exception ex)
                     {
                         string timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").Format(new Date());
-                        mediaFile = new File(Methods.Path.FolderDcimVideo + "/" + timeStamp + ".mp4");
+                        mediaFile = new JFile(Methods.Path.FolderDcimVideo + "/" + timeStamp + ".mp4");
                         CurrentVideoPath = mediaFile.AbsolutePath;
 
                         // Error occurred while create  ...

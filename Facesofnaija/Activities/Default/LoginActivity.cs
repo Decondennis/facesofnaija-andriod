@@ -19,7 +19,7 @@ namespace Facesofnaija.Activities.Default
 
         private EditText TxtEmail, TxtPassword;
         private TextView TxtForgotPassword;
-        private AppCompatButton BtnLogin;
+        private Button BtnLogin;
         private ImageView ImageShowPass;
         private ProgressBar ProgressBar;
         private TextView LayoutCreateAccount;
@@ -198,18 +198,19 @@ namespace Facesofnaija.Activities.Default
                 TxtPassword = FindViewById<EditText>(Resource.Id.PasswordEditText);
 
                 ImageShowPass = FindViewById<ImageView>(Resource.Id.imageShowPass);
-                ImageShowPass.Tag = "hide";
+                if (ImageShowPass != null) ImageShowPass.Tag = "hide";
 
                 ChkRemember = FindViewById<CheckBox>(Resource.Id.checkRememberMe);
-                ChkRemember.Checked = true;
+                if (ChkRemember != null) ChkRemember.Checked = true;
 
                 TxtForgotPassword = FindViewById<TextView>(Resource.Id.textForgotPassword);
 
                 ProgressBar = FindViewById<ProgressBar>(Resource.Id.progressBar);
-                BtnLogin = FindViewById<AppCompatButton>(Resource.Id.btnLogin);
+                BtnLogin = FindViewById<Button>(Resource.Id.btnLogin);
 
                 LayoutCreateAccount = FindViewById<TextView>(Resource.Id.layout_create_account);
-                LayoutCreateAccount.Visibility = AppSettings.EnableRegisterSystem == false ? ViewStates.Gone : ViewStates.Visible;
+                if (LayoutCreateAccount != null)
+                    LayoutCreateAccount.Visibility = AppSettings.EnableRegisterSystem == false ? ViewStates.Gone : ViewStates.Visible;
             }
             catch (Exception e)
             {

@@ -363,6 +363,18 @@ namespace Facesofnaija.Activities.Communities.Pages
             }
         }
 
+        public void ReloadPageFeed()
+        {
+            try
+            {
+                RunOnUiThread(StartApiService);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
         private void DestroyBasic()
         {
             try

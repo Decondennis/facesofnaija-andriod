@@ -1,45 +1,31 @@
 using System;
 using System.Collections.Generic;
-//using MaterialDialogsCore;
 using Android;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
-using Android.Gms.Ads.DoubleClick;
 using Android.Graphics;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
 using WoWonder.Helpers.Utils;
 using AndroidX.AppCompat.Content.Res;
-//using TheArtOfDev.Edmodo.Cropper;
-using Java.IO;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.CustomApi.Requests;
-using Facesofnaija.Activities.Tabbes;
-using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Utils;
 using Exception = System.Exception;
 using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
-using Uri = Android.Net.Uri;
 
 namespace Facesofnaija.Activities.Communities.Communities
 {
     [Activity(Icon = "@mipmap/icon", Theme = "@style/MyTheme", ConfigurationChanges = ConfigChanges.Locale | ConfigChanges.UiMode | ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize)]
-    public class RequestCommunityActivity : BaseActivity//, MaterialDialog.IListCallback
+    public class RequestCommunityActivity : BaseActivity
     {
-        #region Variables Basic
-
-        private TextView TxtAdd; 
-        private EditText TxtName, TxtCountry, TxtState, TxtLga, TxtDescription, TxtPrivacy;
-        private string TypeDialog, PrivacyStatus;
-        private PublisherAdView PublisherAdView;
-        private TabbedMainActivity GlobalContextTabbed;
-
-        #endregion
-
-        #region General
+        private TextView TxtAdd;
+        private EditText TxtCommunityTitle, TxtCommunityUrl, TxtDescription, TxtCategory, TxtReason;
+        private Spinner PrivacySpinner;
+        private string PrivacyStatus = "1";
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -52,8 +38,6 @@ namespace Facesofnaija.Activities.Communities.Communities
 
                 // Create your application here
                 SetContentView(Resource.Layout.CreateCommunityLayout);
-
-                GlobalContextTabbed = TabbedMainActivity.GetInstance();
 
                 //Get Value And Set Toolbar
                 InitComponent();
@@ -70,8 +54,8 @@ namespace Facesofnaija.Activities.Communities.Communities
             try
             {
                 base.OnResume();
-                //AddOrRemoveEvent(true);
-                //PublisherAdView?.Resume();
+                TxtAdd.Click += TxtAddOnClick;
+                PrivacySpinner.ItemSelected += PrivacySpinnerOnItemSelected;
             }
             catch (Exception e)
             {
@@ -84,8 +68,8 @@ namespace Facesofnaija.Activities.Communities.Communities
             try
             {
                 base.OnPause();
-                //AddOrRemoveEvent(false);
-                //PublisherAdView?.Pause();
+                TxtAdd.Click -= TxtAddOnClick;
+                PrivacySpinner.ItemSelected -= PrivacySpinnerOnItemSelected;
             }
             catch (Exception e)
             {
@@ -93,31 +77,6 @@ namespace Facesofnaija.Activities.Communities.Communities
             }
         }
 
-        public override void OnTrimMemory(TrimMemory level)
-        {
-            try
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-                base.OnTrimMemory(level);
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        public override void OnLowMemory()
-        {
-            try
-            {
-                GC.Collect(GC.MaxGeneration);
-                base.OnLowMemory();
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
         protected override void OnDestroy()
         {
             try
@@ -131,10 +90,6 @@ namespace Facesofnaija.Activities.Communities.Communities
             }
         }
 
-        #endregion
-
-        #region Menu
-
         public override bool OnOptionsItemSelected(IMenuItem item)
         {
             switch (item.ItemId)
@@ -146,34 +101,37 @@ namespace Facesofnaija.Activities.Communities.Communities
             return base.OnOptionsItemSelected(item);
         }
 
-        #endregion
-
-        #region Functions
-
         private void InitComponent()
         {
             try
             {
                 TxtAdd = FindViewById<TextView>(Resource.Id.toolbar_title);
 
-                TxtName = FindViewById<EditText>(Resource.Id.NameText);
-                TxtCountry = FindViewById<EditText>(Resource.Id.CountryText); 
-                TxtState = FindViewById<EditText>(Resource.Id.StateText);
-                TxtLga = FindViewById<EditText>(Resource.Id.LgaText);
+                TxtCommunityTitle = FindViewById<EditText>(Resource.Id.CommunityTitleText);
+                TxtCommunityUrl = FindViewById<EditText>(Resource.Id.CommunityUrlText);
                 TxtDescription = FindViewById<EditText>(Resource.Id.DescriptionText);
-                TxtPrivacy = FindViewById<EditText>(Resource.Id.PrivacyText);
+                TxtCategory = FindViewById<EditText>(Resource.Id.CategoryText);
+                TxtReason = FindViewById<EditText>(Resource.Id.ReasonText);
+                PrivacySpinner = FindViewById<Spinner>(Resource.Id.PrivacySpinner);
 
-                PublisherAdView = FindViewById<PublisherAdView>(Resource.Id.multiple_ad_sizes_view);
-                AdsGoogle.InitPublisherAdView(PublisherAdView);
-                    
-                Methods.SetColorEditText(TxtName, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtCountry, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
+                TxtAdd.Text = GetString(Resource.String.Lbl_SubmitRequest);
+
+                Methods.SetColorEditText(TxtCommunityTitle, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
+                Methods.SetColorEditText(TxtCommunityUrl, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                 Methods.SetColorEditText(TxtDescription, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtState, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtLga, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(TxtPrivacy, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
+                Methods.SetColorEditText(TxtCategory, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
+                Methods.SetColorEditText(TxtReason, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
 
-                Methods.SetFocusable(TxtPrivacy);
+                var privacyItems = new List<string>
+                {
+                    GetString(Resource.String.Radio_Public),
+                    GetString(Resource.String.Radio_Private)
+                };
+
+                var adapter = new ArrayAdapter<string>(this, Android.Resource.Layout.SimpleSpinnerDropDownItem, privacyItems);
+                PrivacySpinner.Adapter = adapter;
+                PrivacySpinner.SetSelection(0);
+                PrivacyStatus = "1";
             }
             catch (Exception e)
             {
@@ -197,7 +155,7 @@ namespace Facesofnaija.Activities.Communities.Communities
                     SupportActionBar.SetHomeButtonEnabled(true);
                     SupportActionBar.SetDisplayShowHomeEnabled(true);
                     SupportActionBar.SetHomeAsUpIndicator(AppCompatResources.GetDrawable(this, AppSettings.FlowDirectionRightToLeft ? Resource.Drawable.ic_action_right_arrow_color : Resource.Drawable.ic_action_left_arrow_color));
- 
+
                 }
             }
             catch (Exception e)
@@ -205,85 +163,30 @@ namespace Facesofnaija.Activities.Communities.Communities
                 Methods.DisplayReportResultTrack(e);
             }
         }
-
-        /*private void AddOrRemoveEvent(bool addEvent)
-        {
-            try
-            {
-                switch (addEvent)
-                {
-                    // true +=  // false -=
-                    case true:
-                        TxtAdd.Click += TxtAddOnClick;
-                        TxtPrivacy.Touch += TxtPrivacyOnTouch;
-                        break;
-                    default:
-                        TxtAdd.Click -= TxtAddOnClick;
-                        TxtPrivacy.Touch -= TxtPrivacyOnTouch;
-                        break;
-                }
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }*/
 
         private void DestroyBasic()
         {
             try
             {
-                PublisherAdView?.Destroy();
-
                 TxtAdd = null!;
-                TxtName = null!;
-                TxtCountry = null!;
+                TxtCommunityTitle = null!;
+                TxtCommunityUrl = null!;
                 TxtDescription = null!;
-                TxtState = null!;
-                TxtLga = null!;
-                TxtPrivacy = null!;
-
-                //PublisherAdView = null!;
+                TxtCategory = null!;
+                TxtReason = null!;
+                PrivacySpinner = null!;
             }
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
             }
         }
-      
-        #endregion
 
-        #region Events
-         
-                 
-        /*private void TxtPrivacyOnTouch(object sender, View.TouchEventArgs e)
+        private void PrivacySpinnerOnItemSelected(object sender, AdapterView.ItemSelectedEventArgs e)
         {
-            try
-            {
-                if (e?.Event?.Action != MotionEventActions.Down) return;
+            PrivacyStatus = e.Position == 1 ? "2" : "1";
+        }
 
-                TypeDialog = "Privacies";
-
-                var arrayAdapter = new List<string>();
-                var dialogList = new MaterialDialog.Builder(this).Theme(WoWonderTools.IsTabDark() ? MaterialDialogsTheme.Dark : MaterialDialogsTheme.Light);
-
-                //arrayAdapter.Add(GetText(Resource.String.Lbl_All));
-
-                arrayAdapter.Add(GetText(Resource.String.Radio_Public));
-                arrayAdapter.Add(GetText(Resource.String.Radio_Private));
-
-                dialogList.Title(GetText(Resource.String.Lbl_Privacy)).TitleColorRes(Resource.Color.primary);
-                dialogList.Items(arrayAdapter);
-                dialogList.NegativeText(GetText(Resource.String.Lbl_Close)).OnNegative(new WoWonderTools.MyMaterialDialog());
-                dialogList.AlwaysCallSingleChoiceCallback();
-                dialogList.ItemsCallback(this).Build().Show();
-            }
-            catch (Exception exception)
-            {
-                Methods.DisplayReportResultTrack(exception);
-            }
-        }*/
-        
         //Save 
         private async void TxtAddOnClick(object sender, EventArgs e)
         {
@@ -295,39 +198,21 @@ namespace Facesofnaija.Activities.Communities.Communities
                 }
                 else
                 {    
-                    if (string.IsNullOrEmpty(TxtName.Text) || string.IsNullOrWhiteSpace(TxtName.Text))
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
-                        return;
-                    }
-                     
-                    if (string.IsNullOrEmpty(TxtState.Text) || string.IsNullOrWhiteSpace(TxtState.Text))
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
-                        return;
-                    }
-                     
-                    if (string.IsNullOrEmpty(TxtDescription.Text) || string.IsNullOrWhiteSpace(TxtDescription.Text))
+                    if (string.IsNullOrWhiteSpace(TxtCommunityTitle.Text) ||
+                        string.IsNullOrWhiteSpace(TxtDescription.Text) ||
+                        string.IsNullOrWhiteSpace(TxtCategory.Text) ||
+                        string.IsNullOrWhiteSpace(TxtReason.Text))
                     {
                         ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
                         return;
                     }
 
-                    if (string.IsNullOrEmpty(TxtCountry.Text) || string.IsNullOrWhiteSpace(TxtCountry.Text))
+                    var requestedUrl = string.IsNullOrWhiteSpace(TxtCommunityUrl.Text) ? TxtCommunityTitle.Text : TxtCommunityUrl.Text;
+                    var communityName = BuildCommunityName(requestedUrl);
+
+                    if (communityName.Length < 5)
                     {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
-                        return;
-                    }
-                    
-                    if (string.IsNullOrEmpty(TxtLga.Text) || string.IsNullOrWhiteSpace(TxtLga.Text))
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
-                        return;
-                    }
-                    
-                    if (string.IsNullOrEmpty(TxtPrivacy.Text) || string.IsNullOrWhiteSpace(TxtPrivacy.Text))
-                    {
-                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_All_fields_are_required), ToastLength.Short);
+                        ToastUtils.ShowToast(this, "Community URL must be at least 5 characters.", ToastLength.Short);
                         return;
                     }
 
@@ -336,12 +221,18 @@ namespace Facesofnaija.Activities.Communities.Communities
 
                     var dictionary = new Dictionary<string, string>
                     {
-                        {"name", TxtName.Text},
-                        {"country",TxtCountry.Text},
-                        {"state",TxtState.Text}, 
+                        {"name", communityName},
+                        {"country", TxtCategory.Text},
+                        {"state", TxtCommunityTitle.Text},
                         {"about", TxtDescription.Text},
-                        {"privacy", PrivacyStatus == "Private" ? "0" : "1"},
-                        {"lga", TxtLga.Text},
+                        {"privacy", PrivacyStatus},
+                        {"lga", TxtReason.Text},
+
+                        // Web-form parity fields
+                        {"community_title", TxtCommunityTitle.Text},
+                        {"community_name", communityName},
+                        {"category", TxtCategory.Text},
+                        {"reason", TxtReason.Text},
                     };
 
                     var (apiStatus, respond) = await CustomRequests.RequestCommunity(dictionary);
@@ -351,11 +242,10 @@ namespace Facesofnaija.Activities.Communities.Communities
                     if (apiStatus == 200)
                     {
                         ToastUtils.ShowToast(this, "Community request submitted successfully.", ToastLength.Short);
+                        Finish();
                     } else{
                         ToastUtils.ShowToast(this, "Error while submitting request.", ToastLength.Short);
                     }
-
-                    DestroyBasic();
                 }
             }
             catch (Exception exception)
@@ -365,39 +255,20 @@ namespace Facesofnaija.Activities.Communities.Communities
             }
         }
 
-        #endregion
-
-
-        #region MaterialDialog
-
-        /*public void OnSelection(MaterialDialog dialog, View itemView, int position, string itemString)
+        private string BuildCommunityName(string source)
         {
-            try
-            {
-                switch (TypeDialog)
-                {
-                    case "Privacies" when itemString == GetText(Resource.String.Radio_Private):
-                        TxtPrivacy.Text = GetText(Resource.String.Radio_Private);
-                        PrivacyStatus = GetText(Resource.String.Radio_Private);
-                        break;
-                    case "Privacies" when itemString == GetText(Resource.String.Radio_Public):
-                        TxtPrivacy.Text = GetText(Resource.String.Radio_Public);
-                        PrivacyStatus = GetText(Resource.String.Radio_Public);
-                        break;
-                    case "Privacies":
-                        TxtPrivacy.Text = GetText(Resource.String.Radio_Public);
-                        PrivacyStatus = GetText(Resource.String.Radio_Public);
-                        break;
-                }
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }*/
+            var value = source?.Trim().ToLowerInvariant() ?? string.Empty;
+            value = value.Replace(" ", "-");
 
-         
-        #endregion
+            var chars = new List<char>(value.Length);
+            foreach (var ch in value)
+            {
+                if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-')
+                    chars.Add(ch);
+            }
+
+            return new string(chars.ToArray());
+        }
 
     }
 }

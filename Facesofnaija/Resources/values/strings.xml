@@ -551,7 +551,8 @@
 	<string name="Lbl_Title_DeletePost">Delete Post</string>
 	<string name="Lbl_Content_DeletePost">Would You like to delete this post</string>
 	<string name="Lbl_leave_comment">Leave a comment</string>
-	<string name="Lbl_Write_comment">Write a Comment...</string>
+	<string name="Lbl_Write_comment">Write a comment...</string>
+	<string name="Lbl_Write_post">Write a post...</string>
 	<string name="Lbl_No_more_users">No more users to display</string>
 	<!--===============================================================-->
 
@@ -809,7 +810,6 @@
 	<string name="Lbl_CodeNotCorrect">Please type the correct code number</string>
 	<string name="Lbl_AddCode">Add code number</string>
 
-	<string name="Lbl_AddCommentHere">Add a comment here</string>
 	<string name="Lbl_NewFeeds">New Feeds</string>
 	<!--===============================================================-->
 
@@ -853,6 +853,7 @@
 	<string name="Lbl_CommonThings">Common Things</string>
 	<string name="Lbl_ThingInCommon">common</string>
 	<string name="Lbl_Announcement">Announcement</string>
+	<string name="Lbl_BreakingNews">Breaking News</string>
 	<string name="Lbl_Name">Name</string>
 	<string name="Lbl_Experience">Experience</string>
 	<string name="Lbl_Position">Position</string>

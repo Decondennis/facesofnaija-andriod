@@ -6,7 +6,8 @@ using Android.Views;
 using Android.Views.Animations;
 using Android.Widget;
 using AndroidX.RecyclerView.Widget;
-using Bumptech.Glide.Util;
+using Bumptech.Glide;
+using Bumptech.Glide.Request;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Facesofnaija.Activities.Story.Adapters;
 using Facesofnaija.Activities.Tabbes;
+using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Fonts;
@@ -48,8 +50,6 @@ namespace Facesofnaija.Activities.Story
         public StoriesProgressView.IStoryStateListener StoryStateListener;
 
         private static ViewStoryFragment Instance;
-
-        private bool MIsVisibleToUser;
 
         #endregion
 
@@ -88,6 +88,19 @@ namespace Facesofnaija.Activities.Story
                 InitComponent(view);
                 SetRecyclerViewAdapters();
 
+                view.Touch += (s, e) =>
+                {
+                    if (e.Event?.Action == MotionEventActions.Down && StoriesProgress != null)
+                    {
+                        float x = e.Event.GetX();
+                        float width = view.Width;
+                        if (x < width / 3f)
+                            StoriesProgress.Reverse();
+                        else if (x > width * 2f / 3f)
+                            StoriesProgress.Skip();
+                    }
+                };
+
                 var checkSection = TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList;
                 if (checkSection?.Count > 0)
                 {
@@ -103,35 +116,20 @@ namespace Facesofnaija.Activities.Story
             }
         }
 
-        public override void SetMenuVisibility(bool menuVisible)
-        {
-            try
-            {
-                base.SetMenuVisibility(menuVisible);
-                MIsVisibleToUser = menuVisible;
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
         public override void OnResume()
         {
             try
             {
                 base.OnResume();
                 AddOrRemoveEvent(true);
-                //StoryStateListener?.OnResume();
 
-                if (IsResumed && MIsVisibleToUser)
+                var dataItemJson = Arguments?.GetString("DataItem") ?? "";
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"OnResume DataItem exists={!string.IsNullOrWhiteSpace(dataItemJson)} length={dataItemJson?.Length ?? 0}");
+                DataStories = JsonConvert.DeserializeObject<StoryDataObject>(dataItemJson);
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"OnResume DataStories={(DataStories == null ? "NULL" : $"UserId={DataStories.UserId} Avatar={(DataStories.Avatar?.Length > 50 ? DataStories.Avatar.Substring(0, 50) + "..." : DataStories.Avatar)} StoriesCount={DataStories.Stories?.Count}")}");
+                if (DataStories != null)
                 {
-                    //var position = Arguments?.GetInt("position", 0); 
-                    DataStories = JsonConvert.DeserializeObject<StoryDataObject>(Arguments?.GetString("DataItem") ?? "");
-                    if (DataStories != null)
-                    {
-                        LoadData(DataStories);
-                    }
+                    LoadData(DataStories);
                 }
             }
             catch (Exception e)
@@ -161,8 +159,7 @@ namespace Facesofnaija.Activities.Story
             {
                 base.OnStop();
 
-                if (MIsVisibleToUser)
-                    StoryStateListener?.OnPause();
+                StoryStateListener?.OnPause();
             }
             catch (Exception e)
             {
@@ -496,6 +493,7 @@ namespace Facesofnaija.Activities.Story
                 if (dataStory != null)
                 {
                     StoryId = dataStory.Id;
+                    StoryApiService.TrackStoryViewAsync(StoryId).ConfigureAwait(false);
                     Destroy();
                     MRecycler.ScrollToPosition(Counter);
                     MAdapter.NotifyItemChanged(Counter);
@@ -537,6 +535,7 @@ namespace Facesofnaija.Activities.Story
                     if (dataStory != null)
                     {
                         StoryId = dataStory.Id;
+                        StoryApiService.TrackStoryViewAsync(StoryId).ConfigureAwait(false);
                         Destroy();
                         MRecycler.ScrollToPosition(Counter);
                         MAdapter.NotifyItemChanged(Counter);
@@ -548,7 +547,6 @@ namespace Facesofnaija.Activities.Story
                 Methods.DisplayReportResultTrack(e);
             }
         }
-
         public void OnComplete()
         {
             try
@@ -581,55 +579,74 @@ namespace Facesofnaija.Activities.Story
         {
             try
             {
-                if (dataStories == null) return;
+                if (dataStories == null)
+                {
+                    Android.Util.Log.Warn("FON_STORY_FLOW", "LoadData called with NULL dataStories");
+                    return;
+                }
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"LoadData UserId={dataStories.UserId} Avatar={(dataStories.Avatar?.Length > 50 ? dataStories.Avatar.Substring(0, 50) + "..." : dataStories.Avatar)} StoriesCount={dataStories.Stories?.Count} DurationsCount={dataStories.DurationsList?.Count}");
                 UserId = dataStories.UserId;
 
-                GlideImageLoader.LoadImage(Activity, dataStories.Avatar, UserImageView, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+                if (!string.IsNullOrWhiteSpace(dataStories.Avatar))
+                    Glide.With(Activity).Load(dataStories.Avatar).Apply(new RequestOptions().CircleCrop().CenterCrop()).Into(UserImageView);
                 UsernameTextView.Text = WoWonderTools.GetNameFinal(dataStories);
 
-                var fistStory = DataStories.Stories.FirstOrDefault();
-                if (fistStory != null)
+                var stories = dataStories.Stories;
+                if (stories != null && stories.Count > 0)
                 {
-                    StoryId = fistStory.Id;
-                    DeleteIconView.Visibility = fistStory.IsOwner ? ViewStates.Visible : ViewStates.Invisible;
+                    var fistStory = stories.FirstOrDefault();
+                    if (fistStory != null)
+                    {
+                        StoryId = fistStory.Id;
+                        StoryApiService.TrackStoryViewAsync(StoryId).ConfigureAwait(false);
+                        DeleteIconView.Visibility = fistStory.IsOwner ? ViewStates.Visible : ViewStates.Invisible;
 
-                    if (!string.IsNullOrEmpty(fistStory.TimeText))
-                    {
-                        LastSeenTextView.Text = Methods.FunString.DecodeString(fistStory.TimeText);
-                    }
-                    else
-                    {
-                        bool success = int.TryParse(fistStory.Posted, out var number);
-                        switch (success)
+                        if (!string.IsNullOrEmpty(fistStory.TimeText))
                         {
-                            case true:
-                                LastSeenTextView.Text = Methods.Time.TimeAgo(number, false);
-                                break;
-                            default:
-                                LastSeenTextView.Text = fistStory.Posted;
-                                break;
+                            LastSeenTextView.Text = Methods.FunString.DecodeString(fistStory.TimeText);
+                        }
+                        else
+                        {
+                            bool success = int.TryParse(fistStory.Posted, out var number);
+                            switch (success)
+                            {
+                                case true:
+                                    LastSeenTextView.Text = Methods.Time.TimeAgo(number, false);
+                                    break;
+                                default:
+                                    LastSeenTextView.Text = fistStory.Posted;
+                                    break;
+                            }
                         }
                     }
+
+                    StoriesProgress ??= MainView?.FindViewById<StoriesProgressView>(Resource.Id.storyProgressView);
+
+                    if (StoriesProgress != null)
+                    {
+                        StoriesProgress.Visibility = ViewStates.Visible;
+
+                        int count = stories.Count;
+                        StoriesProgress.Visibility = ViewStates.Visible;
+                        StoriesProgress.SetStoriesCount(count);
+                        StoriesProgress.SetStoriesListener(this);
+
+                        StoriesProgress?.SetStoriesCountWithDurations(dataStories.DurationsList.ToArray());
+
+                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Setting MAdapter.StoryList count={stories.Count}");
+                        var firstStory = stories.FirstOrDefault();
+                        if (firstStory != null)
+                            Android.Util.Log.Warn("FON_STORY_FLOW", $"First story: Id={firstStory.Id} Thumbnail={(firstStory.Thumbnail?.Length > 50 ? firstStory.Thumbnail.Substring(0, 50) + "..." : firstStory.Thumbnail)} VideosCount={firstStory.Videos?.Count} TypeView={firstStory.TypeView}");
+                        MAdapter.StoryList = new ObservableCollection<StoryDataObject.Story>(stories);
+                        MAdapter.NotifyDataSetChanged();
+
+                        StoriesProgress?.StartStories();
+                    }
                 }
-
-                StoriesProgress ??= MainView?.FindViewById<StoriesProgressView>(Resource.Id.storyProgressView);
-
-                if (StoriesProgress != null)
+                else
                 {
-                    StoriesProgress.Visibility = ViewStates.Visible;
-
-                    int count = dataStories.Stories.Count;
-                    StoriesProgress.Visibility = ViewStates.Visible;
-                    StoriesProgress.SetStoriesCount(count); // <- set stories
-                    StoriesProgress.SetStoriesListener(this); // <- set listener  
-                    //StoriesProgress.SetStoryDuration(10000L); // <- set a story duration   
-
-                    StoriesProgress?.SetStoriesCountWithDurations(dataStories.DurationsList.ToArray());
-
-                    MAdapter.StoryList = new ObservableCollection<StoryDataObject.Story>(dataStories.Stories);
-                    MAdapter.NotifyDataSetChanged();
-
-                    StoriesProgress?.StartStories(); // <- start progress 
+                    Android.Util.Log.Warn("FON_STORY_FLOW", "LoadData: Stories list is null or empty");
+                    ToastUtils.ShowToast(Activity, "No stories available", ToastLength.Short);
                 }
             }
             catch (Exception e)

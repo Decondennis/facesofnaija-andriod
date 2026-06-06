@@ -818,6 +818,7 @@ namespace Facesofnaija.Activities.Default
                     else
                     {
                         ToggleVisibility(false);
+                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ThisUserNotActive), GetText(Resource.String.Lbl_Ok));
                     }
                 }
                 else if (respond is AuthMessageObject messageObject)
@@ -852,6 +853,11 @@ namespace Facesofnaija.Activities.Default
                     newIntent?.PutExtra("TypeCode", "TwoFactor");
                     StartActivity(newIntent);
                 }
+                else
+                {
+                    ToggleVisibility(false);
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Login failed", GetText(Resource.String.Lbl_Ok));
+                }
             }
             else if (apiStatus == 400)
             {
@@ -859,22 +865,8 @@ namespace Facesofnaija.Activities.Default
 
                 if (respond is ErrorObject error)
                 {
-                    var errorText = error.Error.ErrorText;
-                    var errorId = error.Error.ErrorId;
-                    
-                    // Web app error codes from auth.php
-                    if (errorId == "3")
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), "Username not found", GetText(Resource.String.Lbl_Ok));
-                    else if (errorId == "5")
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), "Password is incorrect", GetText(Resource.String.Lbl_Ok));
-                    else if (errorId == "6")
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), "Too many login attempts. Please try again later.", GetText(Resource.String.Lbl_Ok));
-                    else if (errorId == "7")
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), "This user account is banned", GetText(Resource.String.Lbl_Ok));
-                    else if (errorId == "4")
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorLogin_4), GetText(Resource.String.Lbl_Ok));
-                    else
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText ?? "Login failed", GetText(Resource.String.Lbl_Ok));
+                    var errorText = error.Error.ErrorText ?? "Login failed";
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
                 }
                 else if (respond is JObject jobj)
                 {
@@ -898,7 +890,8 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var urls = new[]
+                var phoneApiUrl = "http://172.236.19.52/app_api.php?type=user_login";
+                var webUrls = new[]
                 {
                     "http://172.236.19.52/api/v2/endpoints/auth.php",
                     "http://172.236.19.52/api/auth",
@@ -913,9 +906,46 @@ namespace Facesofnaija.Activities.Default
                 long lastStatus = 404;
                 dynamic lastRespond = "Server authentication failed";
 
-                foreach (var authUrl in urls)
+                // Phone API: only accepts username field, not email
+                try
                 {
-                    // Try username first (web app standard), then email as fallback
+                    using var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                        new KeyValuePair<string, string>("username", email),
+                        new KeyValuePair<string, string>("password", password),
+                        new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
+                    });
+
+                    var response = await client.PostAsync(phoneApiUrl, content).ConfigureAwait(false);
+                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"Auth attempt: {phoneApiUrl} -> Status: {response.StatusCode}");
+
+                    if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                    {
+                        var jObject = JObject.Parse(json);
+                        var statusText = jObject["api_status"]?.ToString();
+                        long.TryParse(statusText, out long status);
+
+                        if (status == 200)
+                        {
+                            var auth = jObject.ToObject<AuthObject>();
+                            return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
+                        }
+
+                        var error = jObject.ToObject<ErrorObject>();
+                        lastStatus = status == 0 ? 400 : status;
+                        lastRespond = error ?? (dynamic)json;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Phone API exception: {ex.Message}");
+                }
+
+                // Fallback: web API endpoints with username/email
+                foreach (var authUrl in webUrls)
+                {
                     foreach (var credentialKey in new[] { "username", "email" })
                     {
                         try
@@ -926,43 +956,33 @@ namespace Facesofnaija.Activities.Default
                                 new KeyValuePair<string, string>(credentialKey, email),
                                 new KeyValuePair<string, string>("password", password),
                                 new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
-                                new KeyValuePair<string, string>("device_type", "phone"), // Added: required by web app
-                                new KeyValuePair<string, string>("android_m_device_id", UserDetails.DeviceId ?? string.Empty), // Added: device registration
+                                new KeyValuePair<string, string>("device_type", "phone"),
+                                new KeyValuePair<string, string>("android_m_device_id", UserDetails.DeviceId ?? string.Empty),
                             });
 
                             var response = await client.PostAsync(authUrl, content).ConfigureAwait(false);
                             var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                             Console.WriteLine($"Auth attempt: {authUrl} with '{credentialKey}' -> Status: {response.StatusCode}");
 
                             if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
                                 continue;
 
-                            try
-                            {
-                                var jObject = JObject.Parse(json);
-                                var statusText = jObject["api_status"]?.ToString();
-                                long.TryParse(statusText, out long status);
+                            var jObject = JObject.Parse(json);
+                            var statusText = jObject["api_status"]?.ToString();
+                            long.TryParse(statusText, out long status);
 
-                                if (status == 200)
-                                {
-                                    var auth = jObject.ToObject<AuthObject>();
-                                    return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
-                                }
-
-                                var error = jObject.ToObject<ErrorObject>();
-                                lastStatus = status == 0 ? 400 : status;
-                                lastRespond = error ?? (dynamic)json;
-                                
-                                // For username-based failures, don't try email on that endpoint
-                                if (credentialKey == "username" && (status == 3 || status == 5))
-                                    break;
-                            }
-                            catch (Exception parseEx)
+                            if (status == 200)
                             {
-                                Console.WriteLine($"JSON parse error: {parseEx.Message}");
-                                lastRespond = json;
+                                var auth = jObject.ToObject<AuthObject>();
+                                return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
                             }
+
+                            var error = jObject.ToObject<ErrorObject>();
+                            lastStatus = status == 0 ? 400 : status;
+                            lastRespond = error ?? (dynamic)json;
+
+                            if (credentialKey == "username" && (status == 3 || status == 5))
+                                break;
                         }
                         catch (Exception attemptEx)
                         {

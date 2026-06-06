@@ -8,6 +8,7 @@ using Android.Widget;
 using AndroidX.AppCompat.Content.Res;
 using AT.Markushi.UI;
 using Bumptech.Glide;
+using Bumptech.Glide.Load.Engine;
 using Bumptech.Glide.Request;
 using Com.Aghajari.Emojiview.View;
 using Newtonsoft.Json;
@@ -15,6 +16,7 @@ using System;
 using System.Threading.Tasks;
 using Facesofnaija.Activities.AddPost.Service;
 using Facesofnaija.Activities.Base;
+using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.StickersView;
@@ -256,17 +258,20 @@ namespace Facesofnaija.Activities.Story
         {
             try
             {
-                StoryImageView.Visibility = StoryImageView.Visibility switch
-                {
-                    ViewStates.Gone => ViewStates.Visible,
-                    _ => StoryImageView.Visibility
-                };
+                StoryImageView.Visibility = ViewStates.Visible;
 
-                var file = Uri.FromFile(new File(url));
+                if (string.IsNullOrWhiteSpace(url))
+                    return;
 
-                Glide.With(this).Load(file?.Path).Apply(new RequestOptions()).Into(StoryImageView);
+                var options = new RequestOptions()
+                    .CenterCrop()
+                    .SetDiskCacheStrategy(DiskCacheStrategy.None)
+                    .SkipMemoryCache(true);
 
-                // GlideImageLoader.LoadImage(this, file.Path, StoryImageView, ImageStyle.CenterCrop, ImagePlaceholders.Drawable);
+                Glide.With(this)
+                    .Load(url)
+                    .Apply(options)
+                    .Into(StoryImageView);
             }
             catch (Exception e)
             {

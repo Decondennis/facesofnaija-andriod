@@ -24,6 +24,7 @@ using Com.Canhub.Cropper;
 using Java.Util.Regex;
 using Google.Android.Material.Dialog; 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -32,6 +33,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Facesofnaija.Activities.AddPost;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Comment.Adapters;
 using Facesofnaija.Activities.Comment.Fragment;
@@ -742,114 +744,120 @@ namespace Facesofnaija.Activities.Comment
                     //Hide keyboard
                     TxtComment.Text = "";
 
-                    var (apiStatus, respond) = await RequestsAsync.Comment.CreatePostCommentsAsync(PostObject.PostId, replacement, PathImage, PathVoice, ImageUrl);
-                    switch (apiStatus)
+                    var resultTuple = await CustomRequests.Posts.CreateCommentFallbackAsync(PostObject.PostId, replacement, PathImage, PathVoice, ImageUrl, "");
+                    var apiStatus = resultTuple.Item1;
+                    var respond = resultTuple.Item2;
+
+                    CommentObjectExtra serverComment = null;
+                    if (apiStatus == 200)
                     {
-                        case 200:
+                        if (respond is CreateComments result)
+                        {
+                            serverComment = ClassMapper.Mapper?.Map<CommentObjectExtra>(result.Data);
+                        }
+                        else if (respond is JObject jObject && jObject["data"] != null)
+                        {
+                            serverComment = jObject["data"].ToObject<CommentObjectExtra>();
+                        }
+                        else
+                        {
+                            try
                             {
-                                switch (respond)
+                                var data = respond?.Data;
+                                if (data != null)
+                                    serverComment = ClassMapper.Mapper?.Map<CommentObjectExtra>(data);
+                            }
+                            catch
+                            {
+                                // ignore parsing failures
+                            }
+                        }
+                    }
+
+                    var finalComment = serverComment ?? comment;
+                    if (serverComment != null)
+                    {
+                        if (string.IsNullOrEmpty(serverComment.Id))
+                            serverComment.Id = comment.Id;
+
+                        var existing = MAdapter.CommentList.FirstOrDefault(a => a.Id == comment.Id);
+                        if (existing != null)
+                        {
+                            index = MAdapter.CommentList.IndexOf(existing);
+                            if (index > -1)
+                                MAdapter.CommentList[index] = serverComment;
+                        }
+                    }
+
+                    var targetPostId = PostObject?.PostId ?? PostObject?.Id;
+                    var count = MAdapter.CommentList.Count.ToString();
+
+                    var postFeedAdapter = TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                    var dataGlobal = postFeedAdapter?.ListDiffer?.Where(a => a.PostData != null && (a.PostData.Id == targetPostId || a.PostData.PostId == targetPostId)).ToList();
+                    switch (dataGlobal?.Count)
+                    {
+                        case > 0:
+                            {
+                                foreach (var dataClass in from dataClass in dataGlobal let indexCom = postFeedAdapter?.ListDiffer?.IndexOf(dataClass) where indexCom > -1 select dataClass)
                                 {
-                                    case CreateComments result:
-                                        {
-                                            var date = MAdapter.CommentList.FirstOrDefault(a => a.Id == comment.Id) ?? MAdapter.CommentList.FirstOrDefault(x => x.Id == result.Data.Id);
-                                            if (date != null)
+                                    dataClass.PostData.PostComments = count;
+
+                                    switch (dataClass.PostData.GetPostComments?.Count)
+                                    {
+                                        case > 0:
                                             {
-                                                var db = ClassMapper.Mapper?.Map<CommentObjectExtra>(result.Data);
-
-                                                date = db;
-                                                date.Id = result.Data.Id;
-
-                                                index = MAdapter.CommentList.IndexOf(MAdapter.CommentList.FirstOrDefault(a => a.Id == unixTimestamp.ToString()));
-                                                MAdapter.CommentList[index] = index switch
-                                                {
-                                                    > -1 => db,
-                                                    _ => MAdapter.CommentList[index]
-                                                };
-
-                                                var postFeedAdapter = TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
-                                                var dataGlobal = postFeedAdapter?.ListDiffer?.Where(a => a.PostData?.Id == PostObject?.PostId).ToList();
-                                                switch (dataGlobal?.Count)
-                                                {
-                                                    case > 0:
-                                                        {
-                                                            foreach (var dataClass in from dataClass in dataGlobal let indexCom = postFeedAdapter?.ListDiffer?.IndexOf(dataClass) where indexCom > -1 select dataClass)
-                                                            {
-                                                                dataClass.PostData.PostComments = MAdapter.CommentList.Count.ToString();
-
-                                                                switch (dataClass.PostData.GetPostComments?.Count)
-                                                                {
-                                                                    case > 0:
-                                                                        {
-                                                                            var dataComment = dataClass.PostData.GetPostComments.FirstOrDefault(a => a.Id == date.Id);
-                                                                            switch (dataComment)
-                                                                            {
-                                                                                case null:
-                                                                                    dataClass.PostData.GetPostComments.Add(date);
-                                                                                    break;
-                                                                            }
-
-                                                                            break;
-                                                                        }
-                                                                    default:
-                                                                        dataClass.PostData.GetPostComments = new List<GetCommentObject> { date };
-                                                                        break;
-                                                                }
-
-                                                                postFeedAdapter?.NotifyItemChanged(postFeedAdapter.ListDiffer.IndexOf(dataClass), "commentReplies");
-                                                            }
-
-                                                            break;
-                                                        }
-                                                }
-
-                                                var postFeedAdapter2 = WRecyclerView.GetInstance()?.NativeFeedAdapter;
-                                                var dataGlobal2 = postFeedAdapter2?.ListDiffer?.Where(a => a.PostData?.Id == PostObject?.PostId).ToList();
-                                                switch (dataGlobal2?.Count)
-                                                {
-                                                    case > 0:
-                                                        {
-                                                            foreach (var dataClass in from dataClass in dataGlobal2 let indexCom = postFeedAdapter2.ListDiffer.IndexOf(dataClass) where indexCom > -1 select dataClass)
-                                                            {
-                                                                dataClass.PostData.PostComments = MAdapter.CommentList.Count.ToString();
-
-                                                                switch (dataClass.PostData.GetPostComments?.Count)
-                                                                {
-                                                                    case > 0:
-                                                                        {
-                                                                            var dataComment = dataClass.PostData.GetPostComments.FirstOrDefault(a => a.Id == date.Id);
-                                                                            switch (dataComment)
-                                                                            {
-                                                                                case null:
-                                                                                    dataClass.PostData.GetPostComments.Add(date);
-                                                                                    break;
-                                                                            }
-
-                                                                            break;
-                                                                        }
-                                                                    default:
-                                                                        dataClass.PostData.GetPostComments = new List<GetCommentObject> { date };
-                                                                        break;
-                                                                }
-
-                                                                postFeedAdapter2.NotifyItemChanged(postFeedAdapter2.ListDiffer.IndexOf(dataClass), "commentReplies");
-                                                            }
-
-                                                            break;
-                                                        }
-                                                }
+                                                var existing = dataClass.PostData.GetPostComments.FirstOrDefault(a => a.Id == finalComment.Id);
+                                                if (existing == null)
+                                                    dataClass.PostData.GetPostComments.Add(finalComment);
+                                                break;
                                             }
-
+                                        default:
+                                            dataClass.PostData.GetPostComments = new List<GetCommentObject> { finalComment };
                                             break;
-                                        }
+                                    }
+
+                                    postFeedAdapter?.NotifyItemChanged(postFeedAdapter.ListDiffer.IndexOf(dataClass), "commentReplies");
                                 }
 
                                 break;
                             }
                     }
-                    //else Methods.DisplayReportResult(this, respond);
+
+                    var postFeedAdapter2 = WRecyclerView.GetInstance()?.NativeFeedAdapter;
+                    var dataGlobal2 = postFeedAdapter2?.ListDiffer?.Where(a => a.PostData != null && (a.PostData.Id == targetPostId || a.PostData.PostId == targetPostId)).ToList();
+                    switch (dataGlobal2?.Count)
+                    {
+                        case > 0:
+                            {
+                                foreach (var dataClass in from dataClass in dataGlobal2 let indexCom = postFeedAdapter2.ListDiffer.IndexOf(dataClass) where indexCom > -1 select dataClass)
+                                {
+                                    dataClass.PostData.PostComments = count;
+
+                                    switch (dataClass.PostData.GetPostComments?.Count)
+                                    {
+                                        case > 0:
+                                            {
+                                                var existing = dataClass.PostData.GetPostComments.FirstOrDefault(a => a.Id == finalComment.Id);
+                                                if (existing == null)
+                                                    dataClass.PostData.GetPostComments.Add(finalComment);
+                                                break;
+                                            }
+                                        default:
+                                            dataClass.PostData.GetPostComments = new List<GetCommentObject> { finalComment };
+                                            break;
+                                    }
+
+                                    postFeedAdapter2.NotifyItemChanged(postFeedAdapter2.ListDiffer.IndexOf(dataClass), "commentReplies");
+                                }
+
+                                break;
+                            }
+                    }
 
                     //Hide keyboard
                     TxtComment.Text = "";
+                    TxtComment.Hint = GetString(Resource.String.Lbl_Write_comment);
+
                     PathImage = "";
                     ImageUrl = "";
                     PathVoice = "";
@@ -1012,41 +1020,86 @@ namespace Facesofnaija.Activities.Comment
             {
                 MainScrollEvent.IsLoading = true;
                 var countList = MAdapter.CommentList.Count;
-                var (apiStatus, respond) = await RequestsAsync.Comment.GetPostCommentsAsync(PostId, "10", offset);
-                if (apiStatus != 200 || respond is not CommentObject result || result.CommentList == null)
+
+                var v2Worked = false;
+                try
                 {
-                    MainScrollEvent.IsLoading = false;
-                    Methods.DisplayReportResult(this, respond);
-                }
-                else
-                {
-                    var respondList = result.CommentList?.Count;
-                    switch (respondList)
+                    var (apiStatus, respond) = await RequestsAsync.Comment.GetPostCommentsAsync(PostId, "10", offset);
+                    if (apiStatus == 200 && respond is CommentObject result && result.CommentList != null)
                     {
-                        case > 0:
-                            {
-                                foreach (var item in result.CommentList)
+                        v2Worked = true;
+                        var respondList = result.CommentList?.Count;
+                        switch (respondList)
+                        {
+                            case > 0:
                                 {
-                                    CommentObjectExtra check = MAdapter.CommentList.FirstOrDefault(a => a.Id == item.Id);
-                                    switch (check)
+                                    foreach (var item in result.CommentList)
                                     {
-                                        case null:
-                                            {
-                                                var db = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
-                                                if (db != null) MAdapter.CommentList.Add(db);
+                                        CommentObjectExtra check = MAdapter.CommentList.FirstOrDefault(a => a.Id == item.Id);
+                                        switch (check)
+                                        {
+                                            case null:
+                                                {
+                                                    var db = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
+                                                    if (db != null) MAdapter.CommentList.Add(db);
+                                                    break;
+                                                }
+                                            default:
+                                                check = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
+                                                check.Replies = item.Replies;
+                                                check.RepliesCount = item.RepliesCount;
                                                 break;
-                                            }
-                                        default:
-                                            check = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
-                                            check.Replies = item.Replies;
-                                            check.RepliesCount = item.RepliesCount;
-                                            break;
+                                        }
+                                    }
+
+                                    RunOnUiThread(() => { MAdapter.NotifyDataSetChanged(); });
+                                    break;
+                                }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // V2 API failed, try fallback
+                }
+
+                if (!v2Worked)
+                {
+                    try
+                    {
+                        var (apiStatus, respond) = await CustomRequests.Posts.GetPostCommentsFallbackAsync(PostId, "10", offset);
+                        if (apiStatus == 200 && respond is JObject jObject)
+                        {
+                            var data = jObject["data"];
+                            if (data?.Type == JTokenType.Array)
+                            {
+                                foreach (var item in (JArray)data)
+                                {
+                                    var commentExtra = JsonConvert.DeserializeObject<CommentObjectExtra>(item.ToString());
+                                    if (commentExtra != null)
+                                    {
+                                        CommentObjectExtra check = MAdapter.CommentList.FirstOrDefault(a => a.Id == commentExtra.Id);
+                                        switch (check)
+                                        {
+                                            case null:
+                                                MAdapter.CommentList.Add(commentExtra);
+                                                break;
+                                            default:
+                                                check = ClassMapper.Mapper?.Map<CommentObjectExtra>(commentExtra);
+                                                check.Replies = commentExtra.Replies;
+                                                check.RepliesCount = commentExtra.RepliesCount;
+                                                break;
+                                        }
                                     }
                                 }
 
                                 RunOnUiThread(() => { MAdapter.NotifyDataSetChanged(); });
-                                break;
                             }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error("CommentFallback", $"Fallback failed: {ex.Message}");
                     }
                 }
 

@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.OS;
@@ -45,6 +45,92 @@ namespace Facesofnaija.Activities.NativePost.Post
     {
         private readonly Activity ActivityContext;
         private readonly NativePostAdapter NativePostAdapter;
+
+        private static string ResolveReactionNameByType(string reactionType)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(reactionType))
+                    return string.Empty;
+
+                var reactionName = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == reactionType).Value?.Name;
+                var key = new string((reactionName ?? reactionType).Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+                return key switch
+                {
+                    "1" or "like" => "like",
+                    "2" or "love" => "love",
+                    "3" or "haha" => "haha",
+                    "4" or "wow" => "wow",
+                    "5" or "sad" => "sad",
+                    "6" or "angry" => "angry",
+                    _ => string.Empty
+                };
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
+        private static int GetReactionCounterByName(Reaction reaction, string propertyName)
+        {
+            try
+            {
+                var propertyInfo = reaction?.GetType().GetProperty(propertyName);
+                var value = propertyInfo?.GetValue(reaction)?.ToString();
+                return int.TryParse(value, out var count) ? count : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static string ResolveDominantReactionName(Reaction reaction)
+        {
+            try
+            {
+                var counters = new Dictionary<string, int>
+                {
+                    { "like", GetReactionCounterByName(reaction, "Like") + GetReactionCounterByName(reaction, "Like1") },
+                    { "love", GetReactionCounterByName(reaction, "Love") + GetReactionCounterByName(reaction, "Love2") },
+                    { "haha", GetReactionCounterByName(reaction, "HaHa") + GetReactionCounterByName(reaction, "Haha") + GetReactionCounterByName(reaction, "HaHa3") + GetReactionCounterByName(reaction, "Haha3") },
+                    { "wow", GetReactionCounterByName(reaction, "Wow") + GetReactionCounterByName(reaction, "Wow4") },
+                    { "sad", GetReactionCounterByName(reaction, "Sad") + GetReactionCounterByName(reaction, "Sad5") },
+                    { "angry", GetReactionCounterByName(reaction, "Angry") + GetReactionCounterByName(reaction, "Angry6") }
+                };
+
+                return counters.OrderByDescending(a => a.Value).FirstOrDefault().Value > 0
+                    ? counters.OrderByDescending(a => a.Value).First().Key
+                    : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string ResolveReactionNameForDisplay(Reaction reaction, string postId, bool includeCachedCurrentUserReaction)
+        {
+            try
+            {
+                if (reaction == null)
+                    return string.Empty;
+
+                if (includeCachedCurrentUserReaction && !string.IsNullOrEmpty(postId) && ListUtils.LastReactionTypeByPostId.TryGetValue(postId, out var cachedType) && !string.IsNullOrEmpty(cachedType))
+                    return ResolveReactionNameByType(cachedType);
+
+                if (!string.IsNullOrEmpty(reaction.Type))
+                    return ResolveReactionNameByType(reaction.Type);
+
+                return ResolveDominantReactionName(reaction);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
 
         public AdapterBind(NativePostAdapter adapter)
         {
@@ -277,61 +363,37 @@ namespace Facesofnaija.Activities.NativePost.Post
                         {
                             item.PostData.Reaction ??= new Reaction();
 
-                            holder.ImageCountLike.Visibility = item.PostData.Reaction.Count > 0 ? ViewStates.Visible : ViewStates.Gone;
-                            if (item.PostData.Reaction.Count > 0)
-                                holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                            else
-                                holder.ImageCountLike.SetImageResource(Resource.Drawable.icon_post_like_vector);
+                            var totalReactionCount = item.PostData.Reaction.Count;
+                            if (totalReactionCount <= 0 && int.TryParse(item.PostData.PostLikes, out var fallbackLikesCount))
+                                totalReactionCount = fallbackLikesCount;
 
-                            if (item.PostData.Reaction.IsReacted != null && item.PostData.Reaction.IsReacted.Value)
-                            {
-                                switch (string.IsNullOrEmpty(item.PostData.Reaction.Type))
-                                {
-                                    case false:
-                                        {
-                                            var react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == item.PostData.Reaction.Type).Value?.Id ?? "";
-                                            switch (react)
-                                            {
-                                                case "1":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                                    break;
-                                                case "2":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_love);
-                                                    break;
-                                                case "3":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_haha);
-                                                    break;
-                                                case "4":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_wow);
-                                                    break;
-                                                case "5":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_sad);
-                                                    break;
-                                                case "6":
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_angry);
-                                                    break;
-                                                default:
-                                                    switch (item.PostData.Reaction.Count)
-                                                    {
-                                                        case > 0:
-                                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                                            break;
-                                                    }
-                                                    break;
-                                            }
+                            holder.ImageCountLike.Visibility = totalReactionCount > 0 ? ViewStates.Visible : ViewStates.Gone;
+                            holder.ImageCountLike.SetImageResource(Resource.Drawable.icon_post_like_vector);
 
-                                            break;
-                                        }
-                                }
-                            }
-                            else
+                            var reactionName = ResolveReactionNameForDisplay(item.PostData.Reaction, item.PostData.PostId ?? item.PostData.Id, false);
+                            if (string.IsNullOrEmpty(reactionName) && totalReactionCount > 0)
+                                reactionName = "like";
+
+                            switch (reactionName)
                             {
-                                switch (item.PostData.Reaction.Count)
-                                {
-                                    case > 0:
-                                        holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                        break;
-                                }
+                                case "like":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
+                                    break;
+                                case "love":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_love);
+                                    break;
+                                case "haha":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_haha);
+                                    break;
+                                case "wow":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_wow);
+                                    break;
+                                case "sad":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_sad);
+                                    break;
+                                case "angry":
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_angry);
+                                    break;
                             }
 
                             break;
@@ -362,40 +424,32 @@ namespace Facesofnaija.Activities.NativePost.Post
                         {
                             item.PostData.Reaction ??= new Reaction();
 
-                            if (item.PostData.Reaction.IsReacted != null && item.PostData.Reaction.IsReacted.Value)
+                            var reactionName = ResolveReactionNameForDisplay(item.PostData.Reaction, item.PostData.PostId ?? item.PostData.Id, true);
+                            if (!string.IsNullOrEmpty(reactionName))
                             {
-                                switch (string.IsNullOrEmpty(item.PostData.Reaction.Type))
+                                switch (reactionName)
                                 {
-                                    case false:
-                                        {
-                                            var react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == item.PostData.Reaction.Type).Value?.Id ?? "";
-                                            switch (react)
-                                            {
-                                                case "1":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Like);
-                                                    break;
-                                                case "2":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Love);
-                                                    break;
-                                                case "3":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.HaHa);
-                                                    break;
-                                                case "4":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Wow);
-                                                    break;
-                                                case "5":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Sad);
-                                                    break;
-                                                case "6":
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Angry);
-                                                    break;
-                                                default:
-                                                    holder.LikeButton.SetReactionPack(ReactConstants.Default);
-                                                    break;
-                                            }
-
-                                            break;
-                                        }
+                                    case "like":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Like);
+                                        break;
+                                    case "love":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Love);
+                                        break;
+                                    case "haha":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.HaHa);
+                                        break;
+                                    case "wow":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Wow);
+                                        break;
+                                    case "sad":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Sad);
+                                        break;
+                                    case "angry":
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Angry);
+                                        break;
+                                    default:
+                                        holder.LikeButton.SetReactionPack(ReactConstants.Like);
+                                        break;
                                 }
                             }
                             else
@@ -668,77 +722,63 @@ namespace Facesofnaija.Activities.NativePost.Post
                                     break;
                             }
 
-                            if (item.Reaction.IsReacted != null && item.Reaction.IsReacted.Value)
+                            if (!string.IsNullOrEmpty(item.Reaction.Type) || item.Reaction.Count > 0)
                             {
-                                switch (string.IsNullOrEmpty(item.Reaction.Type))
+                                var commentReactionName = ResolveReactionNameForDisplay(item.Reaction, item.PostId, false);
+                                if (!string.IsNullOrEmpty(commentReactionName))
                                 {
-                                    case false:
-                                        {
-                                            var react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == item.Reaction.Type).Value?.Id ?? "";
-                                            switch (react)
-                                            {
-                                                case "1":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.Like);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                                    break;
-                                                case "2":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.Love);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_love);
-                                                    break;
-                                                case "3":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.HaHa);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_haha);
-                                                    break;
-                                                case "4":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.Wow);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_wow);
-                                                    break;
-                                                case "5":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.Sad);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_sad);
-                                                    break;
-                                                case "6":
-                                                    ReactionComment.SetReactionPack(holder, ReactConstants.Angry);
-                                                    holder.LikeTextView.Tag = "Liked";
-                                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_angry);
-                                                    break;
-                                                default:
-                                                    holder.LikeTextView.Text = ActivityContext.GetText(Resource.String.Btn_Like);
-                                                    //holder.LikeTextView.SetTextColor(WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                                                    holder.LikeTextView.SetTextColor(WoWonderTools.IsTabDark() ? Color.White : Color.ParseColor("#888888"));
-                                                    holder.LikeTextView.Tag = "Like";
-
-                                                    switch (item.Reaction.Count)
-                                                    {
-                                                        case > 0:
-                                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                                            break;
-                                                    }
-                                                    break;
-                                            }
-
+                                    switch (commentReactionName)
+                                    {
+                                        case "like":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Like);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
                                             break;
-                                        }
+                                        case "love":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Love);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_love);
+                                            break;
+                                        case "haha":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.HaHa);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_haha);
+                                            break;
+                                        case "wow":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Wow);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_wow);
+                                            break;
+                                        case "sad":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Sad);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_sad);
+                                            break;
+                                        case "angry":
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Angry);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_angry);
+                                            break;
+                                        default:
+                                            ReactionComment.SetReactionPack(holder, ReactConstants.Like);
+                                            holder.LikeTextView.Tag = "Liked";
+                                            holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
+                                            break;
+                                    }
+                                }
+                                else if (item.Reaction.Count > 0)
+                                {
+                                    ReactionComment.SetReactionPack(holder, ReactConstants.Like);
+                                    holder.LikeTextView.Tag = "Liked";
+                                    holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
                                 }
                             }
                             else
                             {
                                 holder.LikeTextView.Text = ActivityContext.GetText(Resource.String.Btn_Like);
-                                //holder.LikeTextView.SetTextColor(WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                                 holder.LikeTextView.SetTextColor(WoWonderTools.IsTabDark() ? Color.White : Color.ParseColor("#888888"));
                                 holder.LikeTextView.Tag = "Like";
-
-                                switch (item.Reaction.Count)
-                                {
-                                    case > 0:
-                                        holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
-                                        break;
-                                }
+                                holder.ImageCountLike.SetImageResource(Resource.Drawable.emoji_like);
                             }
 
                             break;
@@ -1833,11 +1873,14 @@ namespace Facesofnaija.Activities.NativePost.Post
                     case "Announcements":
                         // Classic announcement card without avatar/icon and with marquee text kept enabled.
                         holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Announcement_Bg);
-                        holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_Announcement);
+                        holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_BreakingNews);
                         holder.ButtonView.SetTextColor(Color.ParseColor("#8E5B14"));
                         holder.ButtonView.SetBackgroundResource(Resource.Drawable.Shape_Classic_Button_Amber);
                         holder.IconImageView.Visibility = ViewStates.Gone;
                         holder.NormalImageView.SetImageResource(Resource.Drawable.icon_announcement_vector);
+                        var pulseAnim = Android.Views.Animations.AnimationUtils.LoadAnimation(ActivityContext, Resource.Animation.announcement_pulse);
+                        if (pulseAnim != null)
+                            holder.NormalImageView.StartAnimation(pulseAnim);
                         holder.SubText.Selected = true;
                         break;
                 }

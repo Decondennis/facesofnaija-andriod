@@ -1,10 +1,12 @@
 using Android.App;
 using Android.Content;
+using Android.Util;
 using WoWonder.Helpers.Utils;
 using AndroidX.Core.Content;
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Console = System.Console;
 using File = System.IO.File;
@@ -15,20 +17,13 @@ namespace Facesofnaija.Helpers.Utils
 {
     public static class ShareFileImplementation
     {
-        /// <summary>
-        /// Simply share a local file on compatible services
-        /// </summary>
-        /// <param name="postUrl"></param>
-        /// <param name="localFilePath">path to local file</param>
-        /// <param name="textImage"></param>
-        /// <param name="title">Title of popup on share (not included in message)</param>
-        /// <param name="activity"></param>
-        /// <returns>awaitable Task</returns>
+        private const string ShareTag = "ShareDebug";
+
         public static void ShareLocalFile(Activity activity, string postUrl, Uri localFilePath, string textImage, string title)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(localFilePath.Path))
+                if (localFilePath == null || string.IsNullOrWhiteSpace(localFilePath.Path))
                 {
                     Console.WriteLine("ShareFile: ShareLocalFile Warning: localFilePath null or empty");
                     return;
@@ -40,8 +35,9 @@ namespace Facesofnaija.Helpers.Utils
                 intent.SetAction(Intent.ActionSend);
                 intent.SetType("*/*");
                 intent.PutExtra(Intent.ExtraStream, localFilePath);
-                intent.PutExtra(Intent.ExtraText, postUrl);
                 intent.AddFlags(ActivityFlags.GrantReadUriPermission);
+
+                Log.Info(ShareTag, $"ShareLocalFile uri={localFilePath} hasPostUrl={!string.IsNullOrEmpty(postUrl)} hasTextImage={!string.IsNullOrEmpty(textImage)}");
 
                 var chooserIntent = Intent.CreateChooser(intent, title);
                 chooserIntent?.SetFlags(ActivityFlags.ClearTop);
@@ -54,19 +50,13 @@ namespace Facesofnaija.Helpers.Utils
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="activity"></param>
-        /// <param name="text"></param>
-        /// <param name="title"></param>
         public static void ShareText(Activity activity, string text, string title = "")
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    Console.WriteLine("ShareFile: ShareLocalFile Warning: localFilePath null or empty");
+                    Console.WriteLine("ShareFile: ShareText Warning: text null or empty");
                     return;
                 }
 
@@ -84,174 +74,104 @@ namespace Facesofnaija.Helpers.Utils
             }
             catch (Exception ex)
             {
-                switch (string.IsNullOrWhiteSpace(ex.Message))
-                {
-                    case false:
-                        Console.WriteLine("Exception in ShareFile: ShareLocalFile Exception: {0}", ex);
-                        break;
-                }
+                Console.WriteLine("Exception in ShareFile: ShareText Exception: {0}", ex);
             }
         }
 
-        /// <summary>
-        /// Simply share a file from a remote resource on compatible services
-        /// </summary>
-        /// <param name="fileUri">uri to external file</param>
-        /// <param name="fileName">name of the file</param>
-        /// <param name="title">Title of popup on share (not included in message)</param>
-        /// <returns>awaitable bool</returns>
-        public static async Task ShareRemoteFile(Activity Activity, string postUrl, string fileUri, string fileName, string title)
+        public static async Task ShareRemoteFile(Activity activity, string postUrl, string fileUri, string fileName, string title)
         {
             try
             {
-                Download(Activity, postUrl, fileUri, fileName, title);
-                await Task.Delay(0);
+                Log.Info(ShareTag, $"ShareRemoteFile start fileUri={fileUri} fileName={fileName}");
+
+                var localUri = await Download(activity, fileUri, fileName);
+                if (localUri != null)
+                {
+                    ShareLocalFile(activity, postUrl, localUri, fileUri, title);
+                    return;
+                }
+
+                ToastUtils.ShowToast(activity, "Failed to share file. Please try again.", Android.Widget.ToastLength.Long);
             }
             catch (Exception ex)
             {
+                ProgressDialogHelper.Dismiss(activity);
+                ToastUtils.ShowToast(activity, "Failed to share file. Please try again.", Android.Widget.ToastLength.Long);
                 Console.WriteLine("Exception in ShareFile: ShareRemoteFile Exception: {0}", ex.Message);
             }
         }
 
-        public static void Download(Activity Activity, string postUrl, string imageUrl, string fileName, string title)
+        public static async Task<Uri> Download(Activity activity, string imageUrl, string fileName)
         {
             try
             {
-                if (string.IsNullOrEmpty(imageUrl) || Activity == null)
-                    return;
+                if (activity == null || string.IsNullOrEmpty(imageUrl) || string.IsNullOrEmpty(fileName))
+                    return null;
 
-                Uri photoUri;
+                Log.Info(ShareTag, $"Download start url={imageUrl} fileName={fileName}");
 
-                Activity?.RunOnUiThread(async () =>
+                var getImage = Methods.MultiMedia.GetMediaFrom_Gallery(Methods.Path.FolderDcimImage, fileName);
+                if (getImage != "File Dont Exists")
                 {
-                    try
-                    {
-                        var getImage = Methods.MultiMedia.GetMediaFrom_Gallery(Methods.Path.FolderDcimImage, fileName);
-                        if (getImage != "File Dont Exists")
-                        {
-                            Java.IO.File file2 = new Java.IO.File(getImage);
-                            photoUri = FileProvider.GetUriForFile(Activity, Activity.PackageName + ".fileprovider", file2);
-                            ShareLocalFile(Activity, postUrl, photoUri, imageUrl, title);
-                        }
-                        else
-                        {
-                            string filePath = Path.Combine(Methods.Path.FolderDcimImage);
-                            string mediaFile = filePath + "/" + fileName;
+                    var cachedFile = new Java.IO.File(getImage);
+                    var cachedUri = FileProvider.GetUriForFile(activity, activity.PackageName + ".fileprovider", cachedFile);
+                    Log.Info(ShareTag, $"Download cache-hit path={getImage}");
+                    return cachedUri;
+                }
 
-                            if (!Directory.Exists(filePath))
-                                Directory.CreateDirectory(filePath);
+                string filePath = Path.Combine(Methods.Path.FolderDcimImage);
+                string mediaFile = Path.Combine(filePath, fileName);
 
-                            if (!File.Exists(mediaFile))
-                            {
-                                ProgressDialogHelper.Show(Activity, Activity.GetText(Resource.String.Lbl_Loading));
+                if (!Directory.Exists(filePath))
+                    Directory.CreateDirectory(filePath);
 
-                                HttpClient client;
-                                if (AppSettings.TurnSecurityProtocolType3072On)
-                                {
-                                    HttpClientHandler clientHandler = new HttpClientHandler();
-                                    clientHandler.ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true;
-                                    //clientHandler.SslProtocols = SslProtocols.Tls | SslProtocols.Ssl2 | SslProtocols.Ssl3 | SslProtocols.Tls11 | SslProtocols.Tls12 | SslProtocols.Tls13 | SslProtocols.Default;
+                if (File.Exists(mediaFile))
+                {
+                    var existingFile = new Java.IO.File(mediaFile);
+                    var localUri = FileProvider.GetUriForFile(activity, activity.PackageName + ".fileprovider", existingFile);
+                    Log.Info(ShareTag, $"Download local-hit path={mediaFile}");
+                    return localUri;
+                }
 
-                                    // Pass the handler to httpClient(from you are calling api)
-                                    client = new HttpClient(clientHandler);
-                                }
-                                else
-                                {
-                                    client = new HttpClient();
-                                }
-                                var s = await client.GetStreamAsync(new System.Uri(imageUrl));
-                                if (s.CanRead)
-                                {
-                                    await using FileStream fs = new FileStream(mediaFile, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
-                                    await s.CopyToAsync(fs);
+                activity.RunOnUiThread(() => ProgressDialogHelper.Show(activity, activity.GetText(Resource.String.Lbl_Loading)));
 
-                                    var getImagePath = Methods.MultiMedia.GetMediaFrom_Gallery(Methods.Path.FolderDcimImage, fileName);
-                                    if (getImagePath != "File Dont Exists")
-                                    {
-                                        Java.IO.File file2 = new Java.IO.File(getImagePath);
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var response = await client.GetAsync(imageUrl, cancellationTokenSource.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    Log.Warn(ShareTag, $"Download failed http={(int)response.StatusCode}");
+                    activity.RunOnUiThread(() => ToastUtils.ShowToast(activity, "Failed to download file.", Android.Widget.ToastLength.Long));
+                    return null;
+                }
 
-                                        photoUri = FileProvider.GetUriForFile(Activity, Activity.PackageName + ".fileprovider", file2);
-                                        ShareLocalFile(Activity, postUrl, photoUri, imageUrl, title);
-                                    }
-                                }
+                await using (var fs = new FileStream(mediaFile, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await response.Content.CopyToAsync(fs, cancellationTokenSource.Token);
+                }
 
-                                ProgressDialogHelper.Dismiss(Activity);
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Methods.DisplayReportResultTrack(e);
-                    }
-                });
-
+                var downloadedFile = new Java.IO.File(mediaFile);
+                var photoUri = FileProvider.GetUriForFile(activity, activity.PackageName + ".fileprovider", downloadedFile);
+                Log.Info(ShareTag, $"Download success path={mediaFile}");
+                return photoUri;
             }
-            catch (Exception e)
+            catch (TaskCanceledException ex)
             {
-                Methods.DisplayReportResultTrack(e);
+                Log.Warn(ShareTag, $"Download timeout for url={imageUrl}");
+                activity?.RunOnUiThread(() => ToastUtils.ShowToast(activity, "Sharing the media is taking too long. Please try again.", Android.Widget.ToastLength.Long));
+                Console.WriteLine("Exception in Download timeout: {0}", ex.Message);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                activity?.RunOnUiThread(() => ToastUtils.ShowToast(activity, "Error during file download.", Android.Widget.ToastLength.Long));
+                Console.WriteLine("Exception in Download: {0}", ex.Message);
+                return null;
+            }
+            finally
+            {
+                activity?.RunOnUiThread(() => ProgressDialogHelper.Dismiss(activity));
             }
         }
-
-
-        //public static void SaveMedia(Context context, int mediaType, string filePath, string directoryName)
-        //{
-        //    Java.IO.File originalFile = new Java.IO.File(filePath);
-        //    if (!originalFile.Exists())
-        //    {
-        //        ////Log.e("Unity", "Original media file is missing or inaccessible!");
-        //        return;
-        //    }
-
-        //    int pathSeparator = filePath.LastIndexOf('/');
-        //    int extensionSeparator = filePath.LastIndexOf('.');
-        //    string filename = pathSeparator >= 0 ? filePath.Substring(pathSeparator + 1) : filePath;
-        //    string extension = extensionSeparator >= 0 ? filePath.Substring(extensionSeparator + 1) : "";
-
-        //    // Credit: https://stackoverflow.com/a/31691791/2373034
-        //    string mimeType = extension.Length > 0 ? MimeTypeMap.GetMimeType(extension.ToLower()) : null!;
-
-        //    ContentValues values = new ContentValues();
-        //    values.Put(MediaStore.MediaColumns.Title, filename);
-        //    values.Put(MediaStore.MediaColumns.DisplayName, filename);
-        //    values.Put(MediaStore.MediaColumns.DateAdded, DateTime.Now.ToLongDateString());
-
-        //    if (!string.IsNullOrEmpty(mimeType))
-        //        values.Put(MediaStore.MediaColumns.MimeType, mimeType);
-
-        //    Uri externalContentUri;
-        //    if (mediaType == 0)
-        //        externalContentUri = MediaStore.Images.Media.ExternalContentUri;
-        //    else if (mediaType == 1)
-        //        externalContentUri = MediaStore.Video.Media.ExternalContentUri;
-        //    else
-        //        externalContentUri = MediaStore.Audio.Media.ExternalContentUri;
-
-        //    // Android 10 restricts our access to the raw filesystem, use MediaStore to save media in that case
-        //    if (Build.VERSION.SdkInt >= (BuildVersionCodes)29)
-        //    {
-        //        values.Put(MediaStore.MediaColumns.RelativePath, "DCIM/" + directoryName);
-        //        values.Put(MediaStore.MediaColumns.DateTaken, DateTime.Now.ToLongDateString());
-        //        values.Put(MediaStore.MediaColumns.IsPending, true);
-
-        //        Uri uri = context.ContentResolver.Insert(externalContentUri, values);
-        //        if (uri != null)
-        //        {
-        //            try
-        //            {
-
-        //                if (WriteFileToStream(originalFile, context.ContentResolver.OpenOutputStream(uri)))
-        //                {
-        //                    values.Put(MediaStore.MediaColumns.IsPending, false);
-        //                    context.ContentResolver.Update(uri, values, null, null);
-        //                }
-        //            }
-        //            catch (Exception e)
-        //            {
-        //                //Log.e("Unity", "Exception:", e);
-        //                context.ContentResolver.Delete(uri, null, null);
-        //            }
-        //        }
-        //    }
-        //}
     }
 }

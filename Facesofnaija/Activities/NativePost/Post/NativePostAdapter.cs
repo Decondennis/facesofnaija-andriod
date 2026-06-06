@@ -157,7 +157,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 PreCachingLayout.SetPreloadItemCount(70);
                 PreCachingLayout.ItemPrefetchEnabled = true;
-                PreCachingLayout.AutoMeasureEnabled = false;
+                PreCachingLayout.AutoMeasureEnabled = true;
                 PreCachingLayout.SetExtraLayoutSpace(3000);
                 MainRecyclerView.SetLayoutManager(PreCachingLayout);
                 MainRecyclerView.GetLayoutManager().ItemPrefetchEnabled = true;
@@ -183,7 +183,7 @@ namespace Facesofnaija.Activities.NativePost.Post
         int d = 0;
         public override void OnViewDetachedFromWindow(Object holder)
         {
-            // This fires on the EXACT holder instance that scrolled off screen — reliable for saving video state
+            // This fires on the EXACT holder instance that scrolled off screen ï¿½ reliable for saving video state
             if (holder is AdapterHolders.PostVideoSectionViewHolder videoHolder)
             {
                 try
@@ -1755,7 +1755,14 @@ namespace Facesofnaija.Activities.NativePost.Post
 
         public override long GetItemId(int position)
         {
-            return position;
+            try
+            {
+                return ListDiffer?[position]?.Id ?? position;
+            }
+            catch
+            {
+                return position;
+            }
         }
 
         public override int ItemCount => ListDiffer?.Count ?? 0;

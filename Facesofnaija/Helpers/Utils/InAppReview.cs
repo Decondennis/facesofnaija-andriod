@@ -1,7 +1,7 @@
 ﻿using Android.App;
 using Com.Google.Android.Play.Core.Review;
 using Com.Google.Android.Play.Core.Tasks;
-using Java.Lang;
+using ComTask = Com.Google.Android.Play.Core.Tasks.Task;
 using Exception = System.Exception;
 
 namespace Facesofnaija.Helpers.Utils
@@ -39,7 +39,7 @@ namespace Facesofnaija.Helpers.Utils
         }
     }
 
-    public class OnCompleteListener : Object, IOnCompleteListener
+    public class OnCompleteListener : Java.Lang.Object, IOnCompleteListener
     {
         private readonly IReviewManager ReviewManager;
         private readonly Activity MainActivity;
@@ -57,7 +57,7 @@ namespace Facesofnaija.Helpers.Utils
             }
         }
 
-        void IOnCompleteListener.OnComplete(Task p0)
+        void IOnCompleteListener.OnComplete(ComTask p0)
         {
             try
             {
@@ -78,11 +78,11 @@ namespace Facesofnaija.Helpers.Utils
             }
         }
 
-        private void LaunchReview(Task p0)
+        private void LaunchReview(ComTask p0)
         {
             try
             {
-                var review = p0.GetResult(Class.FromType(typeof(ReviewInfo)));
+                var review = p0.GetResult(Java.Lang.Class.FromType(typeof(ReviewInfo)));
                 var x = ReviewManager.LaunchReviewFlow(MainActivity, (ReviewInfo)review);
                 //x.AddOnCompleteListener(new OnCompleteListener(MainActivity, ReviewManager));
             }
@@ -93,7 +93,7 @@ namespace Facesofnaija.Helpers.Utils
         }
     }
 
-    public class AppReviewOnFailureListener : Object, IOnFailureListener
+    public class AppReviewOnFailureListener : Java.Lang.Object, IOnFailureListener
     {
         public void OnFailure(Java.Lang.Exception p0)
         {

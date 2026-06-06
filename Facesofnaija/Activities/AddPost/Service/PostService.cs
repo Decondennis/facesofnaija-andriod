@@ -365,9 +365,7 @@ namespace Facesofnaija.Activities.AddPost.Service
             {
                 var postFeedAdapter = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter;
                 var checkSection = postFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
-                if (checkSection != null)
-                {
-                    var modelStory = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter?.HolderStory.StoryAdapter;
+                var modelStory = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter?.HolderStory.StoryAdapter;
 
                     string time = Methods.Time.TimeAgo(DateTime.Now, false);
                     var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -385,6 +383,13 @@ namespace Facesofnaija.Activities.AddPost.Service
                                 {
                                     case CreateStoryObject result:
                                         {
+                                            if (string.IsNullOrWhiteSpace(result.StoryId))
+                                            {
+                                                RemoveNotification();
+                                                Methods.DisplayReportResult(GlobalContextTabbed, "Story upload failed: server did not return a story id");
+                                                break;
+                                            }
+
                                             ToastUtils.ShowToast(GlobalContextTabbed, GlobalContextTabbed.GetText(Resource.String.Lbl_Story_Added), ToastLength.Short);
 
                                             var check = modelStory?.StoryList?.FirstOrDefault(a => a.UserId == UserDetails.UserId);
@@ -779,6 +784,19 @@ namespace Facesofnaija.Activities.AddPost.Service
 
                                             modelStory?.NotifyDataSetChanged();
 
+                                            // Always re-fetch stories from server so uploaded story is persisted and visible to others.
+                                            GlobalContextTabbed?.RunOnUiThread(() =>
+                                            {
+                                                try
+                                                {
+                                                    _ = GlobalContextTabbed.NewsFeedTab.LoadStory();
+                                                }
+                                                catch (Exception e)
+                                                {
+                                                    Methods.DisplayReportResultTrack(e);
+                                                }
+                                            });
+
                                             switch (UserDetails.SoundControl)
                                             {
                                                 case true:
@@ -796,8 +814,6 @@ namespace Facesofnaija.Activities.AddPost.Service
                             Methods.DisplayReportResult(GlobalContextTabbed, respond);
                             break;
                     }
-                }
-
                 RemoveNotification();
             }
             catch (Exception e)

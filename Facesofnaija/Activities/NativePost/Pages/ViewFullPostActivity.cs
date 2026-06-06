@@ -1,6 +1,7 @@
 ﻿using Android.App;
 using Android.Content;
 using Android.Content.PM;
+using Android.Util;
 using Android.Graphics;
 using Android.OS;
 using Android.Views;
@@ -26,6 +27,8 @@ using WoWonderClient.Classes.Comments;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Classes.Posts;
 using WoWonderClient.Requests;
+using WoWonderClient;
+using Facesofnaija.CustomApi.Requests;
 using Xamarin.Facebook.Ads;
 using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
 
@@ -447,11 +450,25 @@ namespace Facesofnaija.Activities.NativePost.Pages
             if (Methods.CheckConnectivity())
             {
                 MainScrollEvent.IsLoading = true;
+                var sessionId = Current.AccessToken;
                 var (apiStatus, respond) = await RequestsAsync.Comment.GetPostCommentsAsync(PostId, "10", offset);
-                if (apiStatus != 200 || respond is not CommentObject result || result.CommentList == null)
+                CommentObject result = respond as CommentObject;
+                if (apiStatus != 200 || result?.CommentList == null)
+                {
+                    Log.Info("WoFallback", $"ViewFullPost SDK loading failed, trying web API fallback apiStatus={apiStatus}");
+                    var (fbStatus, fbRespond) = await CustomRequests.Posts.FetchCommentsWebApiAsync(sessionId, PostId, "10", offset);
+                    if (fbStatus == 200 && fbRespond is CommentObject fbResult && fbResult.CommentList != null)
+                    {
+                        respond = fbResult;
+                        result = fbResult;
+                        apiStatus = 200;
+                    }
+                }
+
+                if (apiStatus != 200 || result?.CommentList == null)
                 {
                     MainScrollEvent.IsLoading = false;
-                    Methods.DisplayReportResult(this, respond);
+                    try { Methods.DisplayReportResult(this, respond); } catch (Exception) { }
                 }
                 else
                 {

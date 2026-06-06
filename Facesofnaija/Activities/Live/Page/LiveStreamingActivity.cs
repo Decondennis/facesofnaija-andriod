@@ -25,7 +25,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
-using System.Timers;
+using Timer = System.Timers.Timer;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Comment.Adapters;
 using Facesofnaija.Activities.Live.Adapters;
@@ -1887,7 +1887,7 @@ namespace Facesofnaija.Activities.Live.Page
             }
         }
 
-        private void TimerCommentsOnElapsed(object sender, ElapsedEventArgs e)
+        private void TimerCommentsOnElapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             try
             {

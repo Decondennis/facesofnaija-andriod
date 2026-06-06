@@ -2,18 +2,28 @@ using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
+using System.Net;
+using System.Text.RegularExpressions;
 using Android.OS;
+using Android.Util;
 using Android.Views;
 using Android.Widget;
 using WoWonder.Helpers.Utils;
 using AndroidX.AppCompat.Content.Res;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.MyProfile;
+using Facesofnaija.Activities.Communities.Groups;
+using Facesofnaija.Activities.Communities.Pages;
+using Facesofnaija.Activities.Tabbes;
 using Facesofnaija.Activities.NativePost.Extra;
 using Facesofnaija.Activities.NativePost.Post;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -53,7 +63,6 @@ namespace Facesofnaija.Activities.NativePost.Share
 
                 Methods.App.FullScreenApp(this);
 
-                // Create your application here
                 SetContentView(Resource.Layout.SharePostLayout);
 
                 var postdate = Intent?.GetStringExtra("ShareToType") ?? "Data not available";
@@ -232,6 +241,7 @@ namespace Facesofnaija.Activities.NativePost.Share
         {
             try
             {
+                Log.Info("ShareDebug", $"TxtSharePostOnClick typePost={TypePost} sharePostId={PostData?.PostId ?? PostData?.Id} alternateId={(string.IsNullOrEmpty(PostData?.Id) ? "" : PostData.Id)}");
                 if (!Methods.CheckConnectivity())
                 {
                     ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Long);
@@ -241,55 +251,217 @@ namespace Facesofnaija.Activities.NativePost.Share
                 //Show a progress
                 ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading));
 
+                var sharePostId = !string.IsNullOrEmpty(PostData?.PostId) ? PostData.PostId : PostData?.Id;
+                var alternatePostId = !string.IsNullOrEmpty(PostData?.Id) && PostData.Id != sharePostId ? PostData.Id : null;
+                if (string.IsNullOrEmpty(sharePostId))
+                {
+                    ProgressDialogHelper.Dismiss(this);
+                    Methods.DisplayAndHudErrorResult(this, GetText(Resource.String.Lbl_Error).ToString());
+                    return;
+                }
+
                 switch (TypePost)
                 {
                     case "Group":
                         {
-                            (int apiStatus, dynamic respond) = await RequestsAsync.Posts.SharePostToAsync(PostData.PostId, GroupData.GroupId, "share_post_on_group", TxtContentPost.Text);
-                            switch (apiStatus)
+                            if (GroupData == null || string.IsNullOrEmpty(GroupData.GroupId))
                             {
-                                case 200:
-                                    ResultApi(apiStatus, respond);
-                                    break;
-                                default:
-                                    Methods.DisplayAndHudErrorResult(this, respond);
-                                    break;
+                                ProgressDialogHelper.Dismiss(this);
+                                Methods.DisplayAndHudErrorResult(this, GetText(Resource.String.Lbl_Error).ToString());
+                                return;
                             }
+
+                            var attemptedPostId = sharePostId;
+                            (int apiStatus, dynamic respond) = await SharePostWithTimeoutAsync(sharePostId, GroupData.GroupId, "share_post_on_group", TxtContentPost.Text);
+                            if (apiStatus != 200 && !string.IsNullOrEmpty(alternatePostId))
+                            {
+                                attemptedPostId = alternatePostId;
+                                (apiStatus, respond) = await SharePostWithTimeoutAsync(alternatePostId, GroupData.GroupId, "share_post_on_group", TxtContentPost.Text);
+                            }
+                            await HandleShareResponseAsync(apiStatus, respond, attemptedPostId, GroupData.GroupId, "share_post_on_group", "SocialGroup");
                             break;
                         }
                     case "Page":
                         {
-                            (int apiStatus, dynamic respond) = await RequestsAsync.Posts.SharePostToAsync(PostData.PostId, PageData.PageId, "share_post_on_page", TxtContentPost.Text);
-                            switch (apiStatus)
+                            if (PageData == null || string.IsNullOrEmpty(PageData.PageId))
                             {
-                                case 200:
-                                    ResultApi(apiStatus, respond);
-                                    break;
-                                default:
-                                    Methods.DisplayAndHudErrorResult(this, respond);
-                                    break;
+                                ProgressDialogHelper.Dismiss(this);
+                                Methods.DisplayAndHudErrorResult(this, GetText(Resource.String.Lbl_Error).ToString());
+                                return;
                             }
+
+                            var attemptedPostId = sharePostId;
+                            (int apiStatus, dynamic respond) = await SharePostWithTimeoutAsync(sharePostId, PageData.PageId, "share_post_on_page", TxtContentPost.Text);
+                            if (apiStatus != 200 && !string.IsNullOrEmpty(alternatePostId))
+                            {
+                                attemptedPostId = alternatePostId;
+                                (apiStatus, respond) = await SharePostWithTimeoutAsync(alternatePostId, PageData.PageId, "share_post_on_page", TxtContentPost.Text);
+                            }
+                            await HandleShareResponseAsync(apiStatus, respond, attemptedPostId, PageData.PageId, "share_post_on_page", "SocialPage");
                             break;
                         }
                     case "MyTimeline":
                         {
-                            (int apiStatus, dynamic respond) = await RequestsAsync.Posts.SharePostToAsync(PostData.PostId, UserDetails.UserId, "share_post_on_timeline", TxtContentPost.Text);
-                            switch (apiStatus)
+                            Log.Info("ShareDebug", $"MyTimeline branch entered postId={sharePostId} userId={UserDetails.UserId}");
+                            var attemptedPostId = sharePostId;
+                            (int apiStatus, dynamic respond) = await SharePostWithTimeoutAsync(sharePostId, UserDetails.UserId, "share_post_on_timeline", TxtContentPost.Text);
+                            if (apiStatus != 200 && !string.IsNullOrEmpty(alternatePostId))
                             {
-                                case 200:
-                                    ResultApi(apiStatus, respond);
-                                    break;
-                                default:
-                                    Methods.DisplayAndHudErrorResult(this, respond);
-                                    break;
+                                Log.Warn("ShareDebug", $"Primary timeline share failed status={apiStatus}; retrying alternateId={alternatePostId}");
+                                attemptedPostId = alternatePostId;
+                                (apiStatus, respond) = await SharePostWithTimeoutAsync(alternatePostId, UserDetails.UserId, "share_post_on_timeline", TxtContentPost.Text);
                             }
+                            await HandleShareResponseAsync(apiStatus, respond, attemptedPostId, UserDetails.UserId, "share_post_on_timeline", "Normal");
+                            break;
+                        }
+                    default:
+                        {
+                            ProgressDialogHelper.Dismiss(this);
+                            Methods.DisplayAndHudErrorResult(this, GetText(Resource.String.Lbl_Error).ToString());
                             break;
                         }
                 }
             }
             catch (Exception exception)
             {
+                ProgressDialogHelper.Dismiss(this);
                 Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private async Task<(int apiStatus, dynamic respond)> SharePostWithTimeoutAsync(string postId, string targetId, string mode, string text)
+        {
+            try
+            {
+                var requestTask = RequestsAsync.Posts.SharePostToAsync(postId, targetId, mode, text);
+                var completedTask = await Task.WhenAny(requestTask, Task.Delay(TimeSpan.FromSeconds(40)));
+
+                if (completedTask == requestTask)
+                    return await requestTask;
+
+                ProgressDialogHelper.Dismiss(this);
+                Log.Warn("WoFallback", $"Share request timed out postId={postId} targetId={targetId} mode={mode} textLength={text?.Length ?? 0}");
+                ToastUtils.ShowToast(this, "Request timed out. Please try again.", ToastLength.Long);
+                return (408, "Request timed out.");
+            }
+            catch (Exception e)
+            {
+                ProgressDialogHelper.Dismiss(this);
+                ToastUtils.ShowToast(this, e.Message, ToastLength.Long);
+                return (400, e.Message);
+            }
+        }
+
+        private async Task HandleShareResponseAsync(int apiStatus, dynamic respond, string sharedPostId, string targetId, string shareMode, string pagePost)
+        {
+            try
+            {
+                if (apiStatus == 200)
+                {
+                    ResultApi(apiStatus, respond);
+                    return;
+                }
+
+                if (ShouldFallbackShare(apiStatus, respond))
+                {
+                    Log.Info("WoFallback", $"Share SDK parser fail or timeout -> fallback sharedPostId={sharedPostId}, targetId={targetId}, mode={shareMode}, status={apiStatus}");
+                    ToastUtils.ShowToast(this, "Using fallback share path...", ToastLength.Short);
+                    var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.SharePostFallbackAsync(sharedPostId, targetId, shareMode, TxtContentPost?.Text ?? string.Empty);
+
+                    var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
+                    Log.Info("WoFallback", $"Share fallback result sharedPostId={sharedPostId}, status={fallbackStatus}, hasResponse={!string.IsNullOrEmpty(fallbackText)}");
+                    if (fallbackStatus == 200)
+                    {
+                        ProgressDialogHelper.Dismiss(this);
+                        ToastUtils.ShowToast(this, "Shared via fallback network path.", ToastLength.Short);
+
+                        if (fallbackRespond is SharePostToObject || fallbackRespond is JObject jObject && jObject["data"] != null)
+                        {
+                            try
+                            {
+                                ResultApi(200, fallbackRespond);
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Methods.DisplayReportResultTrack(ex);
+                            }
+                        }
+
+                        RefreshSharedFeedAfterFallback();
+                        Finish();
+                        return;
+                    }
+
+                    Log.Warn("WoFallback", $"Share fallback failed sharedPostId={sharedPostId}, status={fallbackStatus}, response={fallbackText}");
+                    ProgressDialogHelper.Dismiss(this);
+                    ToastUtils.ShowToast(this, "Unable to complete share due to an invalid server response.", ToastLength.Long);
+                    return;
+                }
+
+                ProgressDialogHelper.Dismiss(this);
+                Methods.DisplayAndHudErrorResult(this, respond);
+            }
+            catch (Exception e)
+            {
+                ProgressDialogHelper.Dismiss(this);
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private bool ShouldFallbackShare(int apiStatus, dynamic respond)
+        {
+            try
+            {
+                if (apiStatus == 408)
+                    return true;
+
+                var text = respond?.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(text))
+                    return false;
+
+                if (text.IndexOf("timed out", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+
+                return IsUnexpectedShareParserError(respond);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsUnexpectedShareParserError(dynamic respond)
+        {
+            try
+            {
+                var text = respond?.ToString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(text))
+                    return false;
+
+                return text.IndexOf("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase) >= 0
+                       || text.IndexOf("Unexpected server response", StringComparison.OrdinalIgnoreCase) >= 0
+                       || text.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string CleanShareText(string text)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                    return string.Empty;
+
+                var decoded = System.Net.WebUtility.HtmlDecode(text);
+                return System.Text.RegularExpressions.Regex.Replace(decoded, "<.*?>", string.Empty).Trim();
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
 
@@ -392,6 +564,26 @@ namespace Facesofnaija.Activities.NativePost.Share
                                                 }
                                         }
 
+                                        var globalContextTabbed = TabbedMainActivity.GetInstance();
+                                        if (globalContextTabbed != null)
+                                        {
+                                            var countList = globalContextTabbed.NewsFeedTab.PostFeedAdapter?.ItemCount ?? 0;
+
+                                            var combine = new FeedCombiner(result.Data, globalContextTabbed.NewsFeedTab.PostFeedAdapter?.ListDiffer, this);
+
+                                            var check = globalContextTabbed.NewsFeedTab.PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.PostData != null && a.TypeView != PostModelType.AddPostBox /*&& a.TypeView != PostModelType.SearchForPosts*/);
+                                            if (check != null)
+                                                combine.CombineDefaultPostSections("Top");
+                                            else
+                                                combine.CombineDefaultPostSections();
+
+                                            var emptyStateChecker = globalContextTabbed.NewsFeedTab.PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.EmptyState);
+                                            if (emptyStateChecker != null && globalContextTabbed.NewsFeedTab.PostFeedAdapter?.ListDiffer?.Count > 1)
+                                                globalContextTabbed.NewsFeedTab.MainRecyclerView.RemoveByRowIndex(emptyStateChecker);
+
+                                            globalContextTabbed.NewsFeedTab.PostFeedAdapter?.NotifyDataSetChanged();
+                                        }
+
                                         ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_PostSuccessfullyShared), ToastLength.Short);
 
                                         switch (UserDetails.SoundControl)
@@ -406,9 +598,11 @@ namespace Facesofnaija.Activities.NativePost.Share
                                     }
                             }
 
+                            ProgressDialogHelper.Dismiss(this);
                             break;
                         }
                     default:
+                        ProgressDialogHelper.Dismiss(this);
                         Methods.DisplayAndHudErrorResult(this, respond);
                         break;
                 }
@@ -420,7 +614,26 @@ namespace Facesofnaija.Activities.NativePost.Share
             }
         }
 
-        #endregion
+            private void RefreshSharedFeedAfterFallback()
+            {
+                try
+                {
+                    switch (TypePost)
+                    {
+                        case "MyTimeline":
+                            RunOnUiThread(() =>
+                            {
+                                TabbedMainActivity.GetInstance()?.NewsFeedTab?.SwipeRefreshLayoutOnRefresh(null, EventArgs.Empty);
+                                MyProfileActivity.GetInstance()?.SwipeRefreshLayoutOnRefresh(null, EventArgs.Empty);
+                            });
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+            }
 
         private void GetDataPost()
         {
@@ -519,5 +732,8 @@ namespace Facesofnaija.Activities.NativePost.Share
                 Methods.DisplayReportResultTrack(e);
             }
         }
+
+        #endregion
     }
 }
+
