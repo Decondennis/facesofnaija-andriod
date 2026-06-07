@@ -1453,14 +1453,7 @@ namespace Facesofnaija.CustomApi.Requests
                         if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postId))
                             return (400, "Missing session or post id");
 
-                        // Use phone API's new_post endpoint with parent_id to create a share post.
-                        // The web API has no share-post/share endpoint; post-actions doesn't handle 'share'.
-                        // The phone API's new_post DOES handle parent_id for sharing.
-                        // Note: Wo_RegisterPost rejects posts with empty postText and no media,
-                        // so ensure postText has at least some content.
                         var shareText = text ?? string.Empty;
-                        if (string.IsNullOrWhiteSpace(shareText))
-                            shareText = "shared";
 
                         Log.Info("FON_SHARE", $"SharePostFallback postId={postId} targetId={targetId} mode={shareMode} textLen={text?.Length}");
 

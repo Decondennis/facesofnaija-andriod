@@ -298,6 +298,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                         false => ViewStates.Gone,
                         _ => ShareLinearLayout.Visibility
                     };
+                    Log.Info("FON_DEBUG", $"AdapterHolder ShowShareButton={AppSettings.ShowShareButton} ShareLinearLayout.Visibility={ShareLinearLayout.Visibility}");
 
                     MainSectionButton = itemView.FindViewById<LinearLayout>(Resource.Id.linerSecondReaction);
                     switch (AppSettings.PostButton)

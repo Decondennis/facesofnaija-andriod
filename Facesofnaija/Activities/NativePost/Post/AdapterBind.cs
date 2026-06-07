@@ -561,10 +561,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                 }
 
                 var collection = item?.PostData?.SharedInfo.SharedInfoClass;
-                if (item.IsSharingPost && collection != null)
+                var isSharingPost = item.IsSharingPost;
+                if (isSharingPost && collection != null)
                 {
-                    holder.ShareLinearLayout.Visibility = ViewStates.Gone;
-                    holder.MainSectionButton.WeightSum = 2;
+                    Log.Info("FON_DEBUG", $"Share would be hidden for IsSharingPost postId={item?.PostData?.PostId} but keeping visible");
                 }
             }
             catch (Exception e)
