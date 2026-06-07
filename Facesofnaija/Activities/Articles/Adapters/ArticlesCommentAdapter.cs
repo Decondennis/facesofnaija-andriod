@@ -168,7 +168,7 @@ namespace Facesofnaija.Activities.Articles.Adapters
                                 {
                                     case false:
                                         {
-                                            var react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Id == item.Reaction.Type).Value?.Id ?? "";
+                                            var react = item.Reaction.Type ?? "";
                                             switch (react)
                                             {
                                                 case "1":

@@ -140,7 +140,16 @@ namespace Facesofnaija.Activities.NativePost.Post
                 switch (NativeFeedAdapter.NativePostType)
                 {
                     case NativeFeedType.Global:
-                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                        try
+                        {
+                            (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                        }
+                        catch (Exception sdkEx)
+                        {
+                            Console.WriteLine($"FON_FEED: SDK GetGlobalPost threw: {sdkEx.Message}");
+                            apiStatus = 400;
+                            respond = null;
+                        }
                         if (apiStatus != 200)
                             (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
                         break;
@@ -376,7 +385,16 @@ namespace Facesofnaija.Activities.NativePost.Post
             switch (NativeFeedAdapter.NativePostType)
             {
                 case NativeFeedType.Global:
-                    (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                    try
+                    {
+                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                    }
+                    catch (Exception sdkEx)
+                    {
+                        Console.WriteLine($"FON_FEED: SDK GetGlobalPost threw: {sdkEx.Message}");
+                        apiStatus = 400;
+                        respond = null;
+                    }
                     if (apiStatus != 200 || respond is not PostObject typedResult || typedResult?.Data == null)
                     {
                         Log.Warn("FON_TIMELINE", $"Primary feed API failed (status={apiStatus}). Trying app_api fallback");
@@ -1027,7 +1045,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                 {
                     case NativeFeedType.Global:
                         var adId = NativeFeedAdapter.ListDiffer.LastOrDefault(a => a.TypeView == PostModelType.AdsPost && a.PostData.PostType == "ad")?.PostData?.Id ?? "";
-                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                        try
+                        {
+                            (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_news_feed", "", "", WRecyclerView.GetFilter(), adId, WRecyclerView.GetPostType());
+                        }
+                        catch (Exception sdkEx)
+                        {
+                            Console.WriteLine($"FON_FEED: SDK GetGlobalPost threw: {sdkEx.Message}");
+                            apiStatus = 400;
+                            respond = null;
+                        }
+                        if (apiStatus != 200 || respond is not PostObject)
+                            (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
                         break;
                     default:
                         return;

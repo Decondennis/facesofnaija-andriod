@@ -28,9 +28,9 @@ namespace Facesofnaija.Activities.Default
         #region Variables Basic
 
         private EditText TxtUsername, TxtEmail, TxtGender, TxtBirthday, TxtPhoneNum, TxtPassword, TxtConfirmPassword;
-        private LinearLayout PhoneLayout, BirthdayLayout;
+        private LinearLayout PhoneLayout, BirthdayLayout, PasswordHelper;
+        private TextView TxtTermsOfService, LayoutLogin, HelperLength, HelperLowercase, HelperUppercase, HelperSpecial;
         private CheckBox ChkTermsOfUse;
-        private TextView TxtTermsOfService, LayoutLogin;
         private AppCompatButton BtnSignUp;
         private ProgressBar ProgressBar;
         private ImageView ImageShowPass, ImageShowConPass;
@@ -163,13 +163,19 @@ namespace Facesofnaija.Activities.Default
                 TxtPhoneNum = FindViewById<EditText>(Resource.Id.PhoneNumEditText);
 
                 ImageShowPass = FindViewById<ImageView>(Resource.Id.imageShowPass);
-                ImageShowPass.Tag = "hide";
+                if (ImageShowPass != null) ImageShowPass.Tag = "hide";
 
                 ImageShowConPass = FindViewById<ImageView>(Resource.Id.imageShowConPass);
-                ImageShowConPass.Tag = "hide";
+                if (ImageShowConPass != null) ImageShowConPass.Tag = "hide";
 
                 ChkTermsOfUse = FindViewById<CheckBox>(Resource.Id.checkTermsOfService);
                 TxtTermsOfService = FindViewById<TextView>(Resource.Id.terms_of_service);
+
+                PasswordHelper = FindViewById<LinearLayout>(Resource.Id.passwordHelper);
+                HelperLength = FindViewById<TextView>(Resource.Id.helperLength);
+                HelperLowercase = FindViewById<TextView>(Resource.Id.helperLowercase);
+                HelperUppercase = FindViewById<TextView>(Resource.Id.helperUppercase);
+                HelperSpecial = FindViewById<TextView>(Resource.Id.helperSpecial);
 
                 ProgressBar = FindViewById<ProgressBar>(Resource.Id.progressBar);
                 BtnSignUp = FindViewById<AppCompatButton>(Resource.Id.btnRegister);
@@ -182,7 +188,7 @@ namespace Facesofnaija.Activities.Default
 
                 if (!AppSettings.ShowBirthdayInRegister)
                 {
-                    BirthdayLayout.Visibility = ViewStates.Gone;
+                    if (BirthdayLayout != null) BirthdayLayout.Visibility = ViewStates.Gone;
                 }
             }
             catch (Exception e)
@@ -205,7 +211,8 @@ namespace Facesofnaija.Activities.Default
                     TxtGender.Touch += TxtGenderOnTouch;
                     TxtTermsOfService.Click += TxtTermsOfServiceOnClick;
                     LayoutLogin.Click += LayoutLoginOnClick;
-
+                    TxtPassword.TextChanged += TxtPasswordOnTextChanged;
+                    if (ChkTermsOfUse != null) ChkTermsOfUse.CheckedChange += ChkTermsOfUseOnCheckedChange;
                 }
                 else
                 {
@@ -216,7 +223,8 @@ namespace Facesofnaija.Activities.Default
                     TxtGender.Touch -= TxtGenderOnTouch;
                     TxtTermsOfService.Click -= TxtTermsOfServiceOnClick;
                     LayoutLogin.Click -= LayoutLoginOnClick;
-
+                    TxtPassword.TextChanged -= TxtPasswordOnTextChanged;
+                    if (ChkTermsOfUse != null) ChkTermsOfUse.CheckedChange -= ChkTermsOfUseOnCheckedChange;
                 }
             }
             catch (Exception e)
@@ -254,6 +262,93 @@ namespace Facesofnaija.Activities.Default
             try
             {
                 StartActivity(new Intent(this, typeof(LoginActivity)));
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private void ChkTermsOfUseOnCheckedChange(object sender, CompoundButton.CheckedChangeEventArgs e)
+        {
+            try
+            {
+                BtnSignUp.Enabled = e.IsChecked;
+                BtnSignUp.Alpha = e.IsChecked ? 1.0f : 0.5f;
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private void TxtPasswordOnTextChanged(object sender, Android.Text.TextChangedEventArgs e)
+        {
+            try
+            {
+                var password = TxtPassword.Text ?? "";
+                if (string.IsNullOrEmpty(password))
+                {
+                    if (PasswordHelper != null) PasswordHelper.Visibility = ViewStates.Gone;
+                    return;
+                }
+                if (PasswordHelper != null) PasswordHelper.Visibility = ViewStates.Visible;
+
+                if (HelperLength != null)
+                {
+                    if (password.Length >= 6)
+                    {
+                        HelperLength.SetTextColor(Android.Graphics.Color.ParseColor("#1aac20"));
+                        HelperLength.Text = "\u2714 " + GetString(Resource.String.pw_helper_length);
+                    }
+                    else
+                    {
+                        HelperLength.SetTextColor(Android.Graphics.Color.ParseColor("#888888"));
+                        HelperLength.Text = "\u25CF " + GetString(Resource.String.pw_helper_length);
+                    }
+                }
+
+                if (HelperLowercase != null)
+                {
+                    if (password.Any(char.IsLower))
+                    {
+                        HelperLowercase.SetTextColor(Android.Graphics.Color.ParseColor("#1aac20"));
+                        HelperLowercase.Text = "\u2714 " + GetString(Resource.String.pw_helper_lowercase);
+                    }
+                    else
+                    {
+                        HelperLowercase.SetTextColor(Android.Graphics.Color.ParseColor("#888888"));
+                        HelperLowercase.Text = "\u25CF " + GetString(Resource.String.pw_helper_lowercase);
+                    }
+                }
+
+                if (HelperUppercase != null)
+                {
+                    if (password.Any(char.IsUpper))
+                    {
+                        HelperUppercase.SetTextColor(Android.Graphics.Color.ParseColor("#1aac20"));
+                        HelperUppercase.Text = "\u2714 " + GetString(Resource.String.pw_helper_uppercase);
+                    }
+                    else
+                    {
+                        HelperUppercase.SetTextColor(Android.Graphics.Color.ParseColor("#888888"));
+                        HelperUppercase.Text = "\u25CF " + GetString(Resource.String.pw_helper_uppercase);
+                    }
+                }
+
+                if (HelperSpecial != null)
+                {
+                    if (password.Any(char.IsDigit) || password.Any(c => !char.IsLetterOrDigit(c)))
+                    {
+                        HelperSpecial.SetTextColor(Android.Graphics.Color.ParseColor("#1aac20"));
+                        HelperSpecial.Text = "\u2714 " + GetString(Resource.String.pw_helper_special);
+                    }
+                    else
+                    {
+                        HelperSpecial.SetTextColor(Android.Graphics.Color.ParseColor("#888888"));
+                        HelperSpecial.Text = "\u25CF " + GetString(Resource.String.pw_helper_special);
+                    }
+                }
             }
             catch (Exception exception)
             {
@@ -367,7 +462,7 @@ namespace Facesofnaija.Activities.Default
 
                 ToggleVisibility(true);
 
-                var (apiStatus, respond) = await RequestsAsync.Auth.CreateAccountAsync(TxtUsername.Text.Replace(" ", ""), TxtPassword.Text, TxtConfirmPassword.Text, TxtEmail.Text.Replace(" ", ""), GenderStatus, TxtPhoneNum.Text, Referral, UserDetails.DeviceId);
+                var (apiStatus, respond) = await TryRegisterDirectAsync(TxtUsername.Text.Replace(" ", ""), TxtPassword.Text, TxtConfirmPassword.Text, TxtEmail.Text.Replace(" ", ""), GenderStatus, TxtPhoneNum.Text, Referral, UserDetails.DeviceId);
                 if (apiStatus == 200 && respond is CreatAccountObject result)
                 {
                     if (AppSettings.ShowBirthdayInRegister)

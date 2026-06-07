@@ -1407,19 +1407,25 @@
 	
 	<string name="login_description">Please enter your email or log in with social accounts</string>
 	<string name="no_account">
-		"Don&apos;t have an account?"  <font color='#A52729'>Sign Up</font>
+		"Don&apos;t have an account?"  <font color='#2e7806'>Sign Up</font>
 	</string>
 	<string name="field_required">This field is required</string>
-	<string name="register_description">Please enter your email or Register in with social accounts</string>
+	<string name="register_description">Share what\'s new and life moments with your friends.</string>
 	<string name="register_using_google">Register using Google</string>
 	<string name="register_using_facebook">Register using Facebook</string>
 	<string name="register_using_email">Register using Email</string>
 	<string name="already_account">
-		Already Have An Account? <font color='#A52729'>Login</font>
+		Already Have An Account? <font color='#2e7806'>Login</font>
 	</string>
 	<string name="create_account">Create an account</string>
 	<string name="request_password_link">Request Password Link</string>
 	<string name="link_sent_successfully">Link Sent Successfully</string>
+	<string name="welcome_title">Connect with friends!</string>
+	<string name="welcome_subtitle">Share what\'s new and life moments with your friends.</string>
+	<string name="pw_helper_length">Must be at least 6 characters long.</string>
+	<string name="pw_helper_lowercase">Must contain a lowercase letter.</string>
+	<string name="pw_helper_uppercase">Must contain an uppercase letter.</string>
+	<string name="pw_helper_special">Must contain a number or special character.</string>
 
 	<string name="Lbl_FeaturedPosts">Featured Posts</string>
 	<string name="Lbl_PagesLiked">Pages Liked</string>

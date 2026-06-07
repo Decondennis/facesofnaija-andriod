@@ -4,15 +4,13 @@
 	<!--@color/textDark_color-->
 	<!--Get colors from: http://www.materialpalette.com/-->
 
-	<color name="accent">#82b53f</color>
-	<color name="primary">#82b53f</color>
-
-	<color name="accent_transparent">#80A52729</color>
-	<color name="primary_transparent">#30A52729</color>
-
-	<color name="primaryDark">#82b53f</color>
-	<color name="primaryLight">#F2CFD3</color>
-	<color name="accentLight">#F2CFD3</color>
+	<color name="accent">#2e7806</color>
+	<color name="primary">#2e7806</color>
+	<color name="accent_transparent">#802e7806</color>
+	<color name="primary_transparent">#302e7806</color>
+	<color name="primaryDark">#1e5520</color>
+	<color name="primaryLight">#4CAF50</color>
+	<color name="accentLight">#4CAF50</color>
 
 	<color name="bgApp_color">#F6ECEC</color>
 	<color name="bgApp_Dark_color">#292D32</color>
@@ -75,6 +73,12 @@
 	<color name="gnt_test_background_color_2">#00A3A3A3</color>
 	<color name="gnt_black">#000000</color>
 	<color name="gnt_white">#FFFFFF</color>
+	<color name="brand_green">#2e7806</color>
+	<color name="brand_green_dark">#1e5520</color>
+	<color name="brand_green_light">#4CAF50</color>
+	<color name="fb_blue">#334c8c</color>
+	<color name="tw_blue">#00a6de</color>
+	<color name="li_blue">#0b69c7</color>
 	<color name="gnt_red">#FF0000</color>
 	<color name="gnt_green">#388E3C</color>
 	<color name="gnt_blue">#4285f4</color>

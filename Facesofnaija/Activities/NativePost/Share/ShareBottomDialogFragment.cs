@@ -151,8 +151,14 @@ namespace Facesofnaija.Activities.NativePost.Share
             try
             {
                 var postText = CleanShareText(DataPost?.PostText);
+                var postUrl = !string.IsNullOrWhiteSpace(DataPost?.Url) ? DataPost.Url : string.Empty;
+
+                if (!string.IsNullOrWhiteSpace(postText) && !string.IsNullOrWhiteSpace(postUrl))
+                    return $"{postText}\n\n{postUrl}";
                 if (!string.IsNullOrWhiteSpace(postText))
                     return postText;
+                if (!string.IsNullOrWhiteSpace(postUrl))
+                    return postUrl;
 
                 if (TypePost == PostModelType.LinkPost || TypePost == PostModelType.YoutubePost)
                     return "Shared a link";

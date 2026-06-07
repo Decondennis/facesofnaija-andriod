@@ -147,7 +147,7 @@ namespace Facesofnaija
         public static readonly bool EnableSmartLockForPasswords = false;
 
         public static readonly bool ShowFacebookLogin = true;
-        public static readonly bool ShowGoogleLogin = false;
+        public static readonly bool ShowGoogleLogin = true;
 
         public static readonly string ClientId = "421353499628-sh4hrbi9adj9m2slnpsv19a75edrq87p.apps.googleusercontent.com";
 

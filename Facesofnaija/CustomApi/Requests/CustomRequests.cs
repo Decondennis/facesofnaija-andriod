@@ -1024,77 +1024,9 @@ namespace Facesofnaija.CustomApi.Requests
                             return (quickDeleteStatus, quickDeleteRespond);
                         }
 
-                        var typeCandidates = new[]
-                        {
-                            action,
-                            "delete_post",
-                            "remove_post",
-                            "delete",
-                            "post_actions",
-                            "post_action",
-                            "posts_action",
-                            "like_post",
-                            "like"
-                        };
-                        var payloadCandidates = new List<Dictionary<string, string>>
-                        {
-                            new Dictionary<string, string>
-                            {
-                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
-                                { "user_id", UserDetails.UserId ?? string.Empty },
-                                { "s", sessionId },
-                                { "post_id", postId },
-                                { "id", postId },
-                                { "action", action ?? string.Empty },
-                                { "reaction", reaction ?? string.Empty },
-                                { "reaction_id", reaction ?? string.Empty },
-                                { "reaction_type", reaction ?? string.Empty },
-                                { "postText", postText ?? string.Empty },
-                                { "postPrivacy", string.IsNullOrWhiteSpace(privacy) ? "0" : privacy }
-                            },
-                            new Dictionary<string, string>
-                            {
-                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
-                                { "user_id", UserDetails.UserId ?? string.Empty },
-                                { "s", sessionId },
-                                { "post_id", postId },
-                                { "do", string.IsNullOrWhiteSpace(action) ? "reaction" : action },
-                                { "action", string.IsNullOrWhiteSpace(action) ? "like" : action },
-                                { "reaction", reaction ?? string.Empty },
-                                { "reaction_id", reaction ?? string.Empty }
-                            },
-                            new Dictionary<string, string>
-                            {
-                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
-                                { "s", sessionId },
-                                { "post_id", postId },
-                                { "type", string.IsNullOrWhiteSpace(action) ? "reaction" : action },
-                                { "action", string.IsNullOrWhiteSpace(action) ? "like" : action },
-                                { "reaction", reaction ?? string.Empty }
-                            }
-                        };
-
-                        foreach (var payload in payloadCandidates)
-                        {
-                            if (!payload.ContainsKey("access_token"))
-                                payload["access_token"] = sessionId;
-                            if (!payload.ContainsKey("accessToken"))
-                                payload["accessToken"] = sessionId;
-                        }
-
-                        foreach (var payload in payloadCandidates)
-                        {
-                            foreach (var type in typeCandidates)
-                            {
-                                if (string.IsNullOrWhiteSpace(type))
-                                    continue;
-
-                                var timeout = string.Equals(action, "delete", StringComparison.OrdinalIgnoreCase) ? 8 : 45;
-                                var (apiStatus, respond) = await ExecutePhoneApiFormAsync(type, payload, timeout);
-                                if (apiStatus == 200)
-                                    return (apiStatus, respond);
-                            }
-                        }
+                        // Skip phone API (app_api.php) — it has no handler for post_actions/like/share
+                        // and returns HTTP 200 with empty body, causing false success.
+                        // Go directly to the web API (api-v2.php → post-actions.php).
 
                         var (webStatus, webRespond) = await ExecuteWebApiPostActionAsync(sessionId, postId, action, reaction);
                         if (webStatus == 200)
@@ -1521,89 +1453,52 @@ namespace Facesofnaija.CustomApi.Requests
                         if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postId))
                             return (400, "Missing session or post id");
 
-                        Dictionary<string, string> BuildBasePayload()
-                        {
-                            var payload = new Dictionary<string, string>
-                            {
-                                { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
-                                { "user_id", UserDetails.UserId ?? string.Empty },
-                                { "s", sessionId },
-                                { "post_id", postId },
-                                { "id", postId },
-                                { "postId", postId },
-                                { "share_id", postId },
-                                { "shared_post_id", postId },
-                                { "text", text ?? string.Empty },
-                                { "share_text", text ?? string.Empty },
-                                { "share_type", shareMode ?? string.Empty },
-                                { "type", shareMode ?? string.Empty },
-                                { "target_id", targetId ?? string.Empty },
-                                { "recipient_id", targetId ?? string.Empty }
-                            };
+                        // Use phone API's new_post endpoint with parent_id to create a share post.
+                        // The web API has no share-post/share endpoint; post-actions doesn't handle 'share'.
+                        // The phone API's new_post DOES handle parent_id for sharing.
+                        // Note: Wo_RegisterPost rejects posts with empty postText and no media,
+                        // so ensure postText has at least some content.
+                        var shareText = text ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(shareText))
+                            shareText = "shared";
 
+                        Log.Info("FON_SHARE", $"SharePostFallback postId={postId} targetId={targetId} mode={shareMode} textLen={text?.Length}");
+
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "parent_id", postId },
+                            { "postText", shareText },
+                        };
+
+                        if (!string.IsNullOrWhiteSpace(targetId))
+                        {
                             if (string.Equals(shareMode, "share_post_on_group", StringComparison.OrdinalIgnoreCase))
-                                payload["group_id"] = targetId ?? string.Empty;
+                            {
+                                payload["user_id"] = targetId;
+                                payload["group_id"] = targetId;
+                            }
                             else if (string.Equals(shareMode, "share_post_on_page", StringComparison.OrdinalIgnoreCase))
-                                payload["page_id"] = targetId ?? string.Empty;
-
-                            return payload;
+                            {
+                                payload["user_id"] = "0";
+                                payload["page_id"] = targetId;
+                            }
+                            else
+                            {
+                                var currentUserId = UserDetails.UserId ?? string.Empty;
+                                if (!string.Equals(targetId, currentUserId, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    payload["recipient_id"] = targetId;
+                                }
+                            }
                         }
 
-                        var requestCandidates = new List<(string Type, Dictionary<string, string> Payload)>();
-
-                        if (!string.IsNullOrWhiteSpace(shareMode))
-                            requestCandidates.Add((shareMode, BuildBasePayload()));
-
-                        var legacySharePayload = BuildBasePayload();
-                        legacySharePayload["action"] = "share";
-                        legacySharePayload["type"] = "share_post";
-                        legacySharePayload["share_type"] = shareMode ?? string.Empty;
-                        requestCandidates.Add(("share_post", legacySharePayload));
-
-                        var postActionsPayload = BuildBasePayload();
-                        postActionsPayload["action"] = "share";
-                        postActionsPayload["type"] = "share_post";
-                        postActionsPayload["share_type"] = shareMode ?? string.Empty;
-                        requestCandidates.Add(("post_actions", postActionsPayload));
-
-                        var genericPayload = BuildBasePayload();
-                        genericPayload["do"] = "share";
-                        genericPayload["action"] = "share";
-                        genericPayload["type"] = !string.IsNullOrWhiteSpace(shareMode) ? shareMode : "share_post";
-                        requestCandidates.Add(("share", genericPayload));
-
-                        var alternatePayload = BuildBasePayload();
-                        alternatePayload["do"] = "share";
-                        alternatePayload["action"] = "share";
-                        alternatePayload["type"] = "share_post";
-                        alternatePayload["share_type"] = shareMode ?? string.Empty;
-                        requestCandidates.Add(("share_post", alternatePayload));
-
-                        string lastError = "Share fallback failed";
-
-                        var (webStatus, webRespond) = await SharePostWebApiAsync(sessionId, postId, targetId, shareMode, text);
-                        if (webStatus == 200)
-                            return (webStatus, webRespond);
-
-                        lastError = webRespond?.ToString() ?? lastError;
-
-                        var (postActionsStatus, postActionsRespond) = await ExecuteWebApiPostActionAsync(sessionId, postId, "share", string.Empty, shareMode);
-                        if (postActionsStatus == 200)
-                            return (postActionsStatus, postActionsRespond);
-
-                        lastError = postActionsRespond?.ToString() ?? lastError;
-
-                        foreach (var request in requestCandidates)
-                        {
-                            Log.Info("WoFallback", $"Share fallback candidate type={request.Type} postId={postId} targetId={targetId} mode={shareMode} keys={string.Join(",", request.Payload.Keys.OrderBy(k => k))}");
-                            var (apiStatus, respond) = await ExecutePhoneApiFormAsync(request.Type, request.Payload, 12);
-                            if (apiStatus == 200)
-                                return (apiStatus, respond);
-
-                            lastError = respond?.ToString() ?? lastError;
-                        }
-
-                        return (400, lastError);
+                        Log.Info("FON_SHARE", $"Payload keys={string.Join(",", payload.Keys)}");
+                        var result = await ExecutePhoneApiFormAsync("new_post", payload, 20);
+                        Log.Info("FON_SHARE", $"Result status={result.Item1} response={result.Item2?.ToString()?.Substring(0, Math.Min(200, result.Item2?.ToString()?.Length ?? 0))}");
+                        return result;
                     }
                     catch (Exception ex)
                     {
@@ -1613,8 +1508,10 @@ namespace Facesofnaija.CustomApi.Requests
 
                 private static async Task<(int, dynamic)> ExecutePhoneApiFormAsync(string type, Dictionary<string, string> fields, int timeoutSeconds = 45)
                 {
-                    using var handler = new HttpClientHandler();
+                    using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                     using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(timeoutSeconds < 4 ? 4 : timeoutSeconds) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
                     client.DefaultRequestHeaders.ConnectionClose = true;
                     fields.TryGetValue("s", out var sessionId);
                     sessionId ??= string.Empty;
@@ -1713,7 +1610,10 @@ namespace Facesofnaija.CustomApi.Requests
 
                 private static async Task<(int, dynamic)> ExecuteWebApiPostActionAsync(string sessionId, string postId, string action, string reaction, string shareType = null)
                 {
-                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(45) };
+                    using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                    using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(45) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
                     var endpointCandidates = new[]
                     {
                         $"{GetApiBase()}/api/post-actions?access_token={sessionId}",
@@ -2119,6 +2019,56 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                     catch (Exception ex)
                     {
+                        return (404, ex.Message);
+                    }
+                }
+
+                public static async Task<(int, dynamic)> CommentReactionFallbackAsync(string targetId, string reaction, string reactionType)
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(targetId))
+                            return (400, "Missing session or target id");
+
+                        Log.Info("FON_CMT_REACT", $"targetId={targetId} reaction={reaction} type={reactionType}");
+
+                        using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                        var endpoint = $"{GetApiBase()}/api/comments?access_token={sessionId}";
+                        var payload = new Dictionary<string, string>
+                        {
+                            { "type", reactionType },
+                            { "reaction", reaction },
+                        };
+
+                        if (string.Equals(reactionType, "reaction_reply", StringComparison.OrdinalIgnoreCase))
+                            payload["reply_id"] = targetId;
+                        else
+                            payload["comment_id"] = targetId;
+
+                        Log.Info("FON_CMT_REACT", $"POST {endpoint} keys={string.Join(",", payload.Keys)}");
+                        using var form = new FormUrlEncodedContent(payload.Where(a => !string.IsNullOrWhiteSpace(a.Key)));
+                        var response = await client.PostAsync(endpoint, form);
+                        var json = await response.Content.ReadAsStringAsync();
+                        Log.Info("FON_CMT_REACT", $"HTTP {response.StatusCode} body={json?.Substring(0, Math.Min(300, json?.Length ?? 0))}");
+
+                        if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                            return (400, "Non-JSON response");
+
+                        var token = JObject.Parse(json);
+                        var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                        if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                            return (200, token);
+
+                        return (400, token["errors"]?["error_text"]?.ToString() ?? "Comment reaction failed");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warn("FON_CMT_REACT", $"Exception: {ex.Message}");
                         return (404, ex.Message);
                     }
                 }

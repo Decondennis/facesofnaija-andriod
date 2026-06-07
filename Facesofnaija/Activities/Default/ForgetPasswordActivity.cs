@@ -7,10 +7,14 @@ using Android.Views.InputMethods;
 using Android.Widget;
 using AndroidX.AppCompat.Widget;
 using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Helpers.Utils;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Requests;
+using Newtonsoft.Json.Linq;
 
 namespace Facesofnaija.Activities.Default
 {
@@ -198,7 +202,7 @@ namespace Facesofnaija.Activities.Default
 
                 ToggleVisibility(true);
 
-                var (apiStatus, respond) = await RequestsAsync.Auth.ResetPasswordEmailAsync(TxtEmail.Text.Replace(" ", ""));
+                var (apiStatus, respond) = await TryResetPasswordDirectAsync(TxtEmail.Text.Replace(" ", ""));
                 if (apiStatus == 200 && respond is MessageObject auth)
                 {
                     ToggleVisibility(false);
@@ -228,6 +232,55 @@ namespace Facesofnaija.Activities.Default
         }
 
         #endregion
+
+        private async Task<(long, dynamic)> TryResetPasswordDirectAsync(string email)
+        {
+            try
+            {
+                var url = "http://172.236.19.52/app_api.php?type=reset_pass&application=phone";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("email", email),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_AUTH: forgot pass direct -> Status: {response.StatusCode}");
+
+                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                {
+                    var jObject = JObject.Parse(json);
+                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+
+                    if (apiStatus == 200)
+                    {
+                        return (200, jObject.ToObject<MessageObject>() ?? (dynamic)json);
+                    }
+
+                    if (jObject["errors"] != null)
+                    {
+                        var errObj = jObject["errors"];
+                        var errText = errObj?.SelectToken("error_text")?.ToString() ?? errObj?.First?.ToString() ?? "Request failed";
+                        return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+                    }
+
+                    var error = jObject.ToObject<ErrorObject>();
+                    return (apiStatus == 0 ? 400 : apiStatus, (dynamic)(error != null ? (object)error : json));
+                }
+
+                return (404, "Server returned empty or invalid response");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"FON_AUTH: TryResetPasswordDirectAsync exception: {ex.Message}");
+                return (404, ex.Message);
+            }
+        }
 
         private void HideKeyboard()
         {

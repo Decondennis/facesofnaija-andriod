@@ -18,6 +18,7 @@ using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.Library.Anjo;
 using WoWonderClient.Requests;
+using Facesofnaija.CustomApi.Requests;
 
 namespace Facesofnaija.Activities.Comment.Fragment
 {
@@ -386,7 +387,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "1";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Like").Value?.Id ?? "1";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
                 else if (e.React == ReactConstants.Love)
                 {
@@ -394,7 +395,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "2";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Love").Value?.Id ?? "2";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
                 else if (e.React == ReactConstants.HaHa)
                 {
@@ -402,7 +403,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "3";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "HaHa").Value?.Id ?? "3";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
                 else if (e.React == ReactConstants.Wow)
                 {
@@ -410,7 +411,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "4";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Wow").Value?.Id ?? "4";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
                 else if (e.React == ReactConstants.Sad)
                 {
@@ -418,7 +419,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "5";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Sad").Value?.Id ?? "5";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
                 else if (e.React == ReactConstants.Angry)
                 {
@@ -426,7 +427,7 @@ namespace Facesofnaija.Activities.Comment.Fragment
 
                     PostData.CommentObject.Reaction.Type = "6";
                     string react = ListUtils.SettingsSiteList?.PostReactionsTypes?.FirstOrDefault(a => a.Value?.Name == "Angry").Value?.Id ?? "6";
-                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Comment.ReactionCommentAsync(PostData.CommentObject.Id, react, reactionType) });
+                    var _ = Task.Run(async () => await CustomRequests.Posts.CommentReactionFallbackAsync(PostData.CommentObject.Id, react, reactionType));
                 }
 
                 PopupWindow?.Dismiss();

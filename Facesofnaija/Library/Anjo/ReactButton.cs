@@ -35,12 +35,6 @@ namespace Facesofnaija.Library.Anjo
                         if (string.IsNullOrEmpty(postId))
                             return;
 
-                        var (apiStatus, respond) = await RequestsAsync.Posts.PostActionsAsync(postId, action, reaction);
-                        if (apiStatus == 200)
-                            return;
-
-                        var respondText = respond?.ToString() ?? string.Empty;
-                        Log.Info("WoFallback", $"Reaction SDK fail -> fallback postId={postId}, action={action}, reaction={reaction}, sdkStatus={apiStatus}, parserHtml={(!string.IsNullOrWhiteSpace(respondText) && (respondText.IndexOf("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase) >= 0 || respondText.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0))}");
                         var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.PostActionFallbackAsync(postId, action, reaction);
                             var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
                             if (fallbackText.Length > 220)

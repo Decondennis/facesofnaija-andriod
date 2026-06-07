@@ -52,6 +52,8 @@ namespace Facesofnaija.Activities.Default
         private FbMyProfileTracker ProfileTracker;
         public LinearLayout FbLoginButton;
         public LinearLayout GoogleSignInButton;
+        public LinearLayout TwitterLoginButton;
+        public LinearLayout LinkedinLoginButton;
         public static GoogleSignInClient MGoogleSignInClient;
         public static SocialLoginBaseActivity Instance;
 
@@ -256,13 +258,49 @@ namespace Facesofnaija.Activities.Default
                     MGoogleSignInClient = GoogleSignIn.GetClient(this, gso);
 
                     GoogleSignInButton = FindViewById<LinearLayout>(Resource.Id.bntLoginGoogle);
-                    GoogleSignInButton.Click += GoogleSignInButtonOnClick;
+                    if (GoogleSignInButton != null)
+                        GoogleSignInButton.Click += GoogleSignInButtonOnClick;
                 }
                 else
                 {
                     GoogleSignInButton = FindViewById<LinearLayout>(Resource.Id.bntLoginGoogle);
-                    GoogleSignInButton.Visibility = ViewStates.Gone;
+                    if (GoogleSignInButton != null)
+                        GoogleSignInButton.Visibility = ViewStates.Gone;
                 }
+
+                //#Twitter (browser-based OAuth)
+                TwitterLoginButton = FindViewById<LinearLayout>(Resource.Id.bntLoginTwitter);
+                if (TwitterLoginButton != null)
+                    TwitterLoginButton.Click += (sender, args) =>
+                    {
+                        try
+                        {
+                            var uri = Android.Net.Uri.Parse("http://172.236.19.52/login-with.php?provider=Twitter");
+                            var intent = new Intent(Intent.ActionView, uri);
+                            StartActivity(intent);
+                        }
+                        catch (Exception ex)
+                        {
+                            Methods.DisplayReportResultTrack(ex);
+                        }
+                    };
+
+                //#LinkedIn (browser-based OAuth)
+                LinkedinLoginButton = FindViewById<LinearLayout>(Resource.Id.bntLoginLinkedin);
+                if (LinkedinLoginButton != null)
+                    LinkedinLoginButton.Click += (sender, args) =>
+                    {
+                        try
+                        {
+                            var uri = Android.Net.Uri.Parse("http://172.236.19.52/login-with.php?provider=LinkedIn");
+                            var intent = new Intent(Intent.ActionView, uri);
+                            StartActivity(intent);
+                        }
+                        catch (Exception ex)
+                        {
+                            Methods.DisplayReportResultTrack(ex);
+                        }
+                    };
             }
             catch (Exception e)
             {
@@ -890,6 +928,7 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
+                var requestsUrl = "http://172.236.19.52/requests.php?f=login";
                 var phoneApiUrl = "http://172.236.19.52/app_api.php?type=user_login";
                 var webUrls = new[]
                 {
@@ -897,14 +936,59 @@ namespace Facesofnaija.Activities.Default
                     "http://172.236.19.52/api/auth",
                 };
 
-                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
+                client.Timeout = TimeSpan.FromSeconds(15);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
 
                 long lastStatus = 404;
                 dynamic lastRespond = "Server authentication failed";
+
+                // Try web requests.php endpoint first (same as web login form)
+                try
+                {
+                    using var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("username", email),
+                        new KeyValuePair<string, string>("password", password),
+                    });
+
+                    var response = await client.PostAsync(requestsUrl, content).ConfigureAwait(false);
+                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"FON_AUTH: requests.php -> Status: {response.StatusCode}");
+
+                    if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                    {
+                        var jObject = JObject.Parse(json);
+                        var status = jObject["status"]?.Value<int>() ?? 0;
+                        var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+
+                        if (status == 200 || apiStatus == 200)
+                        {
+                            var auth = jObject.ToObject<AuthObject>();
+                            return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
+                        }
+
+                        if (jObject["errors"] != null)
+                        {
+                            lastStatus = 400;
+                            var errMsg = jObject["errors"]?.First?.ToString() ?? "Login failed";
+                            lastRespond = new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errMsg } };
+                        }
+                        else
+                        {
+                            var error = jObject.ToObject<ErrorObject>();
+                            lastStatus = apiStatus == 0 ? 400 : apiStatus;
+                            lastRespond = error ?? (dynamic)json;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"FON_AUTH: requests.php exception: {ex.Message}");
+                }
 
                 // Phone API: only accepts username field, not email
                 try
@@ -919,7 +1003,7 @@ namespace Facesofnaija.Activities.Default
 
                     var response = await client.PostAsync(phoneApiUrl, content).ConfigureAwait(false);
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    Console.WriteLine($"Auth attempt: {phoneApiUrl} -> Status: {response.StatusCode}");
+                    Console.WriteLine($"FON_AUTH: phone API -> Status: {response.StatusCode}");
 
                     if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                     {
@@ -940,7 +1024,7 @@ namespace Facesofnaija.Activities.Default
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Phone API exception: {ex.Message}");
+                    Console.WriteLine($"FON_AUTH: Phone API exception: {ex.Message}");
                 }
 
                 // Fallback: web API endpoints with username/email
@@ -962,7 +1046,7 @@ namespace Facesofnaija.Activities.Default
 
                             var response = await client.PostAsync(authUrl, content).ConfigureAwait(false);
                             var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                            Console.WriteLine($"Auth attempt: {authUrl} with '{credentialKey}' -> Status: {response.StatusCode}");
+                            Console.WriteLine($"FON_AUTH: {authUrl} with '{credentialKey}' -> Status: {response.StatusCode}");
 
                             if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
                                 continue;
@@ -986,7 +1070,7 @@ namespace Facesofnaija.Activities.Default
                         }
                         catch (Exception attemptEx)
                         {
-                            Console.WriteLine($"Auth attempt exception: {attemptEx.Message}");
+                            Console.WriteLine($"FON_AUTH: Auth attempt exception: {attemptEx.Message}");
                         }
                     }
                 }
@@ -995,7 +1079,7 @@ namespace Facesofnaija.Activities.Default
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"TryAuthDirectAsync exception: {ex.Message}");
+                Console.WriteLine($"FON_AUTH: TryAuthDirectAsync exception: {ex.Message}");
                 return (404, ex.Message);
             }
         }
@@ -1010,6 +1094,112 @@ namespace Facesofnaija.Activities.Default
             catch (Exception exception)
             {
                 Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        public async Task<(long, dynamic)> TryRegisterDirectAsync(string username, string password, string confirmPassword, string email, string gender, string phoneNum, string referral, string deviceId)
+        {
+            try
+            {
+                var url = "http://172.236.19.52/app_api.php?type=user_registration";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                    new KeyValuePair<string, string>("username", username),
+                    new KeyValuePair<string, string>("email", email),
+                    new KeyValuePair<string, string>("password", password),
+                    new KeyValuePair<string, string>("confirm_password", confirmPassword),
+                    new KeyValuePair<string, string>("gender", gender),
+                    new KeyValuePair<string, string>("device_id", deviceId),
+                    new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_AUTH: register direct -> Status: {response.StatusCode}");
+
+                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                {
+                    var jObject = JObject.Parse(json);
+                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+
+                    if (apiStatus == 200)
+                    {
+                        var auth = jObject.ToObject<CreatAccountObject>();
+                        return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
+                    }
+
+                    if (jObject["errors"] != null)
+                    {
+                        var errObj = jObject["errors"];
+                        var errText = errObj?.SelectToken("error_text")?.ToString() ?? errObj?.First?.ToString() ?? "Registration failed";
+                        return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+                    }
+
+                    var error = jObject.ToObject<ErrorObject>();
+                    return (apiStatus == 0 ? 400 : apiStatus, (dynamic)(error != null ? error : json));
+                }
+
+                return (404, "Server returned empty or invalid response");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"FON_AUTH: TryRegisterDirectAsync exception: {ex.Message}");
+                return (404, ex.Message);
+            }
+        }
+
+        public async Task<(long, dynamic)> TryResetPasswordEmailDirectAsync(string email)
+        {
+            try
+            {
+                var url = "http://172.236.19.52/app_api.php?type=reset_pass&application=phone";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("email", email),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_AUTH: forgot pass direct -> Status: {response.StatusCode}");
+
+                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                {
+                    var jObject = JObject.Parse(json);
+                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+
+                    if (apiStatus == 200)
+                    {
+                        return (200, jObject.ToObject<MessageObject>() ?? (dynamic)json);
+                    }
+
+                    if (jObject["errors"] != null)
+                    {
+                        var errObj = jObject["errors"];
+                        var errText = errObj?.SelectToken("error_text")?.ToString() ?? errObj?.First?.ToString() ?? "Request failed";
+                        return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+                    }
+
+                    var error = jObject.ToObject<ErrorObject>();
+                    return (apiStatus == 0 ? 400 : apiStatus, (dynamic)(error != null ? error : json));
+                }
+
+                return (404, "Server returned empty or invalid response");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"FON_AUTH: TryResetPasswordEmailDirectAsync exception: {ex.Message}");
+                return (404, ex.Message);
             }
         }
 

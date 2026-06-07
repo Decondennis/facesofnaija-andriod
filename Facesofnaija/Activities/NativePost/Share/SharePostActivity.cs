@@ -356,51 +356,32 @@ namespace Facesofnaija.Activities.NativePost.Share
         {
             try
             {
-                if (apiStatus == 200)
+                if (apiStatus == 200 && respond is SharePostToObject)
                 {
-                    ResultApi(apiStatus, respond);
+                    Log.Info("WoFallback", $"Share SDK succeeded for sharedPostId={sharedPostId}, proceeding with ResultApi");
+                    ResultApi(200, respond);
                     return;
                 }
 
-                if (ShouldFallbackShare(apiStatus, respond))
+                Log.Info("WoFallback", $"Share SDK failed or invalid response sharedPostId={sharedPostId}, status={apiStatus}; trying fallback");
+
+                var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.SharePostFallbackAsync(sharedPostId, targetId, shareMode, TxtContentPost?.Text ?? string.Empty);
+
+                var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
+                Log.Info("WoFallback", $"Share fallback result sharedPostId={sharedPostId}, status={fallbackStatus}, hasResponse={!string.IsNullOrEmpty(fallbackText)}");
+                if (fallbackStatus == 200)
                 {
-                    Log.Info("WoFallback", $"Share SDK parser fail or timeout -> fallback sharedPostId={sharedPostId}, targetId={targetId}, mode={shareMode}, status={apiStatus}");
-                    ToastUtils.ShowToast(this, "Using fallback share path...", ToastLength.Short);
-                    var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.SharePostFallbackAsync(sharedPostId, targetId, shareMode, TxtContentPost?.Text ?? string.Empty);
-
-                    var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
-                    Log.Info("WoFallback", $"Share fallback result sharedPostId={sharedPostId}, status={fallbackStatus}, hasResponse={!string.IsNullOrEmpty(fallbackText)}");
-                    if (fallbackStatus == 200)
-                    {
-                        ProgressDialogHelper.Dismiss(this);
-                        ToastUtils.ShowToast(this, "Shared via fallback network path.", ToastLength.Short);
-
-                        if (fallbackRespond is SharePostToObject || fallbackRespond is JObject jObject && jObject["data"] != null)
-                        {
-                            try
-                            {
-                                ResultApi(200, fallbackRespond);
-                                return;
-                            }
-                            catch (Exception ex)
-                            {
-                                Methods.DisplayReportResultTrack(ex);
-                            }
-                        }
-
-                        RefreshSharedFeedAfterFallback();
-                        Finish();
-                        return;
-                    }
-
-                    Log.Warn("WoFallback", $"Share fallback failed sharedPostId={sharedPostId}, status={fallbackStatus}, response={fallbackText}");
                     ProgressDialogHelper.Dismiss(this);
-                    ToastUtils.ShowToast(this, "Unable to complete share due to an invalid server response.", ToastLength.Long);
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_PostSuccessfullyShared), ToastLength.Short);
+
+                    RefreshSharedFeedAfterFallback();
+                    Finish();
                     return;
                 }
 
+                Log.Warn("WoFallback", $"Share fallback failed sharedPostId={sharedPostId}, status={fallbackStatus}, response={fallbackText}");
                 ProgressDialogHelper.Dismiss(this);
-                Methods.DisplayAndHudErrorResult(this, respond);
+                ToastUtils.ShowToast(this, "Unable to complete share due to an invalid server response.", ToastLength.Long);
             }
             catch (Exception e)
             {
@@ -408,7 +389,6 @@ namespace Facesofnaija.Activities.NativePost.Share
                 Methods.DisplayReportResultTrack(e);
             }
         }
-
         private bool ShouldFallbackShare(int apiStatus, dynamic respond)
         {
             try
@@ -479,15 +459,15 @@ namespace Facesofnaija.Activities.NativePost.Share
                                     {
                                         ProgressDialogHelper.Dismiss(this);
 
-                                        //if (result.Data.SharedInfo.SharedInfoClass == null)
-                                        //{
-                                        //    result.Data.ParentId = PostData.PostId;
+                                        if (result.Data.SharedInfo.SharedInfoClass == null)
+                                        {
+                                            result.Data.ParentId = PostData.PostId;
 
-                                        //    result.Data.SharedInfo = new SharedInfoUnion
-                                        //    {
-                                        //        SharedInfoClass = PostData
-                                        //    };
-                                        //}
+                                            result.Data.SharedInfo = new SharedInfoUnion
+                                            {
+                                                SharedInfoClass = PostData
+                                            };
+                                        }
 
                                         //var globalContextTabbed = TabbedMainActivity.GetInstance();
 
