@@ -438,12 +438,18 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             return string.Empty;
 
                                         if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            // Replace wrong domain with correct server IP
+                                            if (url.Contains("facesofnaija.com", StringComparison.OrdinalIgnoreCase) || url.Contains("www.facesofnaija.com", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                var correctBase = "http://172.236.19.52";
+                                                var systemUri = new System.Uri(url);
+                                                return url.Replace(systemUri.Scheme + "://" + systemUri.Host, correctBase);
+                                            }
                                             return url;
+                                        }
 
-                                        var baseUrl = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
-                                        if (string.IsNullOrWhiteSpace(baseUrl))
-                                            return url;
-
+                                        var baseUrl = "http://172.236.19.52";
                                         return $"{baseUrl}/{url.TrimStart('/')}";
                                     }
 

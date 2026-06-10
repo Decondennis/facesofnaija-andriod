@@ -80,12 +80,95 @@ namespace Facesofnaija
 
                 JsonConvert.DefaultSettings = () => UserDetails.JsonSettings;
 
-                // Ensure API config is ready before any screen starts making requests
+                const string correctBaseUrl = "http://172.236.19.52";
+
+                // Initialize SDK with the encrypted provider (this sets up HttpClient + all endpoint paths)
                 InitializeWoWonder.Initialize(AppSettings.TripleDesAppServiceProvider, PackageName, AppSettings.TurnSecurityProtocolType3072On, AppSettings.SetApisReportMode);
+
+                // ----------------------------------------------------------------
+                // CRITICAL FIX: The SDK's internal endpoints (t class / f field)
+                // are constructed using the domain URL from the encrypted TripleDes
+                // data (e.g. "http://facesofnaija.com").  We must replace that with
+                // the actual server IP so every SDK-based API call hits the right host.
+                //
+                // The WebsiteUrl property setter does NOT update the internal
+                // HttpClient.BaseAddress NOR the pre-built endpoint strings in f.xxx.
+                // ----------------------------------------------------------------
                 try
                 {
-                    var field = typeof(InitializeWoWonder).GetField("<WebsiteUrl>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
-                    field?.SetValue(null, "http://172.236.19.52");
+                    var asm = typeof(InitializeWoWonder).Assembly;
+
+                    // ---- 1. Get the internal f field (type t) from InitializeWoWonder ----
+                    var fField = typeof(InitializeWoWonder).GetField("f", BindingFlags.Static | BindingFlags.NonPublic);
+                    if (fField != null)
+                    {
+                        var tInstance = fField.GetValue(null);
+                        var oldDomainField = typeof(InitializeWoWonder).GetField("a", BindingFlags.Static | BindingFlags.NonPublic);
+                        var oldDomain = oldDomainField?.GetValue(null) as string ?? InitializeWoWonder.WebsiteUrl;
+
+                        if (!string.IsNullOrWhiteSpace(oldDomain) && tInstance != null)
+                        {
+                            // ---- 2. Replace old domain with correct IP in every string field of t ----
+                            var tType = tInstance.GetType();
+                            var stringFields = tType.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                            foreach (var sf in stringFields)
+                            {
+                                if (sf.FieldType != typeof(string)) continue;
+                                var current = sf.GetValue(tInstance) as string;
+                                if (string.IsNullOrWhiteSpace(current)) continue;
+                                // Replace the old base URL (scheme + host + port only) with the correct IP
+                                var replaced = ReplaceBaseUrl(current, oldDomain, correctBaseUrl);
+                                if (replaced != current)
+                                {
+                                    // Use reflection to set the readonly field
+                                    sf.SetValue(tInstance, replaced);
+                                }
+                            }
+
+                            // ---- 3. Update the WebsiteUrl property + backing field ----
+                            typeof(InitializeWoWonder).GetProperty("WebsiteUrl")?.SetValue(null, correctBaseUrl);
+                            oldDomainField?.SetValue(null, correctBaseUrl);
+                        }
+                    }
+
+                    // ---- 4. Update the internal HttpClient's BaseAddress ----
+                    var bType = asm.GetType("b");
+                    var httpClientField = bType?.GetField("m_a", BindingFlags.Static | BindingFlags.NonPublic);
+                    if (httpClientField?.GetValue(null) is HttpClient hc)
+                    {
+                        hc.BaseAddress = new Uri(correctBaseUrl.TrimEnd('/') + "/");
+                    }
+
+                    // ---- 5. Update ServerKey from the encrypted data ----
+                    // ServerKey is already set by Initialize(), keep it as-is
+                    // unless it's empty, then try to decrypt it
+                    if (string.IsNullOrWhiteSpace(InitializeWoWonder.ServerKey))
+                    {
+                        try
+                        {
+                            var eField = typeof(InitializeWoWonder).GetField("e", BindingFlags.Static | BindingFlags.NonPublic);
+                            if (eField?.GetValue(null) is IDisposable decryptor)
+                            {
+                                var deType = decryptor.GetType();
+                                var aMethod = deType.GetMethod("A", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                                var jsField = deType.GetField("Js", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                                if (aMethod != null && jsField != null)
+                                {
+                                    var jsValue = jsField.GetValue(null);
+                                    var serverKey = aMethod.Invoke(decryptor, new[] { jsValue }) as string;
+                                    if (!string.IsNullOrWhiteSpace(serverKey))
+                                    {
+                                        var serverKeyField = typeof(InitializeWoWonder).GetField("b", BindingFlags.Static | BindingFlags.NonPublic);
+                                        serverKeyField?.SetValue(null, serverKey);
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception inner)
+                        {
+                            Methods.DisplayReportResultTrack(inner);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -617,6 +700,23 @@ namespace Facesofnaija
             {
                 Methods.DisplayReportResultTrack(e);
             }
+        }
+
+        private static string ReplaceBaseUrl(string url, string oldBase, string newBase)
+        {
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(oldBase) || string.IsNullOrWhiteSpace(newBase))
+                return url;
+            try
+            {
+                var cleanOld = oldBase.TrimEnd('/');
+                var cleanNew = newBase.TrimEnd('/');
+                if (url.StartsWith(cleanOld, StringComparison.OrdinalIgnoreCase))
+                    return cleanNew + url.Substring(cleanOld.Length);
+            }
+            catch (Exception)
+            {
+            }
+            return url;
         }
     }
 }

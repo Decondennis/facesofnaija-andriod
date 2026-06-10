@@ -1500,30 +1500,37 @@ namespace Facesofnaija.Activities.NativePost.Post
         }
 
         /// <summary>
-        /// Direct feed fallback against app_api.php to bypass client URL-resolution issues.
+        /// Direct feed fallback using app_api.php phone route (works reliably).
         /// </summary>
         private async Task<(int, dynamic)> GetGlobalPostDirect(string offset, string adId)
         {
             try
             {
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler { AllowAutoRedirect = false };
-                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-                var url = $"http://172.236.19.52/app_api.php?application=phone&type=get_news_feed";
+
+                var baseUrl = "http://172.236.19.52";
+                var url = $"{baseUrl}/app_api.php?application=phone&type=get_news_feed";
                 var limit = AppSettings.PostApiLimitOnScroll;
                 var filter = WRecyclerView.GetFilter();
                 var postType = WRecyclerView.GetPostType();
 
-                var postData = new[]
+                var userId = UserDetails.UserId?.ToString() ?? "0";
+                var accessToken = UserDetails.AccessToken ?? string.Empty;
+
+                Log.Warn("FON_FEED", $"GetGlobalPostDirect phone API userId={userId} offset={offset}");
+
+                var postData = new List<KeyValuePair<string, string>>
                 {
-                    new KeyValuePair<string, string>("user_id", UserDetails.UserId?.ToString() ?? "0"),
-                    new KeyValuePair<string, string>("session", UserDetails.AccessToken ?? ""),
+                    new KeyValuePair<string, string>("type", "get_news_feed"),
+                    new KeyValuePair<string, string>("access_token", accessToken),
+                    new KeyValuePair<string, string>("user_id", userId),
+                    new KeyValuePair<string, string>("s", accessToken),
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
                     new KeyValuePair<string, string>("limit", limit),
                     new KeyValuePair<string, string>("offset", offset ?? "0"),
-                    new KeyValuePair<string, string>("filter", string.IsNullOrWhiteSpace(filter) ? "0" : filter),
-                    new KeyValuePair<string, string>("post_type", string.IsNullOrWhiteSpace(postType) ? "0" : postType),
-                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
                 };
 
                 using (var content = new FormUrlEncodedContent(postData))
@@ -1531,8 +1538,16 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var response = await client.PostAsync(url, content).ConfigureAwait(false);
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-                    if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        Log.Warn("FON_FEED", $"GetGlobalPostDirect empty response, status={response.StatusCode}");
                         return (400, "Invalid response");
+                    }
+                    if (json.TrimStart().StartsWith("<"))
+                    {
+                        Log.Warn("FON_FEED", $"GetGlobalPostDirect HTML response: {json.Substring(0, System.Math.Min(200, json.Length))}");
+                        return (400, "Invalid response");
+                    }
 
                     try
                     {
@@ -1561,14 +1576,14 @@ namespace Facesofnaija.Activities.NativePost.Post
                     }
                     catch (Exception parseEx)
                     {
-                        Console.WriteLine($"GetGlobalPostDirect parse error: {parseEx.Message}");
+                        Log.Warn("FON_FEED", $"GetGlobalPostDirect parse error: {parseEx.Message}");
                         return (400, json);
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"GetGlobalPostDirect exception: {ex.Message}");
+                Log.Error("FON_FEED", $"GetGlobalPostDirect exception: {ex.Message}");
                 return (400, ex.Message);
             }
         }

@@ -39,6 +39,7 @@ using Exception = System.Exception;
 using Object = Java.Lang.Object;
 using Task = System.Threading.Tasks.Task;
 using Newtonsoft.Json.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Reflection;
 
@@ -838,6 +839,7 @@ namespace Facesofnaija.Activities.Default
         public async Task AuthApi(string email, string password, bool chkRemember = true)
         {
             var (apiStatus, respond) = await TryAuthDirectAsync(email, password);
+            Console.WriteLine("FON_AUTH: " + apiStatus + " " + (respond?.GetType()?.FullName ?? "null"));
             if (apiStatus == 200)
             {
                 if (respond is AuthObject auth)
@@ -893,6 +895,31 @@ namespace Facesofnaija.Activities.Default
                 }
                 else
                 {
+                    // Fallback: try to extract UserId and AccessToken from raw JSON
+                    if (respond is JObject jobj)
+                    {
+                        var rawUserId = jobj["user_id"]?.ToString() ?? jobj["userid"]?.ToString() ?? jobj["UserId"]?.ToString() ?? jobj["UserID"]?.ToString() ?? "";
+                        var rawToken = jobj["access_token"]?.ToString() ?? jobj["session_id"]?.ToString() ?? jobj["cookie"]?.ToString() ?? jobj["AccessToken"]?.ToString() ?? jobj["accessToken"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(rawUserId) && !string.IsNullOrEmpty(rawToken))
+                        {
+                            UserDetails.UserId = rawUserId;
+                            UserDetails.AccessToken = rawToken;
+                            UserDetails.Username = email;
+                            UserDetails.FullName = email;
+                            UserDetails.Password = password;
+                            UserDetails.Status = "Pending";
+                            UserDetails.Email = email;
+                            var user = new DataTables.LoginTb { UserId = rawUserId, AccessToken = rawToken, Username = email, Password = password, Status = "Pending", Email = email, DeviceId = UserDetails.DeviceId };
+                            ListUtils.DataUserLoginList.Clear();
+                            ListUtils.DataUserLoginList.Add(user);
+                            var dbDatabase = new SqLiteDatabase();
+                            dbDatabase.InsertOrUpdateLogin_Credentials(user);
+                            ToggleVisibility(false);
+                            StartActivity(new Intent(this, typeof(TabbedMainActivity)));
+                            FinishAffinity();
+                            return;
+                        }
+                    }
                     ToggleVisibility(false);
                     Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Login failed", GetText(Resource.String.Lbl_Ok));
                 }
@@ -929,7 +956,7 @@ namespace Facesofnaija.Activities.Default
             try
             {
                 var requestsUrl = "http://172.236.19.52/requests.php?f=login";
-                var phoneApiUrl = "http://172.236.19.52/app_api.php?type=user_login";
+                var phoneApiUrl = "http://172.236.19.52/app_api.php?application=phone&type=user_login";
                 var webUrls = new[]
                 {
                     "http://172.236.19.52/api/v2/endpoints/auth.php",
@@ -946,51 +973,192 @@ namespace Facesofnaija.Activities.Default
                 long lastStatus = 404;
                 dynamic lastRespond = "Server authentication failed";
 
-                // Try web requests.php endpoint first (same as web login form)
+                // Custom FON login endpoint — creates proper API session token
                 try
                 {
+                    var fonLoginUrl = "http://172.236.19.52/fon_login.php";
                     using var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("username", email),
                         new KeyValuePair<string, string>("password", password),
                     });
 
-                    var response = await client.PostAsync(requestsUrl, content).ConfigureAwait(false);
+                    var response = await client.PostAsync(fonLoginUrl, content).ConfigureAwait(false);
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    Console.WriteLine($"FON_AUTH: requests.php -> Status: {response.StatusCode}");
+                    Console.WriteLine($"FON_AUTH: fon_login -> HTTP {response.StatusCode} body={json?.Substring(0, System.Math.Min(300, json?.Length ?? 0))}");
 
                     if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                     {
                         var jObject = JObject.Parse(json);
-                        var status = jObject["status"]?.Value<int>() ?? 0;
-                        var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+                        var statusText = jObject["api_status"]?.ToString();
+                        long.TryParse(statusText, out long status);
 
-                        if (status == 200 || apiStatus == 200)
+                        if (status == 200)
                         {
-                            var auth = jObject.ToObject<AuthObject>();
-                            return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
+                            var uid = jObject["user_id"]?.ToString() ?? "";
+                            var token = jObject["access_token"]?.ToString() ?? jObject["cookie"]?.ToString() ?? "";
+                            Console.WriteLine($"FON_AUTH: fon_login SUCCESS uid={uid} tokenLen={token.Length}");
+                            if (!string.IsNullOrEmpty(uid) && !string.IsNullOrEmpty(token))
+                            {
+                                dynamic fakeAuth = new JObject();
+                                fakeAuth["user_id"] = uid;
+                                fakeAuth["access_token"] = token;
+                                fakeAuth["cookie"] = token;
+                                return (200, (dynamic)fakeAuth);
+                            }
                         }
+                        lastStatus = status == 0 ? 400 : status;
+                        lastRespond = json;
+                    }
+                }
+                catch (Exception fonEx)
+                {
+                    Console.WriteLine($"FON_AUTH: fon_login exception: {fonEx.Message}");
+                }
 
-                        if (jObject["errors"] != null)
+                // Phone API — fallback
+                try
+                {
+                    using var content = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("username", email),
+                        new KeyValuePair<string, string>("password", password),
+                        new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
+                    });
+
+                    var response = await client.PostAsync(phoneApiUrl, content).ConfigureAwait(false);
+                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"FON_AUTH: phone API -> HTTP {response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
+
+                    if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                    {
+                        var jObject = JObject.Parse(json);
+                        var statusText = jObject["api_status"]?.ToString();
+                        long.TryParse(statusText, out long status);
+
+                        if (status == 200)
                         {
-                            lastStatus = 400;
-                            var errMsg = jObject["errors"]?.First?.ToString() ?? "Login failed";
-                            lastRespond = new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errMsg } };
+                            var uid = jObject["user_id"]?.ToString() ?? "0";
+                            var token = jObject["access_token"]?.ToString() ?? jObject["cookie"]?.ToString() ?? "";
+                            Console.WriteLine($"FON_AUTH: phone API SUCCESS uid={uid} tokenLen={token.Length}");
+                            if (!string.IsNullOrEmpty(uid) && uid != "0" && !string.IsNullOrEmpty(token))
+                            {
+                                dynamic fakeAuth = new JObject();
+                                fakeAuth["user_id"] = uid;
+                                fakeAuth["access_token"] = token;
+                                fakeAuth["cookie"] = token;
+                                return (200, (dynamic)fakeAuth);
+                            }
                         }
-                        else
+                        lastStatus = status == 0 ? 400 : status;
+                        lastRespond = json;
+                    }
+                }
+                catch (Exception phoneEx)
+                {
+                    Console.WriteLine($"FON_AUTH: phone API exception: {phoneEx.Message}");
+                }
+
+                // requests.php — login like web app, get session cookie
+                try
+                {
+                    using var cookieHandler = new HttpClientHandler { AllowAutoRedirect = true, UseCookies = true };
+                    using var cookieClient = new HttpClient(cookieHandler);
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36");
+                    
+                    using var loginContent = new FormUrlEncodedContent(new[]
+                    {
+                        new KeyValuePair<string, string>("username", email),
+                        new KeyValuePair<string, string>("password", password),
+                    });
+                    var loginResp = await cookieClient.PostAsync(requestsUrl, loginContent).ConfigureAwait(false);
+                    var loginBody = await loginResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"FON_AUTH: requests.php -> {loginResp.StatusCode}");
+                    
+                    // If login succeeded (status=200), session cookie is now in handler
+                    var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri("http://172.236.19.52"));
+                    var sessionValue = "";
+                    if (cookies != null) { foreach (var cObj in cookies) { var c = (System.Net.Cookie)cObj; if (c.Name.Contains("SESS") || c.Name.Contains("sess") || c.Name.Equals("PHPSESSID")) { sessionValue = c.Value; break; } } }
+                    Console.WriteLine($"FON_AUTH: session cookie value={sessionValue?.Substring(0, System.Math.Min(20, sessionValue?.Length ?? 0))}");
+                    
+                    if (loginBody.Contains("\"status\":200") || !string.IsNullOrEmpty(sessionValue))
+                    {
+                        // Use session cookie value as access token
+                        var sessId = sessionValue;
+                        // Also try to get user_id from a simple API call with the cookie
+                        var whoUrl = "http://172.236.19.52/app_api.php?application=phone&type=get_user_data";
+                        var whoResp = await cookieClient.PostAsync(whoUrl, new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("user_id", "0") }));
+                        var whoBody = await whoResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        Console.WriteLine($"FON_AUTH: whoami -> {whoResp.StatusCode}");
+                        
+                        var uid = "";
+                        if (!string.IsNullOrWhiteSpace(whoBody) && !whoBody.StartsWith("<"))
                         {
-                            var error = jObject.ToObject<ErrorObject>();
-                            lastStatus = apiStatus == 0 ? 400 : apiStatus;
-                            lastRespond = error ?? (dynamic)json;
+                            var jWho = JObject.Parse(whoBody);
+                            uid = jWho["user_id"]?.ToString() ?? jWho["id"]?.ToString() ?? jWho["uid"]?.ToString() ?? "";
+                        }
+                        
+                        if (!string.IsNullOrEmpty(uid))
+                        {
+                            Console.WriteLine($"FON_AUTH: requests.php SUCCESS uid={uid} sessLen={sessId.Length}");
+                            dynamic fakeAuth = new JObject();
+                            fakeAuth["user_id"] = uid;
+                            fakeAuth["access_token"] = sessId;
+                            return (200, (dynamic)fakeAuth);
                         }
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex2)
                 {
-                    Console.WriteLine($"FON_AUTH: requests.php exception: {ex.Message}");
+                    Console.WriteLine($"FON_AUTH: requests.php exception: {ex2.Message}");
                 }
 
-                // Phone API: only accepts username field, not email
+                // Web API (api/v2/endpoints/auth.php) — returns flat AuthObject with user_id and access_token
+                foreach (var authUrl in webUrls)
+                {
+                    try
+                    {
+                        using var content = new FormUrlEncodedContent(new[]
+                        {
+                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                            new KeyValuePair<string, string>("username", email),
+                            new KeyValuePair<string, string>("password", password),
+                            new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
+                            new KeyValuePair<string, string>("device_type", "phone"),
+                            new KeyValuePair<string, string>("android_m_device_id", UserDetails.DeviceId ?? string.Empty),
+                        });
+
+                        var response = await client.PostAsync(authUrl, content).ConfigureAwait(false);
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        Console.WriteLine($"FON_AUTH: {authUrl} -> Status: {response.StatusCode}");
+
+                        if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                            continue;
+
+                        var jObject = JObject.Parse(json);
+                        var statusText = jObject["api_status"]?.ToString();
+                        long.TryParse(statusText, out long status);
+
+                        if (status == 200)
+                        {
+                            var auth = jObject.ToObject<AuthObject>();
+                            Console.WriteLine($"FON_AUTH: SUCCESS userId={auth?.UserId} tokenLen={(auth?.AccessToken?.Length ?? 0)}");
+                            return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
+                        }
+
+                        var error = jObject.ToObject<ErrorObject>();
+                        lastStatus = status == 0 ? 400 : status;
+                        lastRespond = error ?? (dynamic)json;
+                    }
+                    catch (Exception attemptEx)
+                    {
+                        Console.WriteLine($"FON_AUTH: Auth attempt exception: {attemptEx.Message}");
+                    }
+                }
+
+                // Fallback: Phone API
                 try
                 {
                     using var content = new FormUrlEncodedContent(new[]
@@ -1027,52 +1195,65 @@ namespace Facesofnaija.Activities.Default
                     Console.WriteLine($"FON_AUTH: Phone API exception: {ex.Message}");
                 }
 
-                // Fallback: web API endpoints with username/email
-                foreach (var authUrl in webUrls)
+                // After all API login attempts fail, try requests.php with cookie handler
+                // This works even when the phone API is broken
+                try
                 {
-                    foreach (var credentialKey in new[] { "username", "email" })
+                    using var cookieHandler = new HttpClientHandler { AllowAutoRedirect = true, UseCookies = true };
+                    using var cookieClient = new HttpClient(cookieHandler);
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+                    cookieClient.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36");
+                    
+                    using var loginContent = new FormUrlEncodedContent(new[]
                     {
-                        try
+                        new KeyValuePair<string, string>("username", email),
+                        new KeyValuePair<string, string>("password", password),
+                    });
+                    var loginResp = await cookieClient.PostAsync(requestsUrl, loginContent).ConfigureAwait(false);
+                    var loginBody = await loginResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    Console.WriteLine($"FON_AUTH: requests.php final -> {loginResp.StatusCode}");
+                    
+                    if (loginBody.Contains("\"status\":200"))
+                    {
+                        // Get session cookie value
+                        var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri("http://172.236.19.52"));
+                        var sessVal = "";
+                        if (cookies != null) { foreach (var cObj in cookies) { var c = (System.Net.Cookie)cObj; if (c.Name.Contains("SESS") || c.Name.Contains("sess") || c.Name.Equals("PHPSESSID")) { sessVal = c.Value; break; } } }
+                        
+                        // Get user data using the session cookie
+                        var whoResp = await cookieClient.PostAsync("http://172.236.19.52/app_api.php?application=phone&type=get_settings", new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("server_key", "") }));
+                        var whoBody = await whoResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        Console.WriteLine($"FON_AUTH: final whoami -> {whoResp.StatusCode}");
+                        
+                        var uid = "";
+                        if (!string.IsNullOrWhiteSpace(whoBody) && !whoBody.TrimStart().StartsWith("<"))
                         {
-                            using var content = new FormUrlEncodedContent(new[]
-                            {
-                                new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
-                                new KeyValuePair<string, string>(credentialKey, email),
-                                new KeyValuePair<string, string>("password", password),
-                                new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
-                                new KeyValuePair<string, string>("device_type", "phone"),
-                                new KeyValuePair<string, string>("android_m_device_id", UserDetails.DeviceId ?? string.Empty),
-                            });
-
-                            var response = await client.PostAsync(authUrl, content).ConfigureAwait(false);
-                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                            Console.WriteLine($"FON_AUTH: {authUrl} with '{credentialKey}' -> Status: {response.StatusCode}");
-
-                            if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
-                                continue;
-
-                            var jObject = JObject.Parse(json);
-                            var statusText = jObject["api_status"]?.ToString();
-                            long.TryParse(statusText, out long status);
-
-                            if (status == 200)
-                            {
-                                var auth = jObject.ToObject<AuthObject>();
-                                return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
-                            }
-
-                            var error = jObject.ToObject<ErrorObject>();
-                            lastStatus = status == 0 ? 400 : status;
-                            lastRespond = error ?? (dynamic)json;
-
-                            if (credentialKey == "username" && (status == 3 || status == 5))
-                                break;
+                            try { var jWho = JObject.Parse(whoBody); uid = jWho["user_id"]?.ToString() ?? jWho["uid"]?.ToString() ?? ""; } catch {}
                         }
-                        catch (Exception attemptEx)
+                        
+                        if (!string.IsNullOrEmpty(uid))
                         {
-                            Console.WriteLine($"FON_AUTH: Auth attempt exception: {attemptEx.Message}");
+                            Console.WriteLine($"FON_AUTH: requests.php final SUCCESS uid={uid}");
+                            dynamic fakeAuth = new JObject();
+                            fakeAuth["user_id"] = uid;
+                            fakeAuth["access_token"] = sessVal;
+                            return (200, (dynamic)fakeAuth);
+                        }
+                        // Even without user_id, session cookie is set - use it as access token
+                        if (!string.IsNullOrEmpty(sessVal))
+                        {
+                            Console.WriteLine($"FON_AUTH: requests.php final (cookie only) sessLen={sessVal.Length}");
+                            dynamic fakeAuth2 = new JObject();
+                            fakeAuth2["user_id"] = "0";
+                            fakeAuth2["access_token"] = sessVal;
+                            return (200, (dynamic)fakeAuth2);
                         }
                     }
+                }
+                catch (Exception finalEx)
+                {
+                    Console.WriteLine($"FON_AUTH: requests.php final exception: {finalEx.Message}");
                 }
 
                 return (lastStatus, lastRespond);
@@ -1101,7 +1282,7 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var url = "http://172.236.19.52/app_api.php?type=user_registration";
+                var url = "http://172.236.19.52/app_api.php?application=phone&type=user_registration";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");

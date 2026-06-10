@@ -215,7 +215,6 @@ namespace Facesofnaija.Services
         {
             try
             {
-                return; //Elin Doughouz
                 if (!Methods.CheckConnectivity())
                     return;
 

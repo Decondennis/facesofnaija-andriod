@@ -39,7 +39,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api/get-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = "http://172.236.19.52/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("fetch", fetch),
@@ -126,7 +126,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api/get-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = "http://172.236.19.52/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("fetch", "requested_communities"),
@@ -329,7 +329,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api/join-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = "http://172.236.19.52/api-v2.php?type=join-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
@@ -712,7 +712,7 @@ namespace Facesofnaija.CustomApi.Requests
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                var url = "http://172.236.19.52/api/request-community?access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                var url = "http://172.236.19.52/api-v2.php?type=request-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                 var content = new FormUrlEncodedContent(dictionary);
                 Console.WriteLine("FON_COMM request-community url=" + url);
                 
@@ -757,7 +757,7 @@ namespace Facesofnaija.CustomApi.Requests
                 // Fallback: call the same endpoint style used by the web app and parse raw JSON.
                 foreach (var baseUrl in GetApiBaseCandidates())
                 {
-                    var endpoint = $"{baseUrl}/api/get-general-data?access_token={UserDetails.AccessToken}";
+                    var endpoint = $"{baseUrl}/api-v2.php?type=get-general-data&access_token={UserDetails.AccessToken}";
                     try
                     {
                         using var client = new HttpClient();
@@ -798,6 +798,66 @@ namespace Facesofnaija.CustomApi.Requests
             }
         }
 
+        /// <summary>
+        /// Resolves a usable access token from all available sources.
+        /// Tries Current.AccessToken first (SDK), falls back to UserDetails.AccessToken (app).
+        /// </summary>
+        private static string ResolveAccessToken()
+        {
+            var token = Current.AccessToken;
+            if (string.IsNullOrWhiteSpace(token))
+                token = UserDetails.AccessToken;
+            // Sync back so both stores are consistent
+            if (!string.IsNullOrWhiteSpace(token) && string.IsNullOrWhiteSpace(Current.AccessToken))
+                Current.AccessToken = token;
+            return token ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Unified POST helper for custom API calls.
+        /// Uses the correct base URL, resolves the access token, and adds diagnostics.
+        /// </summary>
+        private static async Task<(long?, dynamic)> PostCustomApiAsync<T>(string endpointPath, IEnumerable<KeyValuePair<string, string>> formData, bool requiresToken = true) where T : class
+        {
+            try
+            {
+                var token = ResolveAccessToken();
+                if (requiresToken && string.IsNullOrWhiteSpace(token))
+                    return (401, "Access token is missing. Please sign in again.");
+
+                var baseUrl = "http://172.236.19.52";
+                var separator = endpointPath.Contains("?") ? "&" : "?";
+                var url = $"{baseUrl}/{endpointPath.TrimStart('/')}{separator}access_token={Uri.EscapeDataString(token)}";
+
+                Console.WriteLine($"[FON_API] POST {url}");
+
+                using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var content = new FormUrlEncodedContent(formData);
+                var response = await client.PostAsync(url, content);
+                var json = await response.Content.ReadAsStringAsync();
+
+                var preview = json?.Length > 500 ? json.Substring(0, 500) + "..." : json;
+                Console.WriteLine($"[FON_API] Response {endpointPath} HTTP={(int)response.StatusCode} body={preview}");
+
+                if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                {
+                    var result = JsonConvert.DeserializeObject<T>(json);
+                    if (result != null)
+                        return (200, result);
+                }
+
+                return (400, json ?? $"HTTP {(int)response.StatusCode}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[FON_API] Exception {endpointPath}: {e.Message}");
+                return (404, e.Message);
+            }
+        }
+
         private static IEnumerable<string> GetApiBaseCandidates()
         {
             var candidates = new List<string>();
@@ -814,7 +874,8 @@ namespace Facesofnaija.CustomApi.Requests
                 candidates.Add(normalized);
             }
 
-            Add(InitializeWoWonder.WebsiteUrl);
+            var webUrl = InitializeWoWonder.WebsiteUrl;
+            Add(webUrl);
             Add(Community.WebsiteUrl);
             Add("http://172.236.19.52");
 
@@ -850,12 +911,12 @@ namespace Facesofnaija.CustomApi.Requests
                             return (400, "Session is missing. Please sign in again.");
                         }
 
+                        // Try v2 API first (properly resolves user from access_token), then phone API fallback
                         var endpoints = new[]
                         {
+                            $"{GetApiBase()}/api-v2.php?type=new_post&access_token={sessionId}",
                             $"{GetApiBase()}/app_api.php?application=phone&type=new_post",
-                            $"{GetApiBase()}/app_api.php?type=new_post"
                         };
-
 
                         string lastError = "Bad request.";
                         var hasExplicitApiError = false;
