@@ -2047,6 +2047,22 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 var addPostIndex = ListDiffer?.FindIndex(a => a.TypeView == PostModelType.AddPostBox) ?? -1;
                                 if (addPostIndex >= 0)
                                     NotifyItemChanged(addPostIndex);
+
+                                // Update "Your story" avatar with real profile picture
+                                var storySection = ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                                if (storySection?.StoryList != null)
+                                {
+                                    var yourStory = storySection.StoryList.FirstOrDefault(s => s.Type == "Your");
+                                    if (yourStory != null && yourStory.Avatar != profileAvatar)
+                                    {
+                                        yourStory.Avatar = profileAvatar;
+                                        if (yourStory.Stories?.Count > 0)
+                                            yourStory.Stories[0].Thumbnail = profileAvatar;
+                                        var storyIdx = ListDiffer.IndexOf(storySection);
+                                        if (storyIdx >= 0)
+                                            NotifyItemChanged(storyIdx);
+                                    }
+                                }
                             }
                             catch (Exception uiEx)
                             {
