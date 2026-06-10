@@ -184,18 +184,6 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                         }
                                     }
                                     break;
-                                case PostModelType.ImagePost:
-                                case PostModelType.MultiImages:
-                                case PostModelType.MultiImage2:
-                                case PostModelType.MultiImage3:
-                                case PostModelType.MultiImage4:
-                                case PostModelType.MultiImage5:
-                                case PostModelType.MultiImage6:
-                                case PostModelType.MultiImage7:
-                                case PostModelType.MultiImage8:
-                                case PostModelType.MultiImage9:
-                                case PostModelType.MultiImage10:
-                                    break;
                             }
 
                             var item = new AdapterModelsClass
@@ -1690,18 +1678,6 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                                 return;
                                         }
                                     }
-                                    break;
-                                case PostModelType.ImagePost:
-                                case PostModelType.MultiImages:
-                                case PostModelType.MultiImage2:
-                                case PostModelType.MultiImage3:
-                                case PostModelType.MultiImage4:
-                                case PostModelType.MultiImage5:
-                                case PostModelType.MultiImage6:
-                                case PostModelType.MultiImage7:
-                                case PostModelType.MultiImage8:
-                                case PostModelType.MultiImage9:
-                                case PostModelType.MultiImage10:
                                     break;
                             }
 

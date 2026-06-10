@@ -365,11 +365,7 @@ namespace Facesofnaija.Activities.NativePost.Share
 
                 Log.Info("WoFallback", $"Share SDK failed or invalid response sharedPostId={sharedPostId}, status={apiStatus}; trying fallback");
 
-                var shareText = TxtContentPost?.Text ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(shareText))
-                    shareText = PostData?.Orginaltext ?? PostData?.PostText ?? " ";
-
-                var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.SharePostFallbackAsync(sharedPostId, targetId, shareMode, shareText);
+                var (fallbackStatus, fallbackRespond) = await CustomRequests.Posts.SharePostFallbackAsync(sharedPostId, targetId, shareMode, TxtContentPost?.Text ?? string.Empty);
 
                 var fallbackText = fallbackRespond?.ToString() ?? string.Empty;
                 Log.Info("WoFallback", $"Share fallback result sharedPostId={sharedPostId}, status={fallbackStatus}, hasResponse={!string.IsNullOrEmpty(fallbackText)}");

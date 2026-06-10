@@ -1,5 +1,4 @@
 ﻿using Android.Content;
-using Android.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,10 +19,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (!string.IsNullOrEmpty(item.PostType) && item.PostType == "ad") return PostModelType.AdsPost;
 
                 if (item.SharedInfo.SharedInfoClass != null)
-                {
-                    Log.Info("FON_DEBUG", $"GetAdapterType: SharedPost (SharedInfoClass non-null) postId={item.PostId}");
                     return PostModelType.SharedPost;
-                }
 
                 if (!string.IsNullOrEmpty(item.PostType) && item.PostType == "profile_cover_picture" || item.PostType == "profile_picture")
                     return PostModelType.ImagePost;
