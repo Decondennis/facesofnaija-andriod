@@ -1565,7 +1565,11 @@ namespace Facesofnaija.Activities.Tabbes
                 var sqlEntity = new SqLiteDatabase();
 
                 if (string.IsNullOrEmpty(Current.AccessToken) || string.IsNullOrEmpty(UserDetails.UserId))
+                {
                     sqlEntity.Get_data_Login_Credentials();
+                    if (!string.IsNullOrEmpty(UserDetails.AccessToken) && string.IsNullOrEmpty(Current.AccessToken))
+                        Current.AccessToken = UserDetails.AccessToken;
+                }
 
                 var data = ListUtils.DataUserLoginList.FirstOrDefault();
                 if (data != null && data.Status != "Active")

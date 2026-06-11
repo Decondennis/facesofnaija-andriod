@@ -2063,6 +2063,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                                             NotifyItemChanged(storyIdx);
                                     }
                                 }
+                                // Also update StoryAdapter's internal StoryList directly
+                                if (HolderStory?.StoryAdapter?.StoryList != null)
+                                {
+                                    var storyAdapterYour = HolderStory.StoryAdapter.StoryList.FirstOrDefault(s => s.Type == "Your");
+                                    if (storyAdapterYour != null && storyAdapterYour.Avatar != profileAvatar)
+                                    {
+                                        storyAdapterYour.Avatar = profileAvatar;
+                                        if (storyAdapterYour.Stories?.Count > 0)
+                                            storyAdapterYour.Stories[0].Thumbnail = profileAvatar;
+                                        HolderStory.StoryAdapter.NotifyDataSetChanged();
+                                    }
+                                }
                             }
                             catch (Exception uiEx)
                             {
