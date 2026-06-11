@@ -18,7 +18,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 if (!string.IsNullOrEmpty(item.PostType) && item.PostType == "ad") return PostModelType.AdsPost;
 
-                if (item.SharedInfo.SharedInfoClass != null)
+                if (item.SharedInfo.SharedInfoClass != null && !string.IsNullOrEmpty(item.ParentId))
                     return PostModelType.SharedPost;
 
                 if (!string.IsNullOrEmpty(item.PostType) && item.PostType == "profile_cover_picture" || item.PostType == "profile_picture")
