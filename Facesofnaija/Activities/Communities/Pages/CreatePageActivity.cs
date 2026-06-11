@@ -2,16 +2,10 @@ using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Ads.DoubleClick;
-using Android.Graphics;
 using Android.OS;
-using Android.Util;
 using Android.Views;
-using Android.Views.InputMethods;
 using Android.Widget;
-using WoWonder.Helpers.Utils;
-using AndroidX.AppCompat.Content.Res;
 using AndroidX.AppCompat.Widget;
-using Google.Android.Flexbox;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -21,6 +15,7 @@ using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
+using WoWonder.Helpers.Utils;
 using WoWonderClient.Classes.Page;
 using WoWonderClient.Requests;
 using Exception = System.Exception;
@@ -31,23 +26,12 @@ namespace Facesofnaija.Activities.Communities.Pages
     [Activity(Icon = "@mipmap/icon", Theme = "@style/MyTheme", ConfigurationChanges = ConfigChanges.Locale | ConfigChanges.UiMode | ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize)]
     public class CreatePageActivity : BaseActivity
     {
-        #region Variables Basic
-
+        private EditText EtPageTitle, EtPageName, EtDescription;
+        private Spinner SpinnerCategory;
+        private Button BtnCreate;
         private PublisherAdView PublisherAdView;
-
-        private TextView TvStep, TvStepTitle;
-        private ProgressBar ViewStep;
-        private EditText EtStep1, EtStep4;
-        private FlexboxLayout RgStep3;
-        private AppCompatButton BtnNext, BtnPrev;
-        private int NStep = 1;
-        private readonly int MaxStep = 4;
-        private string PageTitle, PageUsername, PageAbout, Category, CategoryId;
-        private List<string> ArrayAdapter;
-
-        #endregion
-
-        #region General
+        private List<string> CategoryNames = new List<string>();
+        private List<string> CategoryIds = new List<string>();
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -55,13 +39,9 @@ namespace Facesofnaija.Activities.Communities.Pages
             {
                 base.OnCreate(savedInstanceState);
                 SetTheme(WoWonderTools.IsTabDark() ? Resource.Style.MyTheme_Dark : Resource.Style.MyTheme);
-
                 Methods.App.FullScreenApp(this);
-
-                // Create your application here
                 SetContentView(Resource.Layout.CreatePageLayout);
 
-                //Get Value And Set Toolbar
                 InitComponent();
                 InitToolbar();
                 InitBackPressed("CreatePageActivity");
@@ -72,233 +52,44 @@ namespace Facesofnaija.Activities.Communities.Pages
             }
         }
 
-        protected override void OnResume()
-        {
-            try
-            {
-                base.OnResume();
-                AddOrRemoveEvent(true);
-                PublisherAdView?.Resume();
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        protected override void OnPause()
-        {
-            try
-            {
-                base.OnPause();
-                AddOrRemoveEvent(false);
-                PublisherAdView?.Pause();
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        public override void OnTrimMemory(TrimMemory level)
-        {
-            try
-            {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced);
-                base.OnTrimMemory(level);
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        public override void OnLowMemory()
-        {
-            try
-            {
-                GC.Collect(GC.MaxGeneration);
-                base.OnLowMemory();
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-        protected override void OnDestroy()
-        {
-            try
-            {
-                DestroyBasic();
-                base.OnDestroy();
-            }
-            catch (Exception exception)
-            {
-                Methods.DisplayReportResultTrack(exception);
-            }
-        }
-        #endregion
-
-        #region Menu
-
-        public override bool OnOptionsItemSelected(IMenuItem item)
-        {
-            switch (item.ItemId)
-            {
-                case Android.Resource.Id.Home:
-                    Finish();
-                    return true;
-            }
-            return base.OnOptionsItemSelected(item);
-        }
-
-        #endregion
-
-        #region Functions
-
         private void InitComponent()
         {
-            try
-            {
-                //
-                NStep = 1;
-                TvStep = FindViewById<TextView>(Resource.Id.tv_step);
-                TvStepTitle = FindViewById<TextView>(Resource.Id.tv_step_title);
-                ViewStep = FindViewById<ProgressBar>(Resource.Id.view_step);
+            EtPageTitle = FindViewById<EditText>(Resource.Id.et_page_title);
+            EtPageName = FindViewById<EditText>(Resource.Id.et_page_name);
+            EtDescription = FindViewById<EditText>(Resource.Id.et_page_description);
+            SpinnerCategory = FindViewById<Spinner>(Resource.Id.spinner_category);
+            BtnCreate = FindViewById<Button>(Resource.Id.btn_create);
+            PublisherAdView = FindViewById<PublisherAdView>(Resource.Id.multiple_ad_sizes_view);
 
-                EtStep1 = FindViewById<EditText>(Resource.Id.et_step12);
-                EtStep4 = FindViewById<EditText>(Resource.Id.et_step4);
-                RgStep3 = FindViewById<FlexboxLayout>(Resource.Id.rg_step3);
-                BtnNext = FindViewById<AppCompatButton>(Resource.Id.btn_next);
-
-                Methods.SetColorEditText(EtStep1, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                Methods.SetColorEditText(EtStep4, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-
-                // Create category buttons
-                CreateCategoryButtons();
-
-                PublisherAdView = FindViewById<PublisherAdView>(Resource.Id.multiple_ad_sizes_view);
-                AdsGoogle.InitPublisherAdView(PublisherAdView);
-
-                SetStepChild();
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
+            LoadCategories();
+            BtnCreate.Click += BtnCreate_Click;
+            AdsGoogle.InitPublisherAdView(PublisherAdView);
         }
 
-        private void CreateCategoryButtons()
+        private async void LoadCategories()
         {
             try
             {
-                int count = CategoriesController.ListCategoriesPage.Count;
-                if (count == 0)
+                if (CategoriesController.ListCategoriesPage.Count == 0)
+                    await ApiRequest.GetSettings_Api(this);
+
+                CategoryNames.Clear();
+                CategoryIds.Clear();
+                foreach (var cat in CategoriesController.ListCategoriesPage)
                 {
-                    Methods.DisplayReportResult(this, "Not have List Categories Page");
-                    return;
+                    CategoryNames.Add(cat.CategoriesName);
+                    CategoryIds.Add(cat.CategoriesId);
                 }
 
-                foreach (Classes.Categories category in CategoriesController.ListCategoriesPage)
+                if (CategoryNames.Count == 0)
+                    CategoryNames.AddRange(new[] { "Business", "Company", "Artist", "Brand", "Entertainment", "Food & Drink", "Health", "Hotel", "News", "Non-Profit", "Organization", "Public Figure", "Real Estate", "School", "Shopping", "Sports", "Technology", "Website" });
+
+                RunOnUiThread(() =>
                 {
-                    AppCompatButton button = new AppCompatButton(this);
-                    int px = (int)TypedValue.ApplyDimension(ComplexUnitType.Dip, 36, Resources.DisplayMetrics);
-
-                    var ll = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, px);
-                    ll.SetMargins(20, 18, 18, 20);
-                    button.LayoutParameters = ll;
-
-                    button.Text = category.CategoriesName;
-                    button.SetBackgroundResource(Resource.Drawable.round_button_normal_outline);
-                    button.SetTextColor(Color.ParseColor("#3E424B"));
-                    button.TextSize = 15;
-                    button.SetAllCaps(false);
-                    button.SetPadding(25, 0, 25, 0);
-                    button.Click += CategoryOnClick;
-                    RgStep3.AddView(button);
-                }
-            }
-            catch (Exception exception)
-            {
-                Methods.DisplayReportResultTrack(exception);
-            }
-        }
-
-        private void CategoryOnClick(object sender, EventArgs e)
-        {
-            if (BtnPrev != null)
-            {
-                BtnPrev.SetTextColor(Color.ParseColor("#3E424B"));
-                BtnPrev.SetBackgroundResource(Resource.Drawable.round_button_normal_outline);
-            }
-            AppCompatButton BtnCurrent = sender as AppCompatButton;
-            BtnCurrent.SetTextColor(Color.ParseColor("#ffffff"));
-            BtnCurrent.SetBackgroundResource(Resource.Drawable.round_button_pressed);
-            Category = BtnCurrent.Text;
-
-            BtnPrev = BtnCurrent;
-        }
-
-        private void HideKeyboard()
-        {
-            try
-            {
-                var inputManager = (InputMethodManager)GetSystemService(InputMethodService);
-                inputManager?.HideSoftInputFromWindow(CurrentFocus?.WindowToken, HideSoftInputFlags.None);
-            }
-            catch (Exception exception)
-            {
-                Methods.DisplayReportResultTrack(exception);
-            }
-        }
-
-        private void SetStepChild()
-        {
-            try
-            {
-                TvStep.Text = GetText(Resource.String.Lbl_Step) + " " + NStep + "/" + MaxStep;
-                var progress = 100 / MaxStep * NStep;
-                ViewStep.Progress = progress;
-
-                switch (NStep)
-                {
-                    case 1:
-                        EtStep1.Visibility = ViewStates.Visible;
-                        EtStep4.Visibility = ViewStates.Gone;
-                        RgStep3.Visibility = ViewStates.Gone;
-                        TvStepTitle.Text = GetString(Resource.String.Lbl_SetPageTitle);
-
-                        BtnNext.Text = GetString(Resource.String.Lbl_Next);
-                        break;
-                    case 2:
-                        EtStep1.Hint = GetString(Resource.String.Lbl_PageUsername);
-                        EtStep1.Visibility = ViewStates.Visible;
-                        EtStep4.Visibility = ViewStates.Gone;
-                        RgStep3.Visibility = ViewStates.Gone;
-                        TvStepTitle.Text = GetString(Resource.String.Lbl_SetPageUserName);
-
-                        BtnNext.Text = GetString(Resource.String.Lbl_Next);
-                        break;
-                    case 4:
-                        EtStep1.Visibility = ViewStates.Gone;
-                        EtStep4.Visibility = ViewStates.Visible;
-                        RgStep3.Visibility = ViewStates.Gone;
-                        PublisherAdView.Visibility = ViewStates.Gone;
-                        TvStepTitle.Text = GetString(Resource.String.Lbl_Describe_Page);
-
-                        BtnNext.Text = GetString(Resource.String.Lbl_Save);
-                        break;
-                    case 3:
-                        HideKeyboard();
-                        ArrayAdapter = CategoriesController.ListCategoriesPage.Select(item => item.CategoriesName).ToList();
-                        EtStep1.Visibility = ViewStates.Gone;
-                        EtStep4.Visibility = ViewStates.Gone;
-                        RgStep3.Visibility = ViewStates.Visible;
-                        TvStepTitle.Text = GetString(Resource.String.Lbl_SelectCategory);
-
-                        BtnNext.Text = GetString(Resource.String.Lbl_Next);
-                        break;
-                }
+                    var catAdapter = new ArrayAdapter(this, Android.Resource.Layout.SimpleSpinnerItem, CategoryNames);
+                    catAdapter.SetDropDownViewResource(Android.Resource.Layout.SimpleSpinnerDropDownItem);
+                    SpinnerCategory.Adapter = catAdapter;
+                });
             }
             catch (Exception e)
             {
@@ -314,16 +105,11 @@ namespace Facesofnaija.Activities.Communities.Pages
                 if (toolBar != null)
                 {
                     toolBar.Title = GetText(Resource.String.Lbl_Create_New_Page);
-                    toolBar.SetTitleTextColor(WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                     SetSupportActionBar(toolBar);
                     SupportActionBar.SetDisplayShowCustomEnabled(true);
                     SupportActionBar.SetDisplayHomeAsUpEnabled(true);
                     SupportActionBar.SetHomeButtonEnabled(true);
                     SupportActionBar.SetDisplayShowHomeEnabled(true);
-                    var icon = AppCompatResources.GetDrawable(this, AppSettings.FlowDirectionRightToLeft ? Resource.Drawable.icon_back_arrow_right : Resource.Drawable.icon_back_arrow_left);
-                    icon?.SetTint(WoWonderTools.IsTabDark() ? Color.White : Color.Black);
-                    SupportActionBar.SetHomeAsUpIndicator(icon);
-
                 }
             }
             catch (Exception e)
@@ -332,167 +118,70 @@ namespace Facesofnaija.Activities.Communities.Pages
             }
         }
 
-        private void AddOrRemoveEvent(bool addEvent)
+        private async void BtnCreate_Click(object sender, EventArgs e)
         {
             try
             {
-                switch (addEvent)
+                var title = EtPageTitle.Text?.Trim() ?? "";
+                var pageName = EtPageName?.Text?.Trim() ?? "";
+                var description = EtDescription.Text?.Trim() ?? "";
+                var catIndex = SpinnerCategory.SelectedItemPosition;
+
+                if (string.IsNullOrEmpty(title))
+                { ToastUtils.ShowToast(this, "Please enter a page name", ToastLength.Short); return; }
+
+                // Auto-slugify page name
+                pageName = System.Text.RegularExpressions.Regex.Replace(pageName, @"[^\w]", "_");
+                pageName = System.Text.RegularExpressions.Regex.Replace(pageName, @"_+", "_");
+                pageName = pageName.Trim('_');
+                if (string.IsNullOrEmpty(pageName))
                 {
-                    // true +=  // false -=
-                    case true:
-                        BtnNext.Click += BtnNext_Click;
-                        break;
-                    default:
-                        BtnNext.Click -= BtnNext_Click;
-                        break;
+                    pageName = System.Text.RegularExpressions.Regex.Replace(title, @"[^\w]", "_");
+                    pageName = System.Text.RegularExpressions.Regex.Replace(pageName, @"_+", "_");
+                    pageName = pageName.Trim('_');
                 }
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
+                if (pageName.Length < 5) pageName = pageName.PadRight(5, '_');
+                if (pageName.Length > 32) pageName = pageName.Substring(0, 32);
 
-        public void BackPressed()
-        {
-            if (NStep > 1)
-            {
-                NStep -= 1;
-                SetStepChild();
-                return;
-            }
-            Finish();
-        }
+                var categoryId = catIndex >= 0 && catIndex < CategoryIds.Count ? CategoryIds[catIndex] : "1";
 
-        private void BtnNext_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                switch (NStep)
+                if (!Methods.CheckConnectivity())
+                { ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short); return; }
+
+                ProgressDialogHelper.Show(this, GetString(Resource.String.Lbl_Loading) + "...");
+                var (apiStatus, respond) = await RequestsAsync.Page.CreatePageAsync(pageName, title, categoryId, description);
+                ProgressDialogHelper.Dismiss(this);
+
+                if (apiStatus == 200 && respond is CreatePageObject result)
                 {
-                    case 1:
-                        PageTitle = EtStep1.Text;
-                        if (PageTitle.Length > 0)
-                        {
-                            NStep += 1;
-                            SetStepChild();
-                            EtStep1.Text = "";
-                        }
-                        break;
-                    case 2:
-                        PageUsername = EtStep1.Text;
-                        if (PageUsername.Length > 0)
-                        {
-                            NStep += 1;
-                            SetStepChild();
-                        }
-                        break;
-                    case 4:
-                        PageAbout = EtStep4.Text;
-                        if (PageAbout.Length > 0)
-                        {
-                            OnSave();
-                        }
-                        break;
-                    case 3:
-                        if (Category.Length > 0)
-                        {
-                            CategoryId = CategoriesController.ListCategoriesPage.FirstOrDefault(categories => categories.CategoriesName == Category)?.CategoriesId;
-
-                            NStep += 1;
-                            SetStepChild();
-                        }
-                        break;
+                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_CreatedSuccessfully), ToastLength.Short);
+                    Intent returnIntent = new Intent();
+                    if (result.PageData != null)
+                        returnIntent?.PutExtra("pageItem", JsonConvert.SerializeObject(result.PageData));
+                    SetResult(Result.Ok, returnIntent);
+                    Finish();
+                }
+                else
+                {
+                    Methods.DisplayAndHudErrorResult(this, respond);
                 }
             }
             catch (Exception ex)
             {
                 Methods.DisplayReportResultTrack(ex);
-            }
-        }
-
-        private void DestroyBasic()
-        {
-            try
-            {
-                PublisherAdView?.Destroy();
-
-                TvStep = null!;
-                TvStepTitle = null!;
-                EtStep1 = null!;
-                EtStep4 = null!;
-                RgStep3 = null!;
-                BtnNext = null!;
-
-                PageTitle = "";
-                PageUsername = "";
-                PageAbout = "";
-                Category = "";
-                NStep = 1;
-
-                PublisherAdView = null!;
-            }
-            catch (Exception e)
-            {
-                Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        #endregion
-
-        #region Events
-
-        private async void OnSave()
-        {
-            try
-            {
-                if (!Methods.CheckConnectivity())
-                {
-                    ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
-                    return;
-                }
-                //Show a progress
-                ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading) + "...");
-
-                var (apiStatus, respond) = await RequestsAsync.Page.CreatePageAsync(PageUsername.Replace(" ", ""), PageTitle, CategoryId, PageAbout);
-                switch (apiStatus)
-                {
-                    case 200:
-                        {
-                            switch (respond)
-                            {
-                                case CreatePageObject result:
-                                    {
-                                        ProgressDialogHelper.Dismiss(this);
-                                        ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_CreatedSuccessfully), ToastLength.Short);
-
-                                        Intent returnIntent = new Intent();
-                                        if (result.PageData != null)
-                                            returnIntent?.PutExtra("pageItem", JsonConvert.SerializeObject(result.PageData));
-                                        SetResult(Result.Ok, returnIntent);
-                                        Finish();
-                                        break;
-                                    }
-                            }
-
-                            break;
-                        }
-                    default:
-                        Methods.DisplayAndHudErrorResult(this, respond);
-                        break;
-                }
-            }
-            catch (Exception exception)
-            {
                 ProgressDialogHelper.Dismiss(this);
-                Methods.DisplayReportResultTrack(exception);
             }
         }
 
-        #endregion
+        public void BackPressed()
+        {
+            Finish();
+        }
 
-        #region MaterialDialog
-
-        #endregion
+        public override bool OnOptionsItemSelected(IMenuItem item)
+        {
+            if (item.ItemId == Android.Resource.Id.Home) Finish();
+            return base.OnOptionsItemSelected(item);
+        }
     }
 }
