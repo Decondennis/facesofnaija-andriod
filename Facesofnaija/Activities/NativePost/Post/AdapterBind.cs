@@ -340,7 +340,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                         holder.ShareCount.Visibility = ViewStates.Gone;
                 }
 
-                holder.ViewCount.Text = item.PostData.PrevButtonViewText;
+                holder.ViewCount.Text = !string.IsNullOrEmpty(item.PostData.PrevButtonViewText) ? item.PostData.PrevButtonViewText : "0 " + ActivityContext.GetString(Resource.String.Lbl_Views);
 
                 if (holder.LikeCount != null)
                 {
@@ -565,6 +565,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                 {
                     holder.ShareLinearLayout.Visibility = ViewStates.Gone;
                     holder.MainSectionButton.WeightSum = 2;
+                }
+                else
+                {
+                    holder.ShareLinearLayout.Visibility = ViewStates.Visible;
                 }
             }
             catch (Exception e)
