@@ -1,4 +1,4 @@
-ï»¿using Android.App;
+using Android.App;
 using Android.OS;
 using Android.Views;
 using Java.Lang;
@@ -369,7 +369,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
             if (!Methods.CheckConnectivity())
             {
-                Log.Warn("FON_TIMELINE", "No connectivity â€” aborting feed fetch");
+                Log.Warn("FON_TIMELINE", "No connectivity — aborting feed fetch");
                 WRecyclerView.MainScrollEvent.IsLoading = false;
                 return;
             }
@@ -443,7 +443,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             if (apiStatus != 200 || extractedResult?.Data == null)
             {
                 WRecyclerView.MainScrollEvent.IsLoading = false;
-                Log.Debug("FON_TIMELINE", $"Feed failed â€” apiStatus={apiStatus} respond={(respond?.ToString() ?? "").Substring(0, System.Math.Min(200, (respond?.ToString() ?? "").Length))}");
+                Log.Debug("FON_TIMELINE", $"Feed failed — apiStatus={apiStatus} respond={(respond?.ToString() ?? "").Substring(0, System.Math.Min(200, (respond?.ToString() ?? "").Length))}");
                 Methods.DisplayReportResult(ActivityContext, respond);
 
                 ActivityContext?.RunOnUiThread(() =>
@@ -466,7 +466,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             else
             {
                 respond = extractedResult;
-                Log.Warn("FON_TIMELINE", $"Feed OK â€” loading {extractedResult.Data.Count} posts into adapter typeRun={typeRun}");
+                Log.Warn("FON_TIMELINE", $"Feed OK — loading {extractedResult.Data.Count} posts into adapter typeRun={typeRun}");
 
                 ActivityContext?.RunOnUiThread(() =>
                 {
@@ -1511,7 +1511,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                var baseUrl = "http://172.236.19.52";
+                var baseUrl = AppSettings.SiteUrl;
                 var url = $"{baseUrl}/app_api.php?application=phone&type=get_news_feed";
                 var limit = AppSettings.PostApiLimitOnScroll;
                 var filter = WRecyclerView.GetFilter();

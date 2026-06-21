@@ -80,7 +80,7 @@ namespace Facesofnaija
 
                 JsonConvert.DefaultSettings = () => UserDetails.JsonSettings;
 
-                const string correctBaseUrl = "http://172.236.19.52";
+                var correctBaseUrl = AppSettings.SiteUrl;
 
                 // Initialize SDK with the encrypted provider (this sets up HttpClient + all endpoint paths)
                 InitializeWoWonder.Initialize(AppSettings.TripleDesAppServiceProvider, PackageName, AppSettings.TurnSecurityProtocolType3072On, AppSettings.SetApisReportMode);

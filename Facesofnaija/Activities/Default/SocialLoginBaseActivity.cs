@@ -1,4 +1,5 @@
 using Android;
+using static Facesofnaija.AppSettings;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -75,7 +76,7 @@ namespace Facesofnaija.Activities.Default
                 try
                 {
                     var field = typeof(InitializeWoWonder).GetField("<WebsiteUrl>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
-                    field?.SetValue(null, "http://172.236.19.52");
+                    field?.SetValue(null, AppSettings.SiteUrl);
                 }
                 catch (Exception ex)
                 {
@@ -276,7 +277,7 @@ namespace Facesofnaija.Activities.Default
                     {
                         try
                         {
-                            var uri = Android.Net.Uri.Parse("http://172.236.19.52/login-with.php?provider=Twitter");
+                            var uri = Android.Net.Uri.Parse(AppSettings.SiteUrl + "/login-with.php?provider=Twitter");
                             var intent = new Intent(Intent.ActionView, uri);
                             StartActivity(intent);
                         }
@@ -293,7 +294,7 @@ namespace Facesofnaija.Activities.Default
                     {
                         try
                         {
-                            var uri = Android.Net.Uri.Parse("http://172.236.19.52/login-with.php?provider=LinkedIn");
+                            var uri = Android.Net.Uri.Parse(AppSettings.SiteUrl + "/login-with.php?provider=LinkedIn");
                             var intent = new Intent(Intent.ActionView, uri);
                             StartActivity(intent);
                         }
@@ -955,12 +956,12 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var requestsUrl = "http://172.236.19.52/requests.php?f=login";
-                var phoneApiUrl = "http://172.236.19.52/app_api.php?application=phone&type=user_login";
+                var requestsUrl = AppSettings.SiteUrl + "/requests.php?f=login";
+                var phoneApiUrl = AppSettings.SiteUrl + "/app_api.php?application=phone&type=user_login";
                 var webUrls = new[]
                 {
-                    "http://172.236.19.52/api/v2/endpoints/auth.php",
-                    "http://172.236.19.52/api/auth",
+                    AppSettings.SiteUrl + "/api/v2/endpoints/auth.php",
+                    AppSettings.SiteUrl + "/api/auth",
                 };
 
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
@@ -976,7 +977,7 @@ namespace Facesofnaija.Activities.Default
                 // Custom FON login endpoint — creates proper API session token
                 try
                 {
-                    var fonLoginUrl = "http://172.236.19.52/fon_login.php";
+                    var fonLoginUrl = AppSettings.SiteUrl + "/fon_login.php";
                     using var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("username", email),
@@ -1078,7 +1079,7 @@ namespace Facesofnaija.Activities.Default
                     Console.WriteLine($"FON_AUTH: requests.php -> {loginResp.StatusCode}");
                     
                     // If login succeeded (status=200), session cookie is now in handler
-                    var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri("http://172.236.19.52"));
+                    var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri(AppSettings.SiteUrl));
                     var sessionValue = "";
                     if (cookies != null) { foreach (var cObj in cookies) { var c = (System.Net.Cookie)cObj; if (c.Name.Contains("SESS") || c.Name.Contains("sess") || c.Name.Equals("PHPSESSID")) { sessionValue = c.Value; break; } } }
                     Console.WriteLine($"FON_AUTH: session cookie value={sessionValue?.Substring(0, System.Math.Min(20, sessionValue?.Length ?? 0))}");
@@ -1088,7 +1089,7 @@ namespace Facesofnaija.Activities.Default
                         // Use session cookie value as access token
                         var sessId = sessionValue;
                         // Also try to get user_id from a simple API call with the cookie
-                        var whoUrl = "http://172.236.19.52/app_api.php?application=phone&type=get_user_data";
+                        var whoUrl = AppSettings.SiteUrl + "/app_api.php?application=phone&type=get_user_data";
                         var whoResp = await cookieClient.PostAsync(whoUrl, new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("user_id", "0") }));
                         var whoBody = await whoResp.Content.ReadAsStringAsync().ConfigureAwait(false);
                         Console.WriteLine($"FON_AUTH: whoami -> {whoResp.StatusCode}");
@@ -1217,12 +1218,12 @@ namespace Facesofnaija.Activities.Default
                     if (loginBody.Contains("\"status\":200"))
                     {
                         // Get session cookie value
-                        var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri("http://172.236.19.52"));
+                        var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri(AppSettings.SiteUrl));
                         var sessVal = "";
                         if (cookies != null) { foreach (var cObj in cookies) { var c = (System.Net.Cookie)cObj; if (c.Name.Contains("SESS") || c.Name.Contains("sess") || c.Name.Equals("PHPSESSID")) { sessVal = c.Value; break; } } }
                         
                         // Get user data using the session cookie
-                        var whoResp = await cookieClient.PostAsync("http://172.236.19.52/app_api.php?application=phone&type=get_settings", new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("server_key", "") }));
+                        var whoResp = await cookieClient.PostAsync(AppSettings.SiteUrl + "/app_api.php?application=phone&type=get_settings", new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("server_key", "") }));
                         var whoBody = await whoResp.Content.ReadAsStringAsync().ConfigureAwait(false);
                         Console.WriteLine($"FON_AUTH: final whoami -> {whoResp.StatusCode}");
                         
@@ -1282,7 +1283,7 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var url = "http://172.236.19.52/app_api.php?application=phone&type=user_registration";
+                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=user_registration";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
@@ -1339,7 +1340,7 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var url = "http://172.236.19.52/app_api.php?type=reset_pass&application=phone";
+                var url = AppSettings.SiteUrl + "/app_api.php?type=reset_pass&application=phone";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");

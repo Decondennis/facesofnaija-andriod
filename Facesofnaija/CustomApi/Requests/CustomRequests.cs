@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using static Facesofnaija.AppSettings;
 using System.Net.Http;
 using Android.Util;
 using System;
@@ -39,7 +40,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = AppSettings.SiteUrl + "/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("fetch", fetch),
@@ -126,7 +127,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = AppSettings.SiteUrl + "/api-v2.php?type=get-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("fetch", "requested_communities"),
@@ -329,7 +330,7 @@ namespace Facesofnaija.CustomApi.Requests
                     client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                     client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                    var url = "http://172.236.19.52/api-v2.php?type=join-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                    var url = AppSettings.SiteUrl + "/api-v2.php?type=join-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                     var content = new FormUrlEncodedContent(new[]
                     {
                         new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
@@ -712,7 +713,7 @@ namespace Facesofnaija.CustomApi.Requests
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                var url = "http://172.236.19.52/api-v2.php?type=request-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
+                var url = AppSettings.SiteUrl + "/api-v2.php?type=request-community&access_token=" + Uri.EscapeDataString(UserDetails.AccessToken ?? "");
                 var content = new FormUrlEncodedContent(dictionary);
                 Console.WriteLine("FON_COMM request-community url=" + url);
                 
@@ -825,7 +826,7 @@ namespace Facesofnaija.CustomApi.Requests
                 if (requiresToken && string.IsNullOrWhiteSpace(token))
                     return (401, "Access token is missing. Please sign in again.");
 
-                var baseUrl = "http://172.236.19.52";
+                var baseUrl = AppSettings.SiteUrl;
                 var separator = endpointPath.Contains("?") ? "&" : "?";
                 var url = $"{baseUrl}/{endpointPath.TrimStart('/')}{separator}access_token={Uri.EscapeDataString(token)}";
 
@@ -877,7 +878,7 @@ namespace Facesofnaija.CustomApi.Requests
             var webUrl = InitializeWoWonder.WebsiteUrl;
             Add(webUrl);
             Add(Community.WebsiteUrl);
-            Add("http://172.236.19.52");
+            Add(AppSettings.SiteUrl);
 
             return candidates.Distinct(StringComparer.OrdinalIgnoreCase);
         }
@@ -892,7 +893,7 @@ namespace Facesofnaija.CustomApi.Requests
                 private static string GetApiBase()
                 {
                     // Posting is currently broken on the domain endpoint but works on the server IP.
-                    return "http://172.236.19.52";
+                    return AppSettings.SiteUrl;
                 }
 
                 public static async Task<(int, dynamic)> AddNewPostAsync(

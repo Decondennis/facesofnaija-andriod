@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.Res;
 using Android.Graphics;
@@ -90,7 +90,7 @@ namespace Facesofnaija.Helpers.CacheLoaders
 
                 var baseUrl = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
                 if (string.IsNullOrWhiteSpace(baseUrl))
-                    baseUrl = "http://172.236.19.52";
+                    baseUrl = AppSettings.SiteUrl;
                 else if (!baseUrl.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase) && !baseUrl.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
                     baseUrl = $"http://{baseUrl}";
                 else if (baseUrl.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase) &&

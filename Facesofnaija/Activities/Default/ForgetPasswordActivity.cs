@@ -1,4 +1,5 @@
-﻿using Android.App;
+using Android.App;
+using static Facesofnaija.AppSettings;
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
@@ -237,7 +238,7 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                var url = "http://172.236.19.52/app_api.php?type=reset_pass&application=phone";
+                var url = AppSettings.SiteUrl + "/app_api.php?type=reset_pass&application=phone";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");

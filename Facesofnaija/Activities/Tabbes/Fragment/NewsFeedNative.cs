@@ -1,4 +1,4 @@
-ï»¿using Android.Graphics;
+using Android.Graphics;
 using Android.OS;
 using Android.Util;
 using Android.Views;
@@ -442,14 +442,14 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             // Replace wrong domain with correct server IP
                                             if (url.Contains("facesofnaija.com", StringComparison.OrdinalIgnoreCase) || url.Contains("www.facesofnaija.com", StringComparison.OrdinalIgnoreCase))
                                             {
-                                                var correctBase = "http://172.236.19.52";
+                                                var correctBase = AppSettings.SiteUrl;
                                                 var systemUri = new System.Uri(url);
                                                 return url.Replace(systemUri.Scheme + "://" + systemUri.Host, correctBase);
                                             }
                                             return url;
                                         }
 
-                                        var baseUrl = "http://172.236.19.52";
+                                        var baseUrl = AppSettings.SiteUrl;
                                         return $"{baseUrl}/{url.TrimStart('/')}";
                                     }
 
@@ -590,12 +590,12 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                     {
                                         try
                                         {
-                                            // Re-fetch the story section â€” checkSection may be stale if the feed
+                                            // Re-fetch the story section — checkSection may be stale if the feed
                                             // rebuilt its ListDiffer (NotifyDataSetChanged) while the API fetch ran.
                                             var freshSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                                             if (freshSection == null)
                                             {
-                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL â€” aborting UI update");
+                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL — aborting UI update");
                                                 return;
                                             }
 

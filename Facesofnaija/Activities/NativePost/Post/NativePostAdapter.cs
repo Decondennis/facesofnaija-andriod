@@ -2122,7 +2122,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 AddBase(InitializeWoWonder.WebsiteUrl);
                 AddBase(CustomApi.Requests.CustomRequests.Community.WebsiteUrl);
-                AddBase("http://172.236.19.52");
+                AddBase(AppSettings.SiteUrl);
 
                 if (apiBaseCandidates.Count == 0)
                 {

@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using static Facesofnaija.AppSettings;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -296,7 +297,7 @@ namespace Facesofnaija.Helpers.Controller
             var bases = new List<string>();
 
             // Origin host fallback: currently serves story APIs while public host returns 404 for story routes.
-            bases.Add("http://172.236.19.52");
+            bases.Add(AppSettings.SiteUrl);
 
             var configBase = InitializeWoWonder.WebsiteUrl?.Trim()?.TrimEnd('/');
             if (!string.IsNullOrWhiteSpace(configBase) && !bases.Contains(configBase))

@@ -220,6 +220,9 @@ namespace Facesofnaija
 
         public static readonly bool ShowAdvertise = true;
 
+        // Centralized server URL - change this one value to switch servers
+        public static readonly string SiteUrl = "http://172.236.19.52";
+
         /// <summary>
         /// https://rapidapi.com/api-sports/api/covid-193
         /// you can get api key and host from here https://prnt.sc/wngxfc 

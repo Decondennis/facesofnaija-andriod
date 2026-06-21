@@ -19,6 +19,7 @@ using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using WoWonder.Helpers.Utils;
+using static Facesofnaija.AppSettings;
 using WoWonderClient;
 using WoWonderClient.Classes.Page;
 using WoWonderClient.Requests;
@@ -105,7 +106,7 @@ namespace Facesofnaija.Activities.Communities.Pages
                     string token = UserDetails.AccessToken ?? Current.AccessToken ?? "";
                     using var client = new HttpClient();
                     client.Timeout = TimeSpan.FromSeconds(10);
-                    var json = await client.GetStringAsync($"http://172.236.19.52/api-v2.php?type=get-site-settings&access_token={token}");
+                    var json = await client.GetStringAsync($"{SiteUrl}/api-v2.php?type=get-site-settings&access_token={token}");
                     var obj = JObject.Parse(json);
                     var cats = obj["config"]?["page_categories"] as JObject;
                     if (cats != null)
@@ -238,8 +239,8 @@ namespace Facesofnaija.Activities.Communities.Pages
                     if (!string.IsNullOrEmpty(accessToken))
                     {
                         foreach (var apiUrl in new[] {
-                            $"http://172.236.19.52/api-v2.php?type=create-page&access_token={accessToken}",
-                            $"http://172.236.19.52/app_api.php?application=phone&type=create_page"
+                            $"{SiteUrl}/api-v2.php?type=create-page&access_token={accessToken}",
+                            $"{SiteUrl}/app_api.php?application=phone&type=create_page"
                         })
                         {
                             try

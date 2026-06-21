@@ -340,7 +340,17 @@ namespace Facesofnaija.Activities.NativePost.Post
                         holder.ShareCount.Visibility = ViewStates.Gone;
                 }
 
-                holder.ViewCount.Text = !string.IsNullOrEmpty(item.PostData.PrevButtonViewText) ? item.PostData.PrevButtonViewText : "0 " + ActivityContext.GetString(Resource.String.Lbl_Views);
+                var isVideo = !string.IsNullOrEmpty(item.PostData.PostFile) && 
+                    (item.PostData.PostFile.Contains("video", StringComparison.OrdinalIgnoreCase) || 
+                     item.PostData.PostFile.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                     item.PostData.PostFile.EndsWith(".webm", StringComparison.OrdinalIgnoreCase) ||
+                     item.PostData.PostType == "video");
+                if (isVideo)
+                    holder.ViewCount.Text = !string.IsNullOrEmpty(item.PostData.PrevButtonViewText) 
+                        ? item.PostData.PrevButtonViewText 
+                        : "0 " + ActivityContext.GetString(Resource.String.Lbl_Views);
+                else
+                    holder.ViewCount.Visibility = ViewStates.Gone;
 
                 if (holder.LikeCount != null)
                 {
@@ -560,16 +570,12 @@ namespace Facesofnaija.Activities.NativePost.Post
                         }
                 }
 
-                var collection = item?.PostData?.SharedInfo.SharedInfoClass;
-                if (item.IsSharingPost && collection != null)
-                {
-                    holder.ShareLinearLayout.Visibility = ViewStates.Gone;
-                    holder.MainSectionButton.WeightSum = 2;
-                }
-                else
-                {
-                    holder.ShareLinearLayout.Visibility = ViewStates.Visible;
-                }
+                // Always show Share button for non-shared posts
+                var isRealShare = item?.PostData?.SharedInfo.SharedInfoClass?.PostId != null && 
+                                  item.PostData.SharedInfo.SharedInfoClass.PostId != "0" && 
+                                  item.PostData.SharedInfo.SharedInfoClass.PostId != item.PostData.PostId;
+                holder.ShareLinearLayout.Visibility = isRealShare ? ViewStates.Gone : ViewStates.Visible;
+                holder.MainSectionButton.WeightSum = isRealShare ? 2 : 3;
             }
             catch (Exception e)
             {

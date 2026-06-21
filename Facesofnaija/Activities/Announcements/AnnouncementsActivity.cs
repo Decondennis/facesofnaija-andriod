@@ -1,4 +1,5 @@
 using Android.App;
+using static Facesofnaija.AppSettings;
 using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
@@ -129,7 +130,7 @@ namespace Facesofnaija.Activities.Announcements
                     return;
                 }
 
-                var baseUrl = "http://172.236.19.52";
+                var baseUrl = AppSettings.SiteUrl;
                 var url = $"{baseUrl}/api-v2.php?type=get_announcements&access_token={token}&server_key={InitializeWoWonder.ServerKey ?? ""}";
 
                 using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(20) };
