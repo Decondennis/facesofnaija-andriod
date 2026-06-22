@@ -136,9 +136,8 @@ namespace Facesofnaija.Helpers.Utils
 
                 activity.RunOnUiThread(() => ProgressDialogHelper.Show(activity, activity.GetText(Resource.String.Lbl_Loading)));
 
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-                using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-                var response = await client.GetAsync(imageUrl, cancellationTokenSource.Token);
+                using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate }) { Timeout = TimeSpan.FromSeconds(60) };
+                var response = await client.GetAsync(imageUrl).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     Log.Warn(ShareTag, $"Download failed http={(int)response.StatusCode}");
@@ -148,7 +147,7 @@ namespace Facesofnaija.Helpers.Utils
 
                 await using (var fs = new FileStream(mediaFile, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    await response.Content.CopyToAsync(fs, cancellationTokenSource.Token);
+                    await response.Content.CopyToAsync(fs);
                 }
 
                 var downloadedFile = new Java.IO.File(mediaFile);
