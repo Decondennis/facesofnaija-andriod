@@ -905,6 +905,7 @@ namespace Facesofnaija.Activities.Default
                         {
                             UserDetails.UserId = rawUserId;
                             UserDetails.AccessToken = rawToken;
+                            if (rawToken.Length > 20) Current.AccessToken = rawToken;
                             UserDetails.Username = email;
                             UserDetails.FullName = email;
                             UserDetails.Password = password;
