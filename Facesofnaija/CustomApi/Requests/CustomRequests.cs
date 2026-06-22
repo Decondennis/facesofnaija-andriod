@@ -1539,7 +1539,7 @@ namespace Facesofnaija.CustomApi.Requests
                                 formData.Add(new KeyValuePair<string, string>("user_id", targetId));
                         }
 
-                        var url = $"{GetApiBase()}/api/share-post?access_token={Uri.EscapeDataString(sessionId)}";
+                        var url = $"{GetApiBase()}/api/share-post.php?access_token={Uri.EscapeDataString(sessionId)}";
                         using var content = new FormUrlEncodedContent(formData);
                         var response = await client.PostAsync(url, content);
                         var json = await response.Content.ReadAsStringAsync();
