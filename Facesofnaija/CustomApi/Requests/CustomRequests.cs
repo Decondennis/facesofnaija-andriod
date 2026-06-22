@@ -1519,42 +1519,42 @@ namespace Facesofnaija.CustomApi.Requests
 
                         Log.Info("FON_SHARE", $"SharePostFallback postId={postId} targetId={targetId} mode={shareMode} textLen={text?.Length}");
 
-                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                        var formData = new List<KeyValuePair<string, string>>
+                        // Use V2 API new_post with parent_id to create a share post visible in the feed
+                        var payload = new Dictionary<string, string>
                         {
-                            new KeyValuePair<string, string>("access_token", sessionId),
-                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
-                            new KeyValuePair<string, string>("type", shareMode),
-                            new KeyValuePair<string, string>("id", postId),
-                            new KeyValuePair<string, string>("text", shareText),
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "s", sessionId },
+                            { "parent_id", postId },
+                            { "postText", shareText },
+                            { "postPrivacy", "0" },
+                            { "community_id", "0" },
                         };
 
                         if (!string.IsNullOrWhiteSpace(targetId))
                         {
                             if (string.Equals(shareMode, "share_post_on_group", StringComparison.OrdinalIgnoreCase))
-                                formData.Add(new KeyValuePair<string, string>("group_id", targetId));
+                            {
+                                payload["user_id"] = targetId;
+                                payload["group_id"] = targetId;
+                            }
                             else if (string.Equals(shareMode, "share_post_on_page", StringComparison.OrdinalIgnoreCase))
-                                formData.Add(new KeyValuePair<string, string>("page_id", targetId));
+                            {
+                                payload["user_id"] = "0";
+                                payload["page_id"] = targetId;
+                            }
                             else
-                                formData.Add(new KeyValuePair<string, string>("user_id", targetId));
+                            {
+                                var currentUserId = UserDetails.UserId ?? string.Empty;
+                                if (!string.Equals(targetId, currentUserId, StringComparison.OrdinalIgnoreCase))
+                                    payload["recipient_id"] = targetId;
+                            }
                         }
 
-                        var url = $"{GetApiBase()}/api/share-post.php?access_token={Uri.EscapeDataString(sessionId)}";
-                        using var content = new FormUrlEncodedContent(formData);
-                        var response = await client.PostAsync(url, content);
-                        var json = await response.Content.ReadAsStringAsync();
-                        Log.Info("FON_SHARE", $"SharePostFallback response={json}");
-
-                        if (string.IsNullOrWhiteSpace(json))
-                            return (400, "Empty response");
-
-                        var obj = JObject.Parse(json);
-                        var apiStatus = obj["api_status"]?.ToString();
-                        if (string.Equals(apiStatus, "200", StringComparison.OrdinalIgnoreCase))
-                            return (200, json);
-
-                        var errorText = obj["error"]?.ToString() ?? "Share failed";
-                        return (400, errorText);
+                        Log.Info("FON_SHARE", $"Payload keys={string.Join(",", payload.Keys)}");
+                        var result = await ExecutePhoneApiFormAsync("new_post", payload, 20);
+                        Log.Info("FON_SHARE", $"Result status={result.Item1} response={result.Item2?.ToString()?.Substring(0, Math.Min(200, result.Item2?.ToString()?.Length ?? 0))}");
+                        return result;
                     }
                     catch (Exception ex)
                     {
