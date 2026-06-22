@@ -602,22 +602,7 @@ namespace Facesofnaija.Activities.AddPost
                     var name = global::System.IO.Path.GetFileName(attachment?.FileUrl ?? string.Empty);
                 }
 
-                var (apiStatus, respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
-                var customApiStatus = apiStatus;
-                var customRespond = respond;
-
-                if (apiStatus != 200 && apiStatus != 201)
-                {
-                    var sdkResult = await RequestsAsync.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
-                    apiStatus = sdkResult.Item1;
-                    respond = sdkResult.Item2;
-
-                    if (apiStatus == 404 && respond is string sdkMessage && sdkMessage.Contains("Unexpected character encountered while parsing value: <", StringComparison.OrdinalIgnoreCase))
-                    {
-                        apiStatus = customApiStatus;
-                        respond = customRespond;
-                    }
-                }
+                (int apiStatus, dynamic respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
 
                 if (apiStatus == 200 && respond is AddPostObject postObject)
                 {
