@@ -91,12 +91,13 @@ namespace Facesofnaija.Helpers.Utils
                     return;
                 }
 
-                ToastUtils.ShowToast(activity, "Failed to share file. Please try again.", Android.Widget.ToastLength.Long);
+                // Fallback: share the URL/text instead of showing an error
+                ShareText(activity, string.IsNullOrEmpty(postUrl) ? fileUri : postUrl, title);
             }
             catch (Exception ex)
             {
                 ProgressDialogHelper.Dismiss(activity);
-                ToastUtils.ShowToast(activity, "Failed to share file. Please try again.", Android.Widget.ToastLength.Long);
+                ShareText(activity, string.IsNullOrEmpty(postUrl) ? fileUri : postUrl, title);
                 Console.WriteLine("Exception in ShareFile: ShareRemoteFile Exception: {0}", ex.Message);
             }
         }
@@ -135,8 +136,8 @@ namespace Facesofnaija.Helpers.Utils
 
                 activity.RunOnUiThread(() => ProgressDialogHelper.Show(activity, activity.GetText(Resource.String.Lbl_Loading)));
 
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-                using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(60));
                 var response = await client.GetAsync(imageUrl, cancellationTokenSource.Token);
                 if (!response.IsSuccessStatusCode)
                 {
