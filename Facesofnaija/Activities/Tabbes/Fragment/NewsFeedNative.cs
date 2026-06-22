@@ -24,6 +24,7 @@ using Facesofnaija.MediaPlayers.Exo;
 using Facesofnaija.SQLite;
 using WoWonderClient;
 using WoWonderClient.Classes.Story;
+using Facesofnaija.Helpers.Model;
 using WoWonderClient.Requests;
 using static Facesofnaija.Activities.NativePost.Extra.WRecyclerView;
 using Exception = System.Exception;
@@ -590,16 +591,36 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                     {
                                         try
                                         {
-                                            // Re-fetch the story section — checkSection may be stale if the feed
+                                            // Re-fetch the story section ï¿½ checkSection may be stale if the feed
                                             // rebuilt its ListDiffer (NotifyDataSetChanged) while the API fetch ran.
                                             var freshSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                                             if (freshSection == null)
                                             {
-                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL — aborting UI update");
+                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL ï¿½ aborting UI update");
                                                 return;
                                             }
 
                                             freshSection.StoryList ??= new ObservableCollection<StoryDataObject>();
+
+                                            // Ensure "Your Story" entry exists in the differ's list (not just in StoryAdapter)
+                                            var yourEntry = freshSection.StoryList.FirstOrDefault(s => s.Type == "Your");
+                                            if (yourEntry == null)
+                                            {
+                                                yourEntry = new StoryDataObject
+                                                {
+                                                    Avatar = UserDetails.Avatar ?? string.Empty,
+                                                    Type = "Your",
+                                                    Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
+                                                    Stories = new List<StoryDataObject.Story>
+                                                    {
+                                                        new StoryDataObject.Story
+                                                        {
+                                                            Thumbnail = UserDetails.Avatar ?? string.Empty,
+                                                        }
+                                                    }
+                                                };
+                                                freshSection.StoryList.Insert(0, yourEntry);
+                                            }
 
                                             bool added = false;
                                             foreach (var storyItem in storiesToAdd)
@@ -619,6 +640,18 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     freshSection.StoryList.Add(storyItem);
                                                     added = true;
                                                 }
+
+                                                // Update "Your Story" entry avatar from the user's own story data
+                                                if (string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(storyItem.Avatar))
+                                                {
+                                                    var hasChanges = yourEntry.Avatar != storyItem.Avatar;
+                                                    yourEntry.Avatar = storyItem.Avatar;
+                                                    if (yourEntry.Stories?.Count > 0)
+                                                        yourEntry.Stories[0].Thumbnail = storyItem.Avatar;
+                                                    if (!string.IsNullOrWhiteSpace(storyItem.Avatar) && storyItem.Avatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                                        UserDetails.Avatar = storyItem.Avatar;
+                                                    if (hasChanges) added = true;
+                                                }
                                             }
 
                                             if (!added) return;
@@ -629,6 +662,14 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             var storyIdx = PostFeedAdapter.ListDiffer.IndexOf(freshSection);
                                             Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: NotifyItemChanged idx={storyIdx} storyListCount={freshSection.StoryList.Count}");
                                             PostFeedAdapter?.NotifyItemChanged(storyIdx);
+
+                                            // Also update "What's Going On" avatar from the user's own story avatar
+                                            if (yourEntry?.Avatar?.StartsWith("http", StringComparison.OrdinalIgnoreCase) == true)
+                                            {
+                                                var addPostIdx = PostFeedAdapter?.ListDiffer?.FindIndex(a => a.TypeView == PostModelType.AddPostBox) ?? -1;
+                                                if (addPostIdx >= 0)
+                                                    PostFeedAdapter?.NotifyItemChanged(addPostIdx);
+                                            }
 
                                             //if (checkSection.StoryList.Count > 0)
                                             //{

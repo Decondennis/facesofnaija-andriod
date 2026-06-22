@@ -112,6 +112,17 @@ namespace Facesofnaija.Helpers.Controller
                                 }
                             }
 
+                            var storyThumbnail = row["thumbnail"]?.ToString();
+                            if (string.IsNullOrWhiteSpace(storyThumbnail))
+                            {
+                                if (images.Count > 0)
+                                    storyThumbnail = images[0].Filename;
+                                else if (videos.Count > 0)
+                                    storyThumbnail = videos[0].Filename;
+                                else
+                                    storyThumbnail = group.Avatar;
+                            }
+
                             group.Stories.Add(new StoryDataObject.Story
                             {
                                 Id = storyId,
@@ -120,7 +131,7 @@ namespace Facesofnaija.Helpers.Controller
                                 Description = row["description"]?.ToString() ?? string.Empty,
                                 Posted = row["posted"]?.ToString() ?? string.Empty,
                                 Expire = row["expire"]?.ToString() ?? string.Empty,
-                                Thumbnail = row["thumbnail"]?.ToString() ?? group.Avatar,
+                                Thumbnail = storyThumbnail,
                                 Videos = videos,
                                 Images = images.Count > 0 ? images : new List<StoryDataObject.Image>(),
                                 ViewCount = row["view_count"]?.ToString() ?? "0",
@@ -202,6 +213,17 @@ namespace Facesofnaija.Helpers.Controller
                                 }
                             }
 
+                            var storyThumb = row["thumbnail"]?.ToString();
+                            if (string.IsNullOrWhiteSpace(storyThumb))
+                            {
+                                if (images.Count > 0)
+                                    storyThumb = images[0].Filename;
+                                else if (videos.Count > 0)
+                                    storyThumb = videos[0].Filename;
+                                else
+                                    storyThumb = userGroup.Avatar;
+                            }
+
                             var story = new StoryDataObject.Story
                             {
                                 Id = storyId,
@@ -210,7 +232,7 @@ namespace Facesofnaija.Helpers.Controller
                                 Description = row["description"]?.ToString() ?? string.Empty,
                                 Posted = row["posted"]?.ToString() ?? string.Empty,
                                 Expire = row["expire"]?.ToString() ?? string.Empty,
-                                Thumbnail = row["thumbnail"]?.ToString() ?? userGroup.Avatar,
+                                Thumbnail = storyThumb,
                                 Videos = videos,
                                 Images = images.Count > 0 ? images : new List<StoryDataObject.Image>(),
                                 ViewCount = row["view_count"]?.ToString() ?? "0",

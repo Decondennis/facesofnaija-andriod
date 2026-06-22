@@ -905,7 +905,8 @@ namespace Facesofnaija.Activities.Default
                         {
                             UserDetails.UserId = rawUserId;
                             UserDetails.AccessToken = rawToken;
-                            if (rawToken.Length > 20) Current.AccessToken = rawToken;
+                            if (rawToken.Length > 20) { Current.AccessToken = rawToken; Console.WriteLine($"FON_AUTH_TOKEN: Set Current.AccessToken (len={rawToken.Length})"); }
+                            else Console.WriteLine($"FON_AUTH_TOKEN: Skipped Current.AccessToken (len={rawToken.Length} too short)");
                             UserDetails.Username = email;
                             UserDetails.FullName = email;
                             UserDetails.Password = password;

@@ -1371,14 +1371,13 @@ namespace Facesofnaija.Activities.NativePost.Post
                             holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
 
                             var avatarUrl = UserDetails.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || avatarUrl.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
                                 avatarUrl = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = new SqLiteDatabase().Get_MyProfile()?.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = item?.PostData?.Publisher?.Avatar;
-
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0")
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = WoWonderTools.GetDefaultAvatar();
 
                             avatarUrl = GlideImageLoader.NormalizeImageUrl(avatarUrl);

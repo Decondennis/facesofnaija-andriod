@@ -2221,47 +2221,56 @@ namespace Facesofnaija.Activities.NativePost.Post
                 switch (dataOwner)
                 {
                     case null:
+                        var initAvatar = UserDetails.Avatar;
+                        if (string.IsNullOrWhiteSpace(initAvatar) || initAvatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
+                            initAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar ?? string.Empty;
                         holder.StoryAdapter.StoryList.Insert(0, new StoryDataObject
                         {
-                            Avatar = UserDetails.Avatar,
+                            Avatar = initAvatar,
                             Type = "Your",
                             Username = ActivityContext.GetText(Resource.String.Lbl_YourStory),
                             Stories = new List<StoryDataObject.Story>
                             {
                                 new StoryDataObject.Story
                                 {
-                                    Thumbnail = UserDetails.Avatar,
+                                    Thumbnail = initAvatar,
                                 }
                             }
                         });
                         break;
                     default:
                         {
-                            var myAvatar = UserDetails.Avatar;
-                            if (string.IsNullOrWhiteSpace(myAvatar))
-                                myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
-
-                            if (!string.IsNullOrWhiteSpace(myAvatar) && !myAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                            // If the "Your" entry already has a valid avatar URL, preserve it
+                            if (string.IsNullOrWhiteSpace(dataOwner.Avatar) || dataOwner.Avatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
                             {
-                                var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
-                                if (!string.IsNullOrWhiteSpace(baseUrl))
-                                    myAvatar = $"{baseUrl}/{myAvatar.TrimStart('/')}";
+                                var myAvatar = UserDetails.Avatar;
+                                if (string.IsNullOrWhiteSpace(myAvatar) || myAvatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
+                                    myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+
+                                if (!string.IsNullOrWhiteSpace(myAvatar) && !myAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                                    if (!string.IsNullOrWhiteSpace(baseUrl))
+                                        myAvatar = $"{baseUrl}/{myAvatar.TrimStart('/')}";
+                                }
+
+                                myAvatar ??= string.Empty;
+                                dataOwner.Avatar = myAvatar;
                             }
 
-                            myAvatar ??= string.Empty;
-                            dataOwner.Avatar = myAvatar;
                             dataOwner.Stories ??= new List<StoryDataObject.Story>();
 
                             if (dataOwner.Stories.Count == 0)
                             {
                                 dataOwner.Stories.Add(new StoryDataObject.Story
                                 {
-                                    Thumbnail = myAvatar,
+                                    Thumbnail = dataOwner.Avatar,
                                 });
                             }
                             else
                             {
-                                dataOwner.Stories[0].Thumbnail = myAvatar;
+                                if (string.IsNullOrWhiteSpace(dataOwner.Stories[0].Thumbnail))
+                                    dataOwner.Stories[0].Thumbnail = dataOwner.Avatar;
                             }
 
                             break;

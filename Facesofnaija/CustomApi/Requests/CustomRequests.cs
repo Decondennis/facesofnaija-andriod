@@ -905,7 +905,8 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     try
                     {
-                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+                        var hasVideo = postAttachments != null && postAttachments.Any(a => string.Equals(a?.TypeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase));
+                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(hasVideo ? 300 : 60) };
                         var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
                         if (string.IsNullOrWhiteSpace(sessionId))
                         {
@@ -992,34 +993,31 @@ namespace Facesofnaija.CustomApi.Requests
                                     if (att.FileStream != null)
                                     {
                                         att.FileStream.Position = 0;
-                                        using var ms = new MemoryStream();
-                                        att.FileStream.CopyTo(ms);
-                                        var bytes = ms.ToArray();
-                                        var fileContent = new ByteArrayContent(bytes);
+                                        var fileContent = new StreamContent(att.FileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
                                         form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
                                         {
-                                            var thumbBytes = File.ReadAllBytes(att.Thumb.FileUrl);
+                                            var thumbStream = File.OpenRead(att.Thumb.FileUrl);
                                             var thumbName = Path.GetFileName(att.Thumb.FileUrl);
-                                            var thumbContent = new ByteArrayContent(thumbBytes);
+                                            var thumbContent = new StreamContent(thumbStream);
                                             thumbContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(thumbName));
                                             form.Add(thumbContent, att.Thumb.TypeAttachment, thumbName);
                                         }
                                     }
                                     else if (File.Exists(att.FileUrl))
                                     {
-                                        var bytes = File.ReadAllBytes(att.FileUrl);
-                                        var fileContent = new ByteArrayContent(bytes);
+                                        var fileStream = File.OpenRead(att.FileUrl);
+                                        var fileContent = new StreamContent(fileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
                                         form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
                                         {
-                                            var thumbBytes = File.ReadAllBytes(att.Thumb.FileUrl);
+                                            var thumbStream = File.OpenRead(att.Thumb.FileUrl);
                                             var thumbName = Path.GetFileName(att.Thumb.FileUrl);
-                                            var thumbContent = new ByteArrayContent(thumbBytes);
+                                            var thumbContent = new StreamContent(thumbStream);
                                             thumbContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(thumbName));
                                             form.Add(thumbContent, att.Thumb.TypeAttachment, thumbName);
                                         }
@@ -1584,6 +1582,7 @@ namespace Facesofnaija.CustomApi.Requests
                     postFields.Remove("s");
                     var endpoints = new[]
                     {
+                        $"{GetApiBase()}/api-v2.php?type={type}&access_token={Uri.EscapeDataString(sessionId)}",
                         $"{GetApiBase()}/app_api.php?application=phone&type={type}&s={Uri.EscapeDataString(sessionId)}",
                         $"{GetApiBase()}/app_api.php?type={type}&s={Uri.EscapeDataString(sessionId)}",
                         $"{GetApiBase()}/app_api.php?application=phone&type={type}",
