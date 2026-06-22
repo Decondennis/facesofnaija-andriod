@@ -257,7 +257,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                     case PostModelType.ImagePost:
                     case PostModelType.StickerPost:
                         {
-                            string urlImage = !string.IsNullOrEmpty(DataPost.PostSticker) ? DataPost.PostSticker : DataPost.PostFileFull;
+                            string urlImage = !string.IsNullOrEmpty(DataPost.PostSticker) ? DataPost.PostSticker : (DataPost.PostFileFull ?? DataPost.PostFile);
                             var fileName = urlImage?.Split('/').Last();
 
                             switch (AppSettings.AllowDownloadMedia)
@@ -301,7 +301,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                         }
                     case PostModelType.VideoPost:
                         {
-                            var linkUrl = DataPost.PostFileFull;
+                            var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
                             var fileName = linkUrl?.Split('/').Last();
 
                             switch (AppSettings.AllowDownloadMedia)
@@ -321,7 +321,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                         }
                     case PostModelType.FilePost:
                         {
-                            var linkUrl = DataPost.PostFileFull;
+                            var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
                             var fileName = linkUrl?.Split('/').Last();
 
                             switch (AppSettings.AllowDownloadMedia)
@@ -409,11 +409,11 @@ namespace Facesofnaija.Activities.NativePost.Share
                                         }
                                     default:
                                         {
-                                            switch (string.IsNullOrEmpty(DataPost.PostFileFull))
+                                            switch (string.IsNullOrEmpty(DataPost.PostFileFull ?? DataPost.PostFile))
                                             {
                                                 case false:
                                                     {
-                                                        var linkUrl = DataPost.PostFileFull;
+                                                        var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
                                                         var fileName = linkUrl?.Split('/').Last();
 
                                                         var type = Methods.AttachmentFiles.Check_FileExtension(linkUrl);
