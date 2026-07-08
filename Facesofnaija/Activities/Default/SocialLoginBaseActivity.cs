@@ -920,6 +920,11 @@ namespace Facesofnaija.Activities.Default
                             ToggleVisibility(false);
                             StartActivity(new Intent(this, typeof(TabbedMainActivity)));
                             FinishAffinity();
+                            Task.Run(async () =>
+                            {
+                                try { await Task.Delay(3000); await ApiRequest.Get_MyProfileData_Api(null); }
+                                catch { }
+                            });
                             return;
                         }
                     }

@@ -720,9 +720,11 @@ namespace Facesofnaija.Helpers.Controller
 
         public static async Task Get_MyProfileData_Api(Activity context)
         {
+            Console.WriteLine($"FON_PROFILE: Starting Get_MyProfileData_Api userId={UserDetails.UserId} tokenLen={(UserDetails.AccessToken?.Length ?? 0)}");
             if (Methods.CheckConnectivity())
             {
                 var (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(UserDetails.UserId);
+                Console.WriteLine($"FON_PROFILE: apiStatus={apiStatus} respondType={respond?.GetType()?.FullName}");
 
                 switch (apiStatus)
                 {

@@ -1423,12 +1423,14 @@ namespace Facesofnaija.Activities.NativePost.Post
                             {
                                 try
                                 {
+                                    Console.WriteLine($"FON_AVATAR: Glide loading avatarUrl={avatarUrl}");
                                     Glide.With(holder.ItemView).Load(avatarUrl)
                                         .Apply(new RequestOptions().CircleCrop().Placeholder(Resource.Drawable.no_profile_image).Error(Resource.Drawable.no_profile_image))
                                         .Into(holder.ProfileImageView);
                                 }
                                 catch (Exception ex)
                                 {
+                                    Console.WriteLine($"FON_AVATAR: Glide error={ex.Message}");
                                     holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
                                 }
                             }
