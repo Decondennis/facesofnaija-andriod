@@ -40,6 +40,64 @@ namespace Facesofnaija.Helpers.CacheLoaders
 
     public static class GlideImageLoader
     {
+        private static string GetCanonicalMediaBaseUrl()
+        {
+            try
+            {
+                var preferred = AppSettings.SiteUrl?.Trim();
+                if (System.Uri.TryCreate(preferred, System.UriKind.Absolute, out var siteUri) && !string.IsNullOrWhiteSpace(siteUri.Host))
+                    return $"{siteUri.Scheme}://{siteUri.Host}";
+            }
+            catch
+            {
+                // Ignore and use fallback host.
+            }
+
+            return "https://facesofnaija.com";
+        }
+
+        private static string RewriteIpMediaUrl(string imageUri)
+        {
+            try
+            {
+                if (!System.Uri.TryCreate(imageUri, System.UriKind.Absolute, out var sourceUri))
+                    return imageUri;
+
+                var host = sourceUri.Host;
+                var isIpHost = IPAddress.TryParse(host, out _);
+                var isJobHost = host.Equals("job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase) || host.Equals("www.job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase);
+
+                var isFacesHost = host.IndexOf("facesofnaija", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!isIpHost && !isJobHost && !isFacesHost)
+                    return imageUri;
+
+                var mediaPath = sourceUri.AbsolutePath ?? string.Empty;
+                if (!mediaPath.StartsWith("/upload/", System.StringComparison.OrdinalIgnoreCase) &&
+                    !mediaPath.Contains("avatar", System.StringComparison.OrdinalIgnoreCase) &&
+                    !mediaPath.Contains("story", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return imageUri;
+                }
+
+                var canonicalBase = GetCanonicalMediaBaseUrl();
+                if (!System.Uri.TryCreate(canonicalBase, System.UriKind.Absolute, out var canonicalUri))
+                    return imageUri;
+
+                var builder = new System.UriBuilder(sourceUri)
+                {
+                    Scheme = canonicalUri.Scheme,
+                    Host = canonicalUri.Host,
+                    Port = canonicalUri.IsDefaultPort ? -1 : canonicalUri.Port,
+                };
+
+                return builder.Uri.ToString();
+            }
+            catch
+            {
+                return imageUri;
+            }
+        }
+
         public static string NormalizeImageUrl(string imageUri)
         {
             try
@@ -65,27 +123,25 @@ namespace Facesofnaija.Helpers.CacheLoaders
                     return imageUri;
 
                 if (imageUri.StartsWith("//"))
-                    return "http:" + imageUri;
-
-                if (imageUri.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase) &&
-                    System.Uri.TryCreate(imageUri, System.UriKind.Absolute, out var absoluteUri) &&
-                    IPAddress.TryParse(absoluteUri.Host, out _))
                 {
-                    return $"http://{absoluteUri.Authority}{absoluteUri.PathAndQuery}{absoluteUri.Fragment}";
+                    var fallbackScheme = "http";
+                    var baseUrlForScheme = InitializeWoWonder.WebsiteUrl?.Trim();
+                    if (string.IsNullOrWhiteSpace(baseUrlForScheme))
+                        baseUrlForScheme = AppSettings.SiteUrl?.Trim();
+
+                    if (!string.IsNullOrWhiteSpace(baseUrlForScheme) &&
+                        System.Uri.TryCreate(baseUrlForScheme, System.UriKind.Absolute, out var baseUriForScheme) &&
+                        !string.IsNullOrWhiteSpace(baseUriForScheme.Scheme))
+                    {
+                        fallbackScheme = baseUriForScheme.Scheme;
+                    }
+
+                    return fallbackScheme + ":" + imageUri;
                 }
 
                 if (imageUri.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase) || imageUri.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
                 {
-                    var configBase = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
-                    if (!string.IsNullOrWhiteSpace(configBase) &&
-                        System.Uri.TryCreate(configBase, System.UriKind.Absolute, out var configUri) &&
-                        IPAddress.TryParse(configUri.Host, out _) &&
-                        System.Uri.TryCreate(imageUri, System.UriKind.Absolute, out var srcUri) &&
-                        !IPAddress.TryParse(srcUri.Host, out _))
-                    {
-                        return $"http://{configUri.Authority}{srcUri.PathAndQuery}";
-                    }
-                    return imageUri;
+                    return RewriteIpMediaUrl(imageUri);
                 }
 
                 var baseUrl = InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
@@ -93,10 +149,6 @@ namespace Facesofnaija.Helpers.CacheLoaders
                     baseUrl = AppSettings.SiteUrl;
                 else if (!baseUrl.StartsWith("http://", System.StringComparison.OrdinalIgnoreCase) && !baseUrl.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase))
                     baseUrl = $"http://{baseUrl}";
-                else if (baseUrl.StartsWith("https://", System.StringComparison.OrdinalIgnoreCase) &&
-                         System.Uri.TryCreate(baseUrl, System.UriKind.Absolute, out var baseUri) &&
-                         IPAddress.TryParse(baseUri.Host, out _))
-                    baseUrl = $"http://{baseUri.Authority}";
 
                 return imageUri.StartsWith("/") ? $"{baseUrl}{imageUri}" : $"{baseUrl}/{imageUri.TrimStart('/')}";
             }

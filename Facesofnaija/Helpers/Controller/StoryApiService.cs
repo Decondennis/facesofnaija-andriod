@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
@@ -18,6 +19,55 @@ namespace Facesofnaija.Helpers.Controller
 {
     public static class StoryApiService
     {
+        private static readonly object SelfStoryLock = new object();
+        private static StoryDataObject LatestSelfStoryGroupCache;
+
+        private static StoryDataObject CloneStoryGroup(StoryDataObject source)
+        {
+            if (source == null)
+                return null;
+
+            return new StoryDataObject
+            {
+                UserId = source.UserId,
+                Username = source.Username,
+                Avatar = source.Avatar,
+                FirstName = source.FirstName,
+                LastName = source.LastName,
+                Type = source.Type,
+                ProfileIndicator = source.ProfileIndicator,
+                Stories = source.Stories != null ? new List<StoryDataObject.Story>(source.Stories) : new List<StoryDataObject.Story>(),
+                DurationsList = source.DurationsList != null ? new List<long>(source.DurationsList) : new List<long>()
+            };
+        }
+
+        private static void SetLatestSelfStoryGroup(StoryDataObject selfGroup)
+        {
+            lock (SelfStoryLock)
+            {
+                LatestSelfStoryGroupCache = CloneStoryGroup(selfGroup);
+            }
+        }
+
+        private static void UpdateLatestSelfStoryGroup(GetUserStoriesObject storiesObject)
+        {
+            var selfGroup = storiesObject?.Stories?.FirstOrDefault(story =>
+                !string.IsNullOrWhiteSpace(story?.UserId)
+                && string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                && (story.Stories?.Count ?? 0) > 0);
+
+            if (selfGroup != null)
+                SetLatestSelfStoryGroup(selfGroup);
+        }
+
+        public static StoryDataObject GetLatestSelfStoryGroup()
+        {
+            lock (SelfStoryLock)
+            {
+                return CloneStoryGroup(LatestSelfStoryGroupCache);
+            }
+        }
+
         private static string ResolveAccessToken()
         {
             var token = Current.AccessToken;
@@ -318,12 +368,68 @@ namespace Facesofnaija.Helpers.Controller
         {
             var bases = new List<string>();
 
+            static void AddCandidate(List<string> list, string baseUrl)
+            {
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    return;
+
+                var clean = baseUrl.Trim().TrimEnd('/');
+                if (!clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    clean = "http://" + clean;
+
+                if (!list.Contains(clean))
+                    list.Add(clean);
+
+                var isIpHost = false;
+                try
+                {
+                    if (Uri.TryCreate(clean, UriKind.Absolute, out var parsedUri))
+                        isIpHost = IPAddress.TryParse(parsedUri.Host, out _);
+                }
+                catch
+                {
+                    // Ignore URL parse failures.
+                }
+
+                if (!isIpHost && clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var alt = "https://" + clean.Substring("http://".Length);
+                    if (!list.Contains(alt))
+                        list.Add(alt);
+                }
+                else if (!isIpHost && clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var alt = "http://" + clean.Substring("https://".Length);
+                    if (!list.Contains(alt))
+                        list.Add(alt);
+                }
+            }
+
+            static string ExtractCanonicalHost()
+            {
+                try
+                {
+                    if (Uri.TryCreate(AppSettings.SiteUrl, UriKind.Absolute, out var siteUri) && !string.IsNullOrWhiteSpace(siteUri.Host))
+                        return siteUri.Host;
+                }
+                catch
+                {
+                    // Ignore host extraction issues.
+                }
+
+                return "facesofnaija.com";
+            }
+
             // Origin host fallback: currently serves story APIs while public host returns 404 for story routes.
-            bases.Add(AppSettings.SiteUrl);
+            AddCandidate(bases, AppSettings.SiteUrl);
+            AddCandidate(bases, AppSettings.JobsUrl);
 
             var configBase = InitializeWoWonder.WebsiteUrl?.Trim()?.TrimEnd('/');
-            if (!string.IsNullOrWhiteSpace(configBase) && !bases.Contains(configBase))
-                bases.Add(configBase);
+            AddCandidate(bases, configBase);
+
+            var canonicalHost = ExtractCanonicalHost();
+            AddCandidate(bases, $"https://{canonicalHost}");
+            AddCandidate(bases, $"http://{canonicalHost}");
 
             return bases;
         }
@@ -381,35 +487,309 @@ namespace Facesofnaija.Helpers.Controller
             return urls.Distinct().ToList();
         }
 
+        private static int ScoreStories(GetUserStoriesObject storiesObject)
+        {
+            if (storiesObject?.Stories == null || storiesObject.Stories.Count == 0)
+                return 0;
+
+            var score = storiesObject.Stories.Sum(story => story?.Stories?.Count ?? 0);
+            if (storiesObject.Stories.Any(story => !string.IsNullOrWhiteSpace(story?.UserId) && string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)))
+                score += 1000;
+
+            if (storiesObject.Stories.Any(story => !string.IsNullOrWhiteSpace(story?.Stories?.FirstOrDefault()?.Thumbnail)))
+                score += 10;
+
+            return score;
+        }
+
+        private static bool HasSelfStories(GetUserStoriesObject storiesObject)
+        {
+            if (storiesObject?.Stories == null || storiesObject.Stories.Count == 0)
+                return false;
+
+            return storiesObject.Stories.Any(story =>
+                !string.IsNullOrWhiteSpace(story?.UserId)
+                && string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                && (story.Stories?.Count ?? 0) > 0);
+        }
+
+        private static GetUserStoriesObject MergeSelfStories(GetUserStoriesObject target, GetUserStoriesObject selfSource)
+        {
+            if (target?.Stories == null || target.Stories.Count == 0 || selfSource?.Stories == null || selfSource.Stories.Count == 0)
+                return target;
+
+            var selfGroup = selfSource.Stories.FirstOrDefault(story =>
+                !string.IsNullOrWhiteSpace(story?.UserId)
+                && string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                && (story.Stories?.Count ?? 0) > 0);
+
+            if (selfGroup == null)
+                return target;
+
+            var existingSelfIndex = target.Stories.FindIndex(story =>
+                !string.IsNullOrWhiteSpace(story?.UserId)
+                && string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+
+            if (existingSelfIndex >= 0)
+            {
+                var existing = target.Stories[existingSelfIndex];
+                var existingCount = existing?.Stories?.Count ?? 0;
+                var incomingCount = selfGroup.Stories?.Count ?? 0;
+                if (incomingCount > existingCount)
+                    target.Stories[existingSelfIndex] = selfGroup;
+            }
+            else
+            {
+                target.Stories.Insert(0, selfGroup);
+            }
+
+            return target;
+        }
+
+        private static bool ContainsOtherUsers(GetUserStoriesObject storiesObject)
+        {
+            if (storiesObject?.Stories == null || storiesObject.Stories.Count == 0)
+                return false;
+
+            return storiesObject.Stories.Any(story =>
+                !string.IsNullOrWhiteSpace(story?.UserId)
+                && !string.Equals(story.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                && (story.Stories?.Count ?? 0) > 0);
+        }
+
+        private static GetUserStoriesObject RemoveSelfStories(GetUserStoriesObject storiesObject)
+        {
+            if (storiesObject?.Stories == null || storiesObject.Stories.Count == 0)
+                return storiesObject;
+
+            storiesObject.Stories = storiesObject.Stories
+                .Where(story => !string.Equals(story?.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return storiesObject;
+        }
+
+        private static async Task<GetUserStoriesObject> FetchSelfStoriesQuickAsync(HttpClient client, string token, string limit, string offset)
+        {
+            if (client == null || string.IsNullOrWhiteSpace(token))
+                return null;
+
+            var urls = BuildStoryUrls("get-user-stories")
+                .Where(u => !string.IsNullOrWhiteSpace(u) && u.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                .Distinct()
+                .Take(2)
+                .ToList();
+
+            foreach (var url in urls)
+            {
+                var requestUrls = new List<(string label, string value)>
+                {
+                    ("POST", url),
+                    ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
+                };
+
+                foreach (var request in requestUrls)
+                {
+                    try
+                    {
+                        HttpResponseMessage response;
+                        if (request.label == "POST")
+                        {
+                            using var content = new FormUrlEncodedContent(new[]
+                            {
+                                new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                new KeyValuePair<string, string>("s", token),
+                                new KeyValuePair<string, string>("access_token", token),
+                                new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                            });
+
+                            response = await client.PostAsync(request.value, content).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            response = await client.GetAsync(request.value).ConfigureAwait(false);
+                        }
+
+                        if (!response.IsSuccessStatusCode)
+                            continue;
+
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        var normalized = NormalizeStoriesResponse(json);
+                        if (normalized != null && normalized.Status == 200 && HasSelfStories(normalized))
+                        {
+                            UpdateLatestSelfStoryGroup(normalized);
+                            Android.Util.Log.Warn("FON_STORY_API", $"Quick self fetch success url={request.value} stories_count={normalized.Stories?.Count ?? 0}");
+                            return normalized;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore quick self fetch failures and continue with best available feed stories.
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static async Task<(int apiStatus, dynamic response)> GetUserStoriesAsync(string limit = "15", string offset = "0")
         {
             try
             {
-                int ScoreStories(GetUserStoriesObject storiesObject)
+                static bool ShouldSkipUrl(string value)
                 {
-                    if (storiesObject?.Stories == null || storiesObject.Stories.Count == 0)
-                        return 0;
+                    if (string.IsNullOrWhiteSpace(value))
+                        return false;
 
-                    var users = storiesObject.Stories
-                        .Where(s => !string.IsNullOrWhiteSpace(s?.UserId))
-                        .Select(s => s.UserId)
-                        .Distinct(StringComparer.Ordinal)
-                        .ToList();
+                    try
+                    {
+                        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
+                            return false;
 
-                    var otherUsers = users.Count(id => !string.Equals(id, UserDetails.UserId, StringComparison.Ordinal));
-                    // Prioritize other users, then total unique users.
-                    return (otherUsers * 1000) + users.Count;
+                        // HTTPS to raw IP hosts has been flaky in production; skip to avoid long retries.
+                        if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) && IPAddress.TryParse(uri.Host, out _))
+                            return true;
+                    }
+                    catch
+                    {
+                        // Ignore parse errors and keep request path unchanged.
+                    }
+
+                    return false;
                 }
 
                 var resolvedToken = ResolveAccessToken();
                 Android.Util.Log.Warn("FON_STORY_API", $"ResolveAccessToken returned '{(resolvedToken?.Length > 10 ? resolvedToken.Substring(0, 10) + "..." : resolvedToken ?? "NULL")}'");
+                Android.Util.Log.Warn("FON_STORY_API", $"GetUserStoriesAsync entered limit={limit ?? "15"} offset={offset ?? "0"}");
                 if (string.IsNullOrEmpty(resolvedToken))
                     return (400, "Access token is missing");
 
                 GetUserStoriesObject bestStoriesResponse = null;
                 var bestStoriesScore = -1;
+                GetUserStoriesObject emptyStoriesResponse = null;
+                GetUserStoriesObject selfStoriesCandidate = null;
+                string lastResponse = "Invalid story response";
 
-                // First try SDK route mapping (usually matches server-specific API wiring).
+                using var client = new HttpClient();
+
+                // Kick off self-story fetch immediately so the Your tile can hydrate early.
+                var selfFetchTask = FetchSelfStoriesQuickAsync(client, resolvedToken, limit, offset);
+
+                async Task EnsureSelfStoriesReadyAsync(int waitMs = 900)
+                {
+                    if (selfStoriesCandidate?.Stories?.Count > 0)
+                        return;
+
+                    var completed = await Task.WhenAny(selfFetchTask, Task.Delay(waitMs)).ConfigureAwait(false);
+                    if (completed != selfFetchTask)
+                        return;
+
+                    var quickSelfStories = await selfFetchTask.ConfigureAwait(false);
+                    if (quickSelfStories?.Stories?.Count > 0)
+                    {
+                        selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? quickSelfStories, quickSelfStories);
+                        UpdateLatestSelfStoryGroup(quickSelfStories);
+                    }
+                }
+
+                // Force legacy app_api routes first because some deployments return 404 for v2 story endpoints.
+                var legacyUrls = BuildLegacyStoryUrls();
+                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first routes={legacyUrls.Count}");
+                var maxLegacyAttempts = Math.Min(4, legacyUrls.Count);
+                for (var i = 0; i < maxLegacyAttempts; i++)
+                {
+                    var legacyUrl = legacyUrls[i];
+                    var legacyRequests = new List<(string label, string value)>
+                    {
+                        ("POST", legacyUrl),
+                        ("GET", $"{legacyUrl}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(resolvedToken)}&access_token={Uri.EscapeDataString(resolvedToken)}")
+                    };
+
+                    foreach (var legacyRequest in legacyRequests)
+                    {
+                        if (ShouldSkipUrl(legacyRequest.value))
+                            continue;
+
+                        HttpResponseMessage legacyResponse;
+                        try
+                        {
+                            if (legacyRequest.label == "POST")
+                            {
+                                using var legacyContent = new FormUrlEncodedContent(new[]
+                                {
+                                    new KeyValuePair<string, string>("s", resolvedToken),
+                                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                    new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("access_token", resolvedToken),
+                                });
+
+                                legacyResponse = await client.PostAsync(legacyRequest.value, legacyContent).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                legacyResponse = await client.GetAsync(legacyRequest.value).ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Android.Util.Log.Warn("FON_STORY_API", $"Legacy attempt {i + 1}/{legacyUrls.Count} {legacyRequest.label} failed: {ex.GetType().Name}: {ex.Message}");
+                            lastResponse = ex.Message;
+                            continue;
+                        }
+
+                        var legacyJson = await legacyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        var legacyPreview = legacyJson?.Length > 300 ? legacyJson.Substring(0, 300) : legacyJson;
+                        Android.Util.Log.Warn("FON_STORY_API", $"Legacy attempt {i + 1}/{legacyUrls.Count} {legacyRequest.label} http={(int)legacyResponse.StatusCode} url={legacyRequest.value}");
+                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] legacy-stories {legacyRequest.label} URL={legacyRequest.value} HTTP={legacyResponse.StatusCode} raw={legacyPreview}");
+
+                        if (!legacyResponse.IsSuccessStatusCode)
+                        {
+                            lastResponse = string.IsNullOrWhiteSpace(legacyJson) ? legacyResponse.StatusCode.ToString() : legacyJson;
+                            continue;
+                        }
+
+                        var normalizedLegacy = NormalizeStoriesResponse(legacyJson);
+                        if (normalizedLegacy != null && normalizedLegacy.Status == 200)
+                        {
+                            if (normalizedLegacy.Stories?.Count > 0)
+                            {
+                                var score = ScoreStories(normalizedLegacy);
+                                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first success stories_count={normalizedLegacy.Stories.Count} score={score} url={legacyRequest.value}");
+                                if (score > bestStoriesScore)
+                                {
+                                    bestStoriesScore = score;
+                                    bestStoriesResponse = normalizedLegacy;
+                                }
+                                if (HasSelfStories(normalizedLegacy))
+                                {
+                                    selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalizedLegacy, normalizedLegacy);
+                                    UpdateLatestSelfStoryGroup(normalizedLegacy);
+                                }
+
+                                if (ContainsOtherUsers(normalizedLegacy) && score >= 10)
+                                {
+                                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                                    var fastResult = MergeSelfStories(normalizedLegacy, selfStoriesCandidate);
+                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return legacy stories_count={fastResult?.Stories?.Count ?? 0} url={legacyRequest.value}");
+                                    return (200, fastResult);
+                                }
+                            }
+
+                            emptyStoriesResponse ??= normalizedLegacy;
+
+                            // Keep valid empty response as fallback, but continue probing other routes.
+                            // Some deployments return empty on one host and populated stories on another host.
+                            if (normalizedLegacy.Stories == null || normalizedLegacy.Stories.Count == 0)
+                            {
+                                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first empty stories candidate url={legacyRequest.value}; continuing route search");
+                            }
+                        }
+                    }
+                }
+
+                // Try SDK route mapping next (usually matches server-specific API wiring).
                 var (sdkStatusInitial, sdkResponseInitial) = await RequestsAsync.Story.GetUserStoriesAsync(limit, offset).ConfigureAwait(false);
                 if (sdkStatusInitial == 200)
                 {
@@ -418,50 +798,70 @@ namespace Facesofnaija.Helpers.Controller
                         bestStoriesResponse = sdkStories;
                         bestStoriesScore = ScoreStories(sdkStories);
                         Android.Util.Log.Warn("FON_STORY_API", $"SDK initial stories_count={sdkStories.Stories.Count} score={bestStoriesScore}");
+                        if (HasSelfStories(sdkStories))
+                        {
+                            selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? sdkStories, sdkStories);
+                            UpdateLatestSelfStoryGroup(sdkStories);
+                        }
+
+                        if (ContainsOtherUsers(sdkStories) && bestStoriesScore >= 10)
+                        {
+                            await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                            var fastResult = MergeSelfStories(sdkStories, selfStoriesCandidate);
+                            Android.Util.Log.Warn("FON_STORY_API", $"Fast-return SDK stories_count={fastResult?.Stories?.Count ?? 0}");
+                            return (200, fastResult);
+                        }
                     }
 
                     System.Diagnostics.Debug.WriteLine("[StoryApiService] SDK initial checked; trying endpoint fallbacks for richer dataset.");
                 }
 
-                using var client = new HttpClient();
                 var urls = new List<string>();
-                urls.AddRange(BuildStoryUrls("get-user-stories"));
                 urls.AddRange(BuildStoryUrls("get-stories"));
+                urls.AddRange(BuildStoryUrls("get_stories"));
                 urls = urls.Distinct().ToList();
                 var token = ResolveAccessToken();
-                var userId = UserDetails.UserId ?? string.Empty;
                 System.Diagnostics.Debug.WriteLine($"[StoryApiService] WebsiteUrl='{InitializeWoWonder.WebsiteUrl}', StoryUrls='{string.Join(" | ", urls)}'");
 
-                string lastResponse = "Invalid story response";
-                GetUserStoriesObject emptyStoriesResponse = null;
                 foreach (var url in urls)
                 {
                     var requestUrls = new List<(string label, string value)>
                     {
                         ("POST", url),
-                        ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&user_id={Uri.EscapeDataString(userId)}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
+                        ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
                     };
 
                     foreach (var requestUrl in requestUrls)
                     {
-                        HttpResponseMessage response;
-                        if (requestUrl.label == "POST")
-                        {
-                            using var content = new FormUrlEncodedContent(new[]
-                            {
-                                new KeyValuePair<string, string>("limit", limit ?? "15"),
-                                new KeyValuePair<string, string>("offset", offset ?? "0"),
-                                new KeyValuePair<string, string>("user_id", userId),
-                                new KeyValuePair<string, string>("s", token),
-                                new KeyValuePair<string, string>("access_token", token),
-                                new KeyValuePair<string, string>("my_offset", offset ?? "0"),
-                            });
+                        if (ShouldSkipUrl(requestUrl.value))
+                            continue;
 
-                            response = await client.PostAsync(requestUrl.value, content).ConfigureAwait(false);
-                        }
-                        else
+                        HttpResponseMessage response;
+                        try
                         {
-                            response = await client.GetAsync(requestUrl.value).ConfigureAwait(false);
+                            if (requestUrl.label == "POST")
+                            {
+                                using var content = new FormUrlEncodedContent(new[]
+                                {
+                                    new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("s", token),
+                                    new KeyValuePair<string, string>("access_token", token),
+                                    new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                                });
+
+                                response = await client.PostAsync(requestUrl.value, content).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                response = await client.GetAsync(requestUrl.value).ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Android.Util.Log.Warn("FON_STORY_API", $"Route {requestUrl.label} failed: {ex.GetType().Name}: {ex.Message} url={requestUrl.value}");
+                            lastResponse = ex.Message;
+                            continue;
                         }
 
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -487,6 +887,29 @@ namespace Facesofnaija.Helpers.Controller
                                     bestStoriesScore = score;
                                     bestStoriesResponse = normalized;
                                 }
+
+                                if (HasSelfStories(normalized))
+                                {
+                                    selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalized, normalized);
+                                    UpdateLatestSelfStoryGroup(normalized);
+                                }
+
+                                if (ContainsOtherUsers(normalized) && score >= 10)
+                                {
+                                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                                    var fastResult = normalized;
+                                    if (!HasSelfStories(fastResult))
+                                    {
+                                        var quickSelfStories = await selfFetchTask.ConfigureAwait(false);
+                                        if (quickSelfStories != null)
+                                            fastResult = MergeSelfStories(fastResult, quickSelfStories);
+                                    }
+
+                                    fastResult = MergeSelfStories(fastResult, selfStoriesCandidate);
+                                    fastResult = RemoveSelfStories(fastResult);
+                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return route stories_count={fastResult?.Stories?.Count ?? 0} score={score} url={requestUrl.value}");
+                                    return (200, fastResult);
+                                }
                             }
 
                             emptyStoriesResponse ??= normalized;
@@ -498,47 +921,74 @@ namespace Facesofnaija.Helpers.Controller
                     }
                 }
 
-                // Legacy fallback for installations where v2 returns empty while old app API still returns stories.
-                var legacyUrls = BuildLegacyStoryUrls();
-                foreach (var legacyUrl in legacyUrls)
+                if (bestStoriesResponse?.Stories?.Count <= 0)
                 {
-                    using var legacyContent = new FormUrlEncodedContent(new[]
+                    var userUrls = BuildStoryUrls("get-user-stories").Distinct().ToList();
+                    foreach (var url in userUrls)
                     {
-                        new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? string.Empty),
-                        new KeyValuePair<string, string>("s", ResolveAccessToken()),
-                        new KeyValuePair<string, string>("offset", offset ?? "0"),
-                        new KeyValuePair<string, string>("limit", limit ?? "15"),
-                        new KeyValuePair<string, string>("my_offset", offset ?? "0"),
-                        new KeyValuePair<string, string>("access_token", ResolveAccessToken()),
-                    });
-
-                    var legacyResponse = await client.PostAsync(legacyUrl, legacyContent).ConfigureAwait(false);
-                    var legacyJson = await legacyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    var legacyPreview = legacyJson?.Length > 300 ? legacyJson.Substring(0, 300) : legacyJson;
-                    System.Diagnostics.Debug.WriteLine($"[StoryApiService] legacy-stories URL={legacyUrl} HTTP={legacyResponse.StatusCode} raw={legacyPreview}");
-                    try { if (legacyJson?.Length > 0) { var jo = Newtonsoft.Json.Linq.JObject.Parse(legacyJson); var st = jo["stories"] as Newtonsoft.Json.Linq.JArray; if (st != null) { foreach (var s in st) { var imgs = s["images"] as Newtonsoft.Json.Linq.JArray; Android.Util.Log.Warn("FON_STORY_API", $"Story id={s["id"]} images_count={(imgs?.Count ?? 0)} videos={((s["videos"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0)} thumb={s["thumbnail"]}"); if (imgs != null) { foreach (var img in imgs) Android.Util.Log.Warn("FON_STORY_API", $"  Image filename={img["filename"]}"); } } } } } catch { }
-
-                    if (!legacyResponse.IsSuccessStatusCode)
-                    {
-                        lastResponse = string.IsNullOrWhiteSpace(legacyJson) ? legacyResponse.StatusCode.ToString() : legacyJson;
-                        continue;
-                    }
-
-                    var normalizedLegacy = NormalizeStoriesResponse(legacyJson);
-                    if (normalizedLegacy != null && normalizedLegacy.Status == 200)
-                    {
-                        if (normalizedLegacy.Stories?.Count > 0)
+                        var requestUrls = new List<(string label, string value)>
                         {
-                            var score = ScoreStories(normalizedLegacy);
-                            Android.Util.Log.Warn("FON_STORY_API", $"Legacy stories_count={normalizedLegacy.Stories.Count} score={score} url={legacyUrl}");
-                            if (score > bestStoriesScore)
+                            ("POST", url),
+                            ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
+                        };
+
+                        foreach (var requestUrl in requestUrls)
+                        {
+                            if (ShouldSkipUrl(requestUrl.value))
+                                continue;
+
+                            HttpResponseMessage response;
+                            try
                             {
-                                bestStoriesScore = score;
-                                bestStoriesResponse = normalizedLegacy;
+                                if (requestUrl.label == "POST")
+                                {
+                                    using var content = new FormUrlEncodedContent(new[]
+                                    {
+                                        new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                        new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                        new KeyValuePair<string, string>("s", token),
+                                        new KeyValuePair<string, string>("access_token", token),
+                                        new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                                    });
+
+                                    response = await client.PostAsync(requestUrl.value, content).ConfigureAwait(false);
+                                }
+                                else
+                                {
+                                    response = await client.GetAsync(requestUrl.value).ConfigureAwait(false);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Android.Util.Log.Warn("FON_STORY_API", $"User-route {requestUrl.label} failed: {ex.GetType().Name}: {ex.Message} url={requestUrl.value}");
+                                lastResponse = ex.Message;
+                                continue;
+                            }
+
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                lastResponse = response.StatusCode.ToString();
+                                continue;
+                            }
+
+                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                            var normalized = NormalizeStoriesResponse(json);
+                            if (normalized != null && normalized.Status == 200 && normalized.Stories?.Count > 0)
+                            {
+                                var score = ScoreStories(normalized);
+                                if (score > bestStoriesScore)
+                                {
+                                    bestStoriesScore = score;
+                                    bestStoriesResponse = normalized;
+                                }
+
+                                if (HasSelfStories(normalized))
+                                {
+                                    selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalized, normalized);
+                                    UpdateLatestSelfStoryGroup(normalized);
+                                }
                             }
                         }
-
-                        emptyStoriesResponse ??= normalizedLegacy;
                     }
                 }
 
@@ -555,11 +1005,28 @@ namespace Facesofnaija.Helpers.Controller
                             bestStoriesScore = score;
                             bestStoriesResponse = sdkStories;
                         }
+
+                        if (HasSelfStories(sdkStories))
+                        {
+                            selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? sdkStories, sdkStories);
+                            UpdateLatestSelfStoryGroup(sdkStories);
+                        }
                     }
                 }
 
                 if (bestStoriesResponse?.Stories?.Count > 0)
                 {
+                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                    if (!HasSelfStories(bestStoriesResponse))
+                    {
+                        var quickSelfStories = await selfFetchTask.ConfigureAwait(false);
+                        if (quickSelfStories != null)
+                            bestStoriesResponse = MergeSelfStories(bestStoriesResponse, quickSelfStories);
+                    }
+
+                    bestStoriesResponse = MergeSelfStories(bestStoriesResponse, selfStoriesCandidate);
+                    UpdateLatestSelfStoryGroup(bestStoriesResponse);
+                    bestStoriesResponse = RemoveSelfStories(bestStoriesResponse);
                     Android.Util.Log.Warn("FON_STORY_API", $"Returning best stories_count={bestStoriesResponse.Stories.Count} score={bestStoriesScore}");
                     return (200, bestStoriesResponse);
                 }
@@ -571,6 +1038,7 @@ namespace Facesofnaija.Helpers.Controller
             }
             catch (Exception e)
             {
+                Android.Util.Log.Warn("FON_STORY_API", $"GetUserStoriesAsync exception: {e.GetType().Name}: {e.Message}");
                 Methods.DisplayReportResultTrack(e);
                 return (404, e.Message);
             }

@@ -87,9 +87,9 @@ namespace Facesofnaija
 
                 // ----------------------------------------------------------------
                 // CRITICAL FIX: The SDK's internal endpoints (t class / f field)
-                // are constructed using the domain URL from the encrypted TripleDes
-                // data (e.g. "http://facesofnaija.com").  We must replace that with
-                // the actual server IP so every SDK-based API call hits the right host.
+                // are constructed using the URL from the encrypted TripleDes
+                // data. We replace that with AppSettings.SiteUrl so every
+                // SDK-based API call uses the app's configured base host.
                 //
                 // The WebsiteUrl property setter does NOT update the internal
                 // HttpClient.BaseAddress NOR the pre-built endpoint strings in f.xxx.
@@ -108,7 +108,7 @@ namespace Facesofnaija
 
                         if (!string.IsNullOrWhiteSpace(oldDomain) && tInstance != null)
                         {
-                            // ---- 2. Replace old domain with correct IP in every string field of t ----
+                            // ---- 2. Replace old domain with configured base URL in every string field of t ----
                             var tType = tInstance.GetType();
                             var stringFields = tType.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                             foreach (var sf in stringFields)
@@ -116,7 +116,7 @@ namespace Facesofnaija
                                 if (sf.FieldType != typeof(string)) continue;
                                 var current = sf.GetValue(tInstance) as string;
                                 if (string.IsNullOrWhiteSpace(current)) continue;
-                                // Replace the old base URL (scheme + host + port only) with the correct IP
+                                // Replace the old base URL (scheme + host + port only) with configured base URL
                                 var replaced = ReplaceBaseUrl(current, oldDomain, correctBaseUrl);
                                 if (replaced != current)
                                 {

@@ -86,7 +86,11 @@ namespace Facesofnaija.Library.Anjo.Share
                         if (message.Text != null)
                             items.Add(message.Text);
                         if (message.Url != null)
-                            items.Add(message.Url);
+                        {
+                            // Only include URL if ShareExternalUrl option is enabled (default: false)
+                            if (options?.ShareExternalUrl ?? false)
+                                items.Add(message.Url);
+                        }
 
                         var intent = new Intent(Intent.ActionSend);
                         intent.SetType("text/plain");

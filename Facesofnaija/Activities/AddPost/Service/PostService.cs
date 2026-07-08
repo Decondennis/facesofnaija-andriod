@@ -366,6 +366,15 @@ namespace Facesofnaija.Activities.AddPost.Service
                 var postFeedAdapter = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter;
                 var checkSection = postFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                 var modelStory = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter?.HolderStory.StoryAdapter;
+                var activeStoryList = modelStory?.StoryList ?? checkSection?.StoryList;
+                if (activeStoryList == null)
+                {
+                    activeStoryList = new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>();
+                    if (checkSection != null)
+                        checkSection.StoryList = activeStoryList;
+                    if (modelStory != null)
+                        modelStory.StoryList = activeStoryList;
+                }
 
                     string time = Methods.Time.TimeAgo(DateTime.Now, false);
                     var unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -392,9 +401,63 @@ namespace Facesofnaija.Activities.AddPost.Service
 
                                             ToastUtils.ShowToast(GlobalContextTabbed, GlobalContextTabbed.GetText(Resource.String.Lbl_Story_Added), ToastLength.Short);
 
-                                            var check = modelStory?.StoryList?.FirstOrDefault(a => a.UserId == UserDetails.UserId);
+                                            var optimisticApplied = await TryApplyOptimisticStoryToFeedAsync(result, time, time2, userData);
+                                            if (optimisticApplied)
+                                            {
+                                                // Re-fetch after optimistic UI update so server state wins when available.
+                                                GlobalContextTabbed?.RunOnUiThread(() =>
+                                                {
+                                                    try
+                                                    {
+                                                        _ = GlobalContextTabbed.NewsFeedTab.LoadStory();
+                                                    }
+                                                    catch (Exception e)
+                                                    {
+                                                        Methods.DisplayReportResultTrack(e);
+                                                    }
+                                                });
+
+                                                if (UserDetails.SoundControl)
+                                                    Methods.AudioRecorderAndPlayer.PlayAudioFromAsset("PopNotificationPost.mp3");
+
+                                                break;
+                                            }
+
+                                            var check = activeStoryList?.FirstOrDefault(a =>
+                                                string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase));
+
+                                            if (check == null)
+                                            {
+                                                var avatar = userData?.Avatar;
+                                                if (string.IsNullOrWhiteSpace(avatar))
+                                                    avatar = userData?.AvatarFull;
+                                                if (string.IsNullOrWhiteSpace(avatar))
+                                                    avatar = UserDetails.Avatar;
+
+                                                check = new StoryDataObject
+                                                {
+                                                    UserId = UserDetails.UserId,
+                                                    Type = "Your",
+                                                    Username = GlobalContextTabbed?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
+                                                    Avatar = avatar ?? string.Empty,
+                                                    Stories = new List<StoryDataObject.Story>(),
+                                                    DurationsList = new List<long>(),
+                                                };
+
+                                                activeStoryList?.Insert(0, check);
+                                            }
+
                                             if (check != null)
                                             {
+                                                check.UserId = UserDetails.UserId;
+                                                check.Type = "Your";
+                                                check.Stories ??= new List<StoryDataObject.Story>();
+
+                                                // Remove synthetic placeholder story so the newly uploaded story becomes the visible first item.
+                                                if (check.Stories.Count == 1 && string.IsNullOrWhiteSpace(check.Stories[0]?.Id))
+                                                    check.Stories.Clear();
+
                                                 switch (DataPost.StoryFileType)
                                                 {
                                                     case "image":
@@ -421,8 +484,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                             check.DurationsList ??= new List<long> { };
                                                             check.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
 
-
-                                                            check.Stories.Add(item);
+                                                            check.Stories.Insert(0, item);
                                                             break;
                                                         }
                                                     default:
@@ -466,7 +528,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                                 check.DurationsList.Add(AppSettings.StoryVideoDuration * 1000);
                                                             }
 
-                                                            check.Stories.Add(item);
+                                                            check.Stories.Insert(0, item);
                                                             break;
                                                         }
                                                 }
@@ -616,7 +678,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                             item.DurationsList ??= new List<long> { };
                                                             item.DurationsList.Add(AppSettings.StoryImageDuration * 1000);
 
-                                                            modelStory.StoryList?.Add(item);
+                                                            activeStoryList?.Add(item);
                                                             break;
                                                         }
                                                     default:
@@ -776,13 +838,29 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                                 item.DurationsList.Add(AppSettings.StoryVideoDuration * 1000);
                                                             }
 
-                                                            modelStory.StoryList?.Add(item);
+                                                            activeStoryList?.Add(item);
                                                             break;
                                                         }
                                                 }
                                             }
 
+                                            if (activeStoryList != null)
+                                            {
+                                                if (checkSection != null)
+                                                    checkSection.StoryList = new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>(activeStoryList);
+
+                                                if (modelStory != null)
+                                                    modelStory.StoryList = new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>(activeStoryList);
+                                            }
+
                                             modelStory?.NotifyDataSetChanged();
+
+                                            if (checkSection != null)
+                                            {
+                                                var storyIdx = postFeedAdapter?.ListDiffer?.IndexOf(checkSection) ?? -1;
+                                                if (storyIdx >= 0)
+                                                    postFeedAdapter?.NotifyItemChanged(storyIdx);
+                                            }
 
                                             // Always re-fetch stories from server so uploaded story is persisted and visible to others.
                                             GlobalContextTabbed?.RunOnUiThread(() =>
@@ -912,6 +990,167 @@ namespace Facesofnaija.Activities.AddPost.Service
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private async Task<bool> TryApplyOptimisticStoryToFeedAsync(CreateStoryObject result, string timeText, string postedUnixTime, UserDataObject userData)
+        {
+            try
+            {
+                if (GlobalContextTabbed?.NewsFeedTab?.PostFeedAdapter?.ListDiffer == null)
+                    return false;
+
+                var tcs = new TaskCompletionSource<bool>();
+
+                GlobalContextTabbed.RunOnUiThread(() =>
+                {
+                    try
+                    {
+                        var postFeedAdapter = GlobalContextTabbed.NewsFeedTab.PostFeedAdapter;
+                        var listDiffer = postFeedAdapter?.ListDiffer;
+                        if (listDiffer == null)
+                        {
+                            tcs.TrySetResult(false);
+                            return;
+                        }
+
+                        var storySection = listDiffer.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                        if (storySection == null)
+                        {
+                            var insertIndex = System.Math.Min(1, listDiffer.Count);
+                            storySection = new AdapterModelsClass
+                            {
+                                TypeView = PostModelType.Story,
+                                StoryList = new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>(),
+                                Id = 545454545,
+                            };
+                            listDiffer.Insert(insertIndex, storySection);
+                            postFeedAdapter?.NotifyItemInserted(insertIndex);
+                        }
+
+                        storySection.StoryList ??= new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>();
+
+                        var myEntry = storySection.StoryList.FirstOrDefault(a =>
+                            string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+
+                        var avatar = userData?.Avatar;
+                        if (string.IsNullOrWhiteSpace(avatar))
+                            avatar = userData?.AvatarFull;
+                        if (string.IsNullOrWhiteSpace(avatar))
+                            avatar = UserDetails.Avatar;
+                        avatar ??= string.Empty;
+
+                        if (myEntry == null)
+                        {
+                            myEntry = new StoryDataObject
+                            {
+                                UserId = UserDetails.UserId,
+                                Type = "Your",
+                                Username = GlobalContextTabbed.GetText(Resource.String.Lbl_YourStory),
+                                Avatar = avatar,
+                                Stories = new List<StoryDataObject.Story>(),
+                                DurationsList = new List<long>(),
+                            };
+                            storySection.StoryList.Insert(0, myEntry);
+                        }
+
+                        myEntry.UserId = UserDetails.UserId;
+                        myEntry.Type = "Your";
+                        myEntry.Stories ??= new List<StoryDataObject.Story>();
+                        myEntry.DurationsList ??= new List<long>();
+
+                        if (myEntry.Stories.Count == 1 && string.IsNullOrWhiteSpace(myEntry.Stories[0]?.Id))
+                            myEntry.Stories.Clear();
+
+                        var isVideo = string.Equals(DataPost?.StoryFileType, "video", StringComparison.OrdinalIgnoreCase);
+                        var optimisticStory = new StoryDataObject.Story
+                        {
+                            UserId = UserDetails.UserId,
+                            Id = result.StoryId,
+                            Description = DataPost?.StoryDescription,
+                            Title = DataPost?.StoryTitle,
+                            TimeText = timeText,
+                            IsOwner = true,
+                            Expire = "",
+                            Posted = postedUnixTime,
+                            Thumbnail = isVideo ? (DataPost?.StoryThumbnail ?? string.Empty) : (DataPost?.StoryFilePath ?? string.Empty),
+                            UserData = userData,
+                            ViewCount = "0",
+                            Images = new List<StoryDataObject.Image>(),
+                            Videos = new List<StoryDataObject.Video>(),
+                            Reaction = new Reaction(),
+                            TypeView = isVideo ? "Video" : "Image"
+                        };
+
+                        if (isVideo)
+                        {
+                            optimisticStory.Videos.Add(new StoryDataObject.Video
+                            {
+                                StoryId = result.StoryId,
+                                Filename = DataPost?.StoryFilePath,
+                                Id = postedUnixTime,
+                                Expire = postedUnixTime,
+                                Type = "video",
+                            });
+
+                            if (AppSettings.ShowFullVideo)
+                            {
+                                var duration = WoWonderTools.GetDuration(DataPost?.StoryFilePath ?? string.Empty);
+                                myEntry.DurationsList.Insert(0, Long.ParseLong(duration));
+                            }
+                            else
+                            {
+                                myEntry.DurationsList.Insert(0, AppSettings.StoryVideoDuration * 1000);
+                            }
+                        }
+                        else
+                        {
+                            myEntry.DurationsList.Insert(0, AppSettings.StoryImageDuration * 1000);
+                        }
+
+                        myEntry.Stories.RemoveAll(a => string.Equals(a?.Id, result.StoryId, StringComparison.OrdinalIgnoreCase));
+                        myEntry.Stories.Insert(0, optimisticStory);
+
+                        if (string.IsNullOrWhiteSpace(myEntry.Avatar))
+                            myEntry.Avatar = avatar;
+                        if (myEntry.Stories.Count > 0 && string.IsNullOrWhiteSpace(myEntry.Stories[0]?.Thumbnail))
+                            myEntry.Stories[0].Thumbnail = myEntry.Avatar;
+
+                        var duplicateSelf = storySection.StoryList.Where(a =>
+                            a != null
+                            && !ReferenceEquals(a, myEntry)
+                            && string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                        foreach (var duplicate in duplicateSelf)
+                            storySection.StoryList.Remove(duplicate);
+
+                        var holderStoryAdapter = postFeedAdapter?.HolderStory?.StoryAdapter;
+                        if (holderStoryAdapter != null)
+                        {
+                            holderStoryAdapter.StoryList = new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>(storySection.StoryList);
+                            holderStoryAdapter.NotifyDataSetChanged();
+                        }
+
+                        var storyIndex = listDiffer.IndexOf(storySection);
+                        if (storyIndex >= 0)
+                            postFeedAdapter?.NotifyItemChanged(storyIndex);
+
+                        tcs.TrySetResult(true);
+                    }
+                    catch (Exception e)
+                    {
+                        Methods.DisplayReportResultTrack(e);
+                        tcs.TrySetResult(false);
+                    }
+                });
+
+                return await tcs.Task.ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+                return false;
             }
         }
 

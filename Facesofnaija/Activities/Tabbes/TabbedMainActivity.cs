@@ -1375,11 +1375,65 @@ namespace Facesofnaija.Activities.Tabbes
                     Android.Util.Log.Warn("FON_STORY_FLOW", $"Click position={e.Position} item={(item == null ? "NULL" : $"UserId={item.UserId} Type={item.Type} Avatar={(item.Avatar?.Length > 50 ? item.Avatar.Substring(0, 50) + "..." : item.Avatar)} StoriesCount={item.Stories?.Count}")}");
                     if (item != null)
                     {
+                        bool HasRealStories(StoryDataObject storyGroup)
+                        {
+                            if (storyGroup?.Stories == null || storyGroup.Stories.Count == 0)
+                                return false;
+
+                            return storyGroup.Stories.Any(story =>
+                                !string.IsNullOrWhiteSpace(story?.Id)
+                                || !string.IsNullOrWhiteSpace(story?.Thumbnail)
+                                || (story?.Videos?.Count ?? 0) > 0
+                                || (story?.Images?.Count ?? 0) > 0);
+                        }
+
+                            bool IsPlaceholderMedia(string value)
+                            {
+                                return string.IsNullOrWhiteSpace(value)
+                                   || value.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase)
+                                   || value.Contains("d-avatar", StringComparison.OrdinalIgnoreCase);
+                            }
+
+                        void OpenStoryViewer(StoryDataObject selectedItem, bool includeYour)
+                        {
+                            if (NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList?.Count <= 0)
+                                return;
+
+                            List<StoryDataObject> storyList = new List<StoryDataObject>(NewsFeedTab.PostFeedAdapter.HolderStory.StoryAdapter.StoryList);
+                            storyList.RemoveAll(o => o.Type == "Live");
+                            if (!includeYour)
+                                storyList.RemoveAll(o => o.Type == "Your");
+
+                            var indexItem = storyList.IndexOf(selectedItem);
+                            if (indexItem < 0)
+                                indexItem = 0;
+
+                            Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer: storyList.Count={storyList.Count} indexItem={indexItem} userId={selectedItem.UserId} includeYour={includeYour}");
+
+                            Intent intent = new Intent(this, typeof(StoryDetailsActivity));
+                            intent.PutExtra("UserId", selectedItem.UserId);
+                            intent.PutExtra("IndexItem", indexItem);
+                            intent.PutExtra("StoriesCount", storyList.Count);
+                            intent.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(storyList)));
+                            StartActivity(intent);
+                        }
+
                         switch (item.Type)
                         {
                             case "Your":
-                                ShowDialogAddStory();
-                                break;
+                                {
+                                    var hasRealStories = HasRealStories(item) && !IsPlaceholderMedia(item.Stories?.FirstOrDefault()?.Thumbnail);
+                                    if (hasRealStories)
+                                    {
+                                        OpenStoryViewer(item, true);
+                                    }
+                                    else
+                                    {
+                                        ShowDialogAddStory();
+                                    }
+
+                                    break;
+                                }
                             case "Live":
                                 {
                                     if (item.DataLivePost?.LiveTime != null && item.DataLivePost?.LiveTime.Value > 0 && string.IsNullOrEmpty(item.DataLivePost?.AgoraResourceId) && string.IsNullOrEmpty(item.DataLivePost?.PostFile))
@@ -1395,21 +1449,7 @@ namespace Facesofnaija.Activities.Tabbes
                                 }
                             default:
                                 {
-                                    if (NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList?.Count > 0)
-                                    {
-                                        List<StoryDataObject> storyList = new List<StoryDataObject>(NewsFeedTab.PostFeedAdapter?.HolderStory.StoryAdapter.StoryList);
-                                        storyList.RemoveAll(o => o.Type == "Your" || o.Type == "Live");
-                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer: storyList.Count={storyList.Count} indexItem={storyList.IndexOf(item)} userId={item.UserId}");
-
-                                        var indexItem = storyList.IndexOf(item);
-
-                                        Intent intent = new Intent(this, typeof(StoryDetailsActivity));
-                                        intent.PutExtra("UserId", item.UserId);
-                                        intent.PutExtra("IndexItem", indexItem);
-                                        intent.PutExtra("StoriesCount", storyList.Count);
-                                        intent.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(storyList)));
-                                        StartActivity(intent);
-                                    }
+                                    OpenStoryViewer(item, false);
                                     break;
                                 }
                         }

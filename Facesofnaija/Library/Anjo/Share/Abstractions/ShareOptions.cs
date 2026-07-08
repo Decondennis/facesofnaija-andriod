@@ -23,11 +23,17 @@
         /// </summary>
         public ShareUIActivityType[] ExcludedUIActivityTypes { get; set; } = null;
 
-        /// <summary>
-        /// iOS only: Gets or sets the popover anchor rectangle.
-        /// If null (default) the option is not used.
-        /// </summary>
-        public ShareRectangle PopoverAnchorRectangle { get; set; } = null;
-    }
+    /// <summary>
+    /// iOS only: Gets or sets the popover anchor rectangle.
+    /// If null (default) the option is not used.
+    /// </summary>
+    public ShareRectangle PopoverAnchorRectangle { get; set; } = null;
+
+    /// <summary>
+    /// External: If true, URL will be shared along with the message for platform apps that support it. (iOS/Android only)
+    /// </summary>
+    public bool ShareExternalUrl { get; set; } = false;
 
 }
+
+    }

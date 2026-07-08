@@ -411,9 +411,12 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
             {
                 var checkSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                 Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: checkSection={(checkSection == null ? "NULL" : "found")} listCount={PostFeedAdapter?.ListDiffer?.Count ?? -1}");
-                if (checkSection != null)
+                if (checkSection == null)
+                    Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: proceeding without pre-existing story section; UI merge will create if needed");
+
                 {
-                    checkSection.StoryList ??= new ObservableCollection<StoryDataObject>();
+                    if (checkSection != null)
+                        checkSection.StoryList ??= new ObservableCollection<StoryDataObject>();
 
                     var (apiStatus, respond) = await StoryApiService.GetUserStoriesAsync();
                     Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: apiStatus={apiStatus} respond={respond?.GetType()?.Name ?? "null"}");
@@ -438,20 +441,35 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                         if (string.IsNullOrWhiteSpace(url))
                                             return string.Empty;
 
-                                        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            // Replace wrong domain with correct server IP
-                                            if (url.Contains("facesofnaija.com", StringComparison.OrdinalIgnoreCase) || url.Contains("www.facesofnaija.com", StringComparison.OrdinalIgnoreCase))
-                                            {
-                                                var correctBase = AppSettings.SiteUrl;
-                                                var systemUri = new System.Uri(url);
-                                                return url.Replace(systemUri.Scheme + "://" + systemUri.Host, correctBase);
-                                            }
-                                            return url;
-                                        }
+                                        return Facesofnaija.Helpers.CacheLoaders.GlideImageLoader.NormalizeImageUrl(url);
+                                    }
 
-                                        var baseUrl = AppSettings.SiteUrl;
-                                        return $"{baseUrl}/{url.TrimStart('/')}";
+                                    string ResolveCurrentUserAvatar()
+                                    {
+                                        var profileAvatar = NormalizeStoryUrl(UserDetails.Avatar);
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase) && !profileAvatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                            return profileAvatar;
+
+                                        var cachedProfileAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+                                        profileAvatar = NormalizeStoryUrl(cachedProfileAvatar);
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase) && !profileAvatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                            return profileAvatar;
+
+                                        var cachedProfileAvatarFull = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull;
+                                        profileAvatar = NormalizeStoryUrl(cachedProfileAvatarFull);
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase) && !profileAvatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                            return profileAvatar;
+
+                                        var cachedProfile = new SqLiteDatabase().Get_MyProfile();
+                                        profileAvatar = NormalizeStoryUrl(cachedProfile?.Avatar);
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase) && !profileAvatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                            return profileAvatar;
+
+                                        profileAvatar = NormalizeStoryUrl(cachedProfile?.AvatarFull);
+                                        if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase) && !profileAvatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                            return profileAvatar;
+
+                                        return NormalizeStoryUrl(UserDetails.Avatar);
                                     }
 
                                     void PreloadImage(string mediaFile)
@@ -596,39 +614,131 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             var freshSection = PostFeedAdapter?.ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
                                             if (freshSection == null)
                                             {
-                                                Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL � aborting UI update");
-                                                return;
+                                                var differ = PostFeedAdapter?.ListDiffer;
+                                                if (differ == null)
+                                                {
+                                                    Android.Util.Log.Warn("FON_TIMELINE", "LoadStory: freshSection is NULL and differ is NULL");
+                                                    return;
+                                                }
+
+                                                var insertIndex = System.Math.Min(1, differ.Count);
+                                                freshSection = new AdapterModelsClass
+                                                {
+                                                    TypeView = PostModelType.Story,
+                                                    StoryList = new ObservableCollection<StoryDataObject>(),
+                                                    Id = 545454545,
+                                                };
+                                                differ.Insert(insertIndex, freshSection);
+                                                PostFeedAdapter?.NotifyItemInserted(insertIndex);
+                                                Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: created freshSection at index={insertIndex}");
                                             }
 
                                             freshSection.StoryList ??= new ObservableCollection<StoryDataObject>();
 
                                             // Ensure "Your Story" entry exists in the differ's list (not just in StoryAdapter)
                                             var yourEntry = freshSection.StoryList.FirstOrDefault(s => s.Type == "Your");
+                                            var insertedYourEntry = false;
                                             if (yourEntry == null)
                                             {
                                                 yourEntry = new StoryDataObject
                                                 {
-                                                    Avatar = UserDetails.Avatar ?? string.Empty,
+                                                    UserId = UserDetails.UserId,
+                                                    Avatar = ResolveCurrentUserAvatar(),
                                                     Type = "Your",
                                                     Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
                                                     Stories = new List<StoryDataObject.Story>
                                                     {
                                                         new StoryDataObject.Story
                                                         {
-                                                            Thumbnail = UserDetails.Avatar ?? string.Empty,
+                                                            Thumbnail = ResolveCurrentUserAvatar(),
                                                         }
                                                     }
                                                 };
                                                 freshSection.StoryList.Insert(0, yourEntry);
+                                                insertedYourEntry = true;
                                             }
 
-                                            bool added = false;
+                                            yourEntry.UserId = UserDetails.UserId;
+                                            yourEntry.Type = "Your";
+                                            yourEntry.Stories ??= new List<StoryDataObject.Story>();
+
+                                            var cachedSelfGroup = StoryApiService.GetLatestSelfStoryGroup();
+                                            if (cachedSelfGroup != null
+                                                && string.Equals(cachedSelfGroup.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
+                                                && cachedSelfGroup.Stories?.Count > 0)
+                                            {
+                                                if (string.IsNullOrWhiteSpace(yourEntry.Avatar)
+                                                    || yourEntry.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
+                                                    || yourEntry.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    yourEntry.Avatar = NormalizeStoryUrl(cachedSelfGroup.Avatar);
+                                                }
+
+                                                if (yourEntry.Stories.Count <= 1
+                                                    && (string.IsNullOrWhiteSpace(yourEntry.Stories.FirstOrDefault()?.Id)
+                                                        || (yourEntry.Stories.FirstOrDefault()?.Thumbnail?.Contains("no_profile", StringComparison.OrdinalIgnoreCase) ?? true)))
+                                                {
+                                                    yourEntry.Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories);
+                                                }
+                                            }
+
+                                            var duplicateSelfEntries = freshSection.StoryList
+                                                .Where(s => s != null
+                                                            && !ReferenceEquals(s, yourEntry)
+                                                            && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
+                                                .ToList();
+                                            foreach (var duplicate in duplicateSelfEntries)
+                                            {
+                                                if (duplicate?.Stories?.Count > 0)
+                                                {
+                                                    if (yourEntry.Stories.Count == 1 && string.IsNullOrWhiteSpace(yourEntry.Stories[0]?.Id))
+                                                        yourEntry.Stories.Clear();
+
+                                                    foreach (var story in duplicate.Stories)
+                                                    {
+                                                        if (story == null) continue;
+                                                        var storyId = story.Id ?? string.Empty;
+                                                        if (!string.IsNullOrWhiteSpace(storyId) && yourEntry.Stories.Any(s => string.Equals(s?.Id, storyId, StringComparison.OrdinalIgnoreCase)))
+                                                            continue;
+                                                        yourEntry.Stories.Add(story);
+                                                    }
+                                                }
+
+                                                if (!string.IsNullOrWhiteSpace(duplicate?.Avatar)
+                                                    && !duplicate.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
+                                                    && !duplicate.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    yourEntry.Avatar = NormalizeStoryUrl(duplicate.Avatar);
+                                                }
+
+                                                freshSection.StoryList.Remove(duplicate);
+                                            }
+
+                                            var yourIndex = freshSection.StoryList.IndexOf(yourEntry);
+                                            if (yourIndex > 0)
+                                            {
+                                                freshSection.StoryList.RemoveAt(yourIndex);
+                                                freshSection.StoryList.Insert(0, yourEntry);
+                                            }
+
+                                            bool added = insertedYourEntry;
                                             foreach (var storyItem in storiesToAdd)
                                             {
-                                                var existing = freshSection.StoryList.FirstOrDefault(s => s.UserId == storyItem.UserId);
+                                                var isMyStory = string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase);
+                                                var existing = isMyStory
+                                                    ? yourEntry
+                                                    : freshSection.StoryList.FirstOrDefault(s => s.UserId == storyItem.UserId);
                                                 if (existing != null)
                                                 {
-                                                    if (existing.Stories?.Count != storyItem.Stories?.Count)
+                                                    var existingCount = existing.Stories?.Count ?? 0;
+                                                    var incomingCount = storyItem.Stories?.Count ?? 0;
+
+                                                    // Keep optimistic local self-story items if backend is temporarily stale after upload.
+                                                    if (isMyStory && incomingCount < existingCount)
+                                                    {
+                                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"LoadStory: keeping local self stories existing={existingCount} incoming={incomingCount}");
+                                                    }
+                                                    else if (existingCount != incomingCount)
                                                     {
                                                         existing.Stories = storyItem.Stories;
                                                         existing.Avatar = storyItem.Avatar;
@@ -642,14 +752,18 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                 }
 
                                                 // Update "Your Story" entry avatar from the user's own story data
-                                                if (string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(storyItem.Avatar))
+                                                if (string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    var hasChanges = yourEntry.Avatar != storyItem.Avatar;
-                                                    yourEntry.Avatar = storyItem.Avatar;
-                                                    if (yourEntry.Stories?.Count > 0)
-                                                        yourEntry.Stories[0].Thumbnail = storyItem.Avatar;
-                                                    if (!string.IsNullOrWhiteSpace(storyItem.Avatar) && storyItem.Avatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                                                        UserDetails.Avatar = storyItem.Avatar;
+                                                    var resolvedAvatar = !string.IsNullOrWhiteSpace(storyItem.Avatar)
+                                                        ? NormalizeStoryUrl(storyItem.Avatar)
+                                                        : ResolveCurrentUserAvatar();
+                                                    yourEntry.UserId = UserDetails.UserId;
+                                                    var hasChanges = yourEntry.Avatar != resolvedAvatar;
+                                                    yourEntry.Avatar = resolvedAvatar;
+                                                    if (yourEntry.Stories?.Count > 0 && (string.IsNullOrWhiteSpace(yourEntry.Stories[0].Thumbnail) || yourEntry.Stories[0].Thumbnail.Contains("no_profile", StringComparison.OrdinalIgnoreCase) || yourEntry.Stories[0].Thumbnail.Contains("d-avatar", StringComparison.OrdinalIgnoreCase)))
+                                                        yourEntry.Stories[0].Thumbnail = resolvedAvatar;
+                                                    if (!string.IsNullOrWhiteSpace(resolvedAvatar) && resolvedAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                                        UserDetails.Avatar = resolvedAvatar;
                                                     if (hasChanges) added = true;
                                                 }
                                             }

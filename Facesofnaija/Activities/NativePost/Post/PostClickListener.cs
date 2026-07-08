@@ -308,6 +308,11 @@ namespace Facesofnaija.Activities.NativePost.Post
                         recyclerView?.RemoveByRowIndex(post);
                 }
 
+                if (ApiPostAsync.PostCacheList?.Count > 0)
+                {
+                    ApiPostAsync.PostCacheList.RemoveAll(a => deleteIds.Contains(a?.Id, StringComparer.OrdinalIgnoreCase) || deleteIds.Contains(a?.PostId, StringComparer.OrdinalIgnoreCase));
+                }
+
                 recyclerView?.StopVideo();
             }
             catch (Exception ex)
@@ -348,8 +353,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     ids.Add(id);
             }
 
-            AddId(item.PostId);
             AddId(item.Id);
+            AddId(item.PostId);
             AddId(item.SharedInfo.SharedInfoClass?.PostId);
             AddId(item.SharedInfo.SharedInfoClass?.Id);
             return ids;

@@ -13,8 +13,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Facesofnaija.Helpers.CacheLoaders;
+using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
+using Facesofnaija.SQLite;
 using WoWonderClient.Classes.Story;
 using Console = System.Console;
 using IList = System.Collections.IList;
@@ -31,6 +33,85 @@ namespace Facesofnaija.Activities.Story.Adapters
 
         public ObservableCollection<StoryDataObject> StoryList = new ObservableCollection<StoryDataObject>();
 
+        private static bool IsPlaceholderAvatar(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                   || value.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase)
+                   || value.Contains("d-avatar", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ResolveMyAvatar()
+        {
+            var initAvatar = UserDetails.Avatar;
+            if (IsPlaceholderAvatar(initAvatar))
+                initAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+
+            if (IsPlaceholderAvatar(initAvatar))
+                initAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull;
+
+            if (IsPlaceholderAvatar(initAvatar))
+            {
+                var cachedProfile = new SqLiteDatabase().Get_MyProfile();
+                initAvatar = cachedProfile?.Avatar;
+            }
+
+            if (IsPlaceholderAvatar(initAvatar))
+            {
+                var cachedProfile = new SqLiteDatabase().Get_MyProfile();
+                initAvatar = cachedProfile?.AvatarFull;
+            }
+
+            if (IsPlaceholderAvatar(initAvatar))
+                initAvatar = string.Empty;
+
+            if (IsPlaceholderAvatar(initAvatar))
+                initAvatar = WoWonderTools.GetDefaultAvatar();
+
+            if (!string.IsNullOrWhiteSpace(initAvatar) && !initAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
+                if (!string.IsNullOrWhiteSpace(baseUrl))
+                    initAvatar = $"{baseUrl}/{initAvatar.TrimStart('/')}";
+            }
+
+            return initAvatar ?? string.Empty;
+        }
+
+        private static string ResolveStoryAvatar(string avatar, string thumbnail = null)
+        {
+            var candidate = !IsPlaceholderAvatar(avatar) ? avatar : null;
+            if (IsPlaceholderAvatar(candidate))
+                candidate = !IsPlaceholderAvatar(thumbnail) ? thumbnail : null;
+
+            if (IsPlaceholderAvatar(candidate))
+            {
+                var profileAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+                if (IsPlaceholderAvatar(profileAvatar))
+                    profileAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull;
+
+                candidate = profileAvatar;
+            }
+
+            if (IsPlaceholderAvatar(candidate))
+                candidate = UserDetails.Avatar;
+            if (IsPlaceholderAvatar(candidate))
+                candidate = "no_profile_image_circle";
+
+            return GlideImageLoader.NormalizeImageUrl(candidate);
+        }
+
+        private static string ResolveStoryCover(string thumbnail, string avatar = null)
+        {
+            var candidate = !IsPlaceholderAvatar(thumbnail) ? thumbnail : null;
+            if (IsPlaceholderAvatar(candidate))
+                candidate = !IsPlaceholderAvatar(avatar) ? avatar : null;
+
+            if (IsPlaceholderAvatar(candidate))
+                candidate = ResolveStoryAvatar(avatar, thumbnail);
+
+            return GlideImageLoader.NormalizeImageUrl(candidate);
+        }
+
         public StoryAdapter(Activity context)
         {
             try
@@ -42,16 +123,18 @@ namespace Facesofnaija.Activities.Story.Adapters
                 switch (dataOwner)
                 {
                     case null:
+                        var initAvatar = ResolveMyAvatar();
                         StoryList.Add(new StoryDataObject
                         {
-                            Avatar = UserDetails.Avatar,
+                            UserId = UserDetails.UserId,
+                            Avatar = initAvatar,
                             Type = "Your",
                             Username = context.GetText(Resource.String.Lbl_YourStory),
                             Stories = new List<StoryDataObject.Story>
                             {
                                 new StoryDataObject.Story
                                 {
-                                    Thumbnail = UserDetails.Avatar,
+                                    Thumbnail = initAvatar,
                                 }
                             }
                         });
@@ -92,14 +175,57 @@ namespace Facesofnaija.Activities.Story.Adapters
                 {
                     case StoryAdapterViewHolder holder:
                         {
+                            // Seed both image targets to a visible local avatar to avoid recycled blank cells.
+                            holder.RoundImage.Visibility = ViewStates.Visible;
+                            holder.Image.Visibility = ViewStates.Visible;
+                            holder.RoundImage.SetImageResource(Resource.Drawable.no_profile_image);
+                            holder.Image.SetImageResource(Resource.Drawable.no_profile_image);
+
                             var item = StoryList[position];
                             if (item != null)
                             {
+                                if (string.Equals(item.Type, "Your", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    item.UserId = UserDetails.UserId;
+                                    var latestSelfGroup = StoryApiService.GetLatestSelfStoryGroup();
+                                    if (IsPlaceholderAvatar(item.Avatar) && !IsPlaceholderAvatar(latestSelfGroup?.Avatar))
+                                        item.Avatar = latestSelfGroup.Avatar;
+
+                                    var myAvatar = ResolveMyAvatar();
+                                    if (!string.IsNullOrWhiteSpace(myAvatar))
+                                    {
+                                        if (string.IsNullOrWhiteSpace(item.Avatar) || IsPlaceholderAvatar(item.Avatar))
+                                            item.Avatar = myAvatar;
+
+                                        if (item.Stories == null || item.Stories.Count == 0)
+                                        {
+                                            item.Stories = new List<StoryDataObject.Story>
+                                            {
+                                                new StoryDataObject.Story
+                                                {
+                                                    Thumbnail = myAvatar,
+                                                }
+                                            };
+                                        }
+                                        else if (string.IsNullOrWhiteSpace(item.Stories[0]?.Thumbnail) || IsPlaceholderAvatar(item.Stories[0]?.Thumbnail))
+                                        {
+                                            item.Stories[0].Thumbnail = myAvatar;
+                                        }
+
+                                        if (item.Stories?.Count > 0 && IsPlaceholderAvatar(item.Stories[0]?.Thumbnail) && !IsPlaceholderAvatar(latestSelfGroup?.Stories?.FirstOrDefault()?.Thumbnail))
+                                            item.Stories[0].Thumbnail = latestSelfGroup.Stories.FirstOrDefault()?.Thumbnail;
+                                    }
+                                }
+
                                 switch (item.Stories?.Count)
                                 {
                                     case > 0:
-                                        GlideImageLoader.LoadImage(ActivityContext, item.Stories[0]?.Thumbnail, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
-                                        Android.Util.Log.Warn("FON_STORY_BIND", $"pos={position} type={item.Type} thumb={item.Stories[0]?.Thumbnail ?? "NULL"} avatar={item.Avatar ?? "NULL"}");
+                                        var storyThumbnail = ResolveStoryCover(item.Stories[0]?.Thumbnail, item.Avatar);
+                                        if (IsPlaceholderAvatar(storyThumbnail))
+                                            holder.RoundImage.SetImageResource(Resource.Drawable.no_profile_image);
+                                        else
+                                            GlideImageLoader.LoadImage(ActivityContext, storyThumbnail, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
+                                        Android.Util.Log.Warn("FON_STORY_BIND", $"pos={position} type={item.Type} userId={item.UserId ?? "NULL"} thumb={storyThumbnail ?? "NULL"} avatar={item.Avatar ?? "NULL"}");
                                         break;
                                 }
 
@@ -107,27 +233,72 @@ namespace Facesofnaija.Activities.Story.Adapters
                                 {
                                     case "Your":
                                         {
-                                            YourImageUri = item.Stories[0]?.Thumbnail;
-                                            GlideImageLoader.LoadImage(ActivityContext, YourImageUri, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
-                                            GlideImageLoader.LoadImage(ActivityContext, !string.IsNullOrWhiteSpace(item.Avatar) ? item.Avatar : YourImageUri, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.Drawable);
+                                            holder.Image.Visibility = ViewStates.Visible;
+                                            holder.Image.BringToFront();
+
+                                            YourImageUri = ResolveStoryCover(item.Stories[0]?.Thumbnail, item.Avatar);
+                                            var resolvedMyAvatar = ResolveMyAvatar();
+                                            if (!string.IsNullOrWhiteSpace(resolvedMyAvatar)
+                                                && (string.IsNullOrWhiteSpace(item.Avatar)
+                                                    || IsPlaceholderAvatar(item.Avatar)
+                                                    || (item.Stories?.Count > 0 && IsPlaceholderAvatar(item.Stories[0]?.Thumbnail))))
+                                            {
+                                                if (string.IsNullOrWhiteSpace(item.Avatar) || IsPlaceholderAvatar(item.Avatar))
+                                                    item.Avatar = resolvedMyAvatar;
+
+                                                if (item.Stories?.Count > 0 && IsPlaceholderAvatar(item.Stories[0]?.Thumbnail))
+                                                    item.Stories[0].Thumbnail = resolvedMyAvatar;
+
+                                                YourImageUri = ResolveStoryCover(item.Stories?[0]?.Thumbnail, item.Avatar);
+                                            }
+
+                                            if (IsPlaceholderAvatar(YourImageUri))
+                                            {
+                                                holder.RoundImage.SetImageResource(Resource.Drawable.no_profile_image);
+                                                holder.Image.SetImageResource(Resource.Drawable.no_profile_image);
+                                            }
+                                            else
+                                            {
+                                                GlideImageLoader.LoadImage(ActivityContext, YourImageUri, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
+                                                var yourAvatar = ResolveStoryAvatar(item.Avatar, null);
+                                                if (IsPlaceholderAvatar(yourAvatar))
+                                                    holder.Image.SetImageResource(Resource.Drawable.no_profile_image_circle);
+                                                else
+                                                    GlideImageLoader.LoadImage(ActivityContext, yourAvatar, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.Drawable);
+                                            }
 
                                             break;
                                         }
                                     case "Live":
                                         {
-                                            GlideImageLoader.LoadImage(ActivityContext, item.Avatar, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
-                                            GlideImageLoader.LoadImage(ActivityContext, item.Avatar, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+                                            var liveCover = ResolveStoryCover(item.Stories?.FirstOrDefault()?.Thumbnail, item.Avatar);
+                                            var liveAvatar = ResolveStoryAvatar(item.Avatar, item.Stories?.FirstOrDefault()?.Thumbnail);
+                                            if (IsPlaceholderAvatar(liveCover))
+                                            {
+                                                holder.RoundImage.SetImageResource(Resource.Drawable.no_profile_image);
+                                                holder.Image.SetImageResource(Resource.Drawable.no_profile_image);
+                                            }
+                                            else
+                                            {
+                                                GlideImageLoader.LoadImage(ActivityContext, liveCover, holder.RoundImage, ImageStyle.RoundedCrop, ImagePlaceholders.Drawable);
+                                                GlideImageLoader.LoadImage(ActivityContext, liveAvatar, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+                                            }
 
                                             break;
                                         }
                                     default:
                                         item.ProfileIndicator ??= AppSettings.MainColor;
-
-                                        GlideImageLoader.LoadImage(ActivityContext, item.Avatar, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
+                                        var defaultAvatar = ResolveStoryAvatar(item.Avatar, item.Stories?.FirstOrDefault()?.Thumbnail);
+                                        if (IsPlaceholderAvatar(defaultAvatar))
+                                            holder.Image.SetImageResource(Resource.Drawable.no_profile_image);
+                                        else
+                                            GlideImageLoader.LoadImage(ActivityContext, defaultAvatar, holder.Image, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
                                         break;
                                 }
 
-                                holder.Name.Text = Methods.FunString.SubStringCutOf(WoWonderTools.GetNameFinal(item), 12);
+                                holder.Name.Text = string.Equals(item.Type, "Your", StringComparison.OrdinalIgnoreCase)
+                                    ? ActivityContext.GetText(Resource.String.Lbl_YourStory)
+                                    : Methods.FunString.SubStringCutOf(WoWonderTools.GetNameFinal(item), 12);
 
                                 if (item.DataLivePost != null && item.Type == "Live")
                                     holder.VideoStory.Visibility = ViewStates.Visible;

@@ -1278,14 +1278,6 @@ namespace Facesofnaija.CustomApi.Requests
 
                         if (string.IsNullOrWhiteSpace(normalizedJson) || !normalizedJson.StartsWith("{"))
                         {
-                            if (response.StatusCode == System.Net.HttpStatusCode.OK
-                                && string.IsNullOrWhiteSpace(normalizedJson)
-                                && type.IndexOf("delete", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                Log.Info("WoFallback", $"HttpForm success: delete type={type} endpoint={endpoint} empty-body-treated-as-success");
-                                return (200, $"type={type}; endpoint={endpoint}; http=200; empty-body-treated-as-success");
-                            }
-
                             var shortBody = normalizedJson.Replace("\r", " ").Replace("\n", " ");
                             if (shortBody.Length > 180)
                                 shortBody = shortBody.Substring(0, 180);

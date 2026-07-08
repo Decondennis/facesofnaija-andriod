@@ -63,6 +63,8 @@ namespace Facesofnaija.Activities.NativePost.Post
 
         public readonly RequestBuilder FullGlideRequestBuilder;
         public readonly RequestBuilder CircleGlideRequestBuilder;
+        public bool IsFooterLoading { get; private set; }
+        public bool HasMorePosts { get; private set; } = true;
 
         public List<AdapterModelsClass> ListDiffer { get; set; }
         private PreCachingLayoutManager PreCachingLayout { get; set; }
@@ -811,7 +813,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     case (int)PostModelType.ViewProgress:
                         {
                             itemView = LayoutInflater.From(parent.Context)?.Inflate(Resource.Layout.ItemProgressView, parent, false);
-                            var vh = new AdapterHolders.ProgressViewHolder(itemView);
+                            var vh = new AdapterHolders.ProgressViewHolder(itemView, this);
                             //Console.WriteLine("WoLog: NativePostAdapter / OnCreateViewHolder  >>  PostModelType = ViewProgress " + viewType);
                             return vh;
                         }
@@ -1371,15 +1373,16 @@ namespace Facesofnaija.Activities.NativePost.Post
                             holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
 
                             var avatarUrl = UserDetails.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || avatarUrl.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || avatarUrl.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) || avatarUrl.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
                                 avatarUrl = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = new SqLiteDatabase().Get_MyProfile()?.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = item?.PostData?.Publisher?.Avatar;
-                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false))
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = WoWonderTools.GetDefaultAvatar();
 
+                            Console.WriteLine($"FON_AVATAR: AddPostBox avatar={avatarUrl}");
                             avatarUrl = GlideImageLoader.NormalizeImageUrl(avatarUrl);
                             
                             
@@ -1402,6 +1405,11 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 TryRefreshMyProfileAvatar();
                             }
                             else if (avatarUrl.Contains("no_profile_image"))
+                            {
+                                holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
+                                TryRefreshMyProfileAvatar();
+                            }
+                            else if (avatarUrl.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
                             {
                                 holder.ProfileImageView.SetImageResource(Resource.Drawable.no_profile_image);
                                 TryRefreshMyProfileAvatar();
@@ -1572,7 +1580,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                         {
                             if (viewHolder is not AdapterHolders.ProgressViewHolder holder)
                                 return;
-                            Console.WriteLine(holder);
+                            holder.Bind();
                             break;
                         }
                     default:
@@ -1655,7 +1663,28 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-                // Disable progress-row insertion; loading state is handled by SwipeRefresh + shimmer fallback.
+                HasMorePosts = true;
+                IsFooterLoading = true;
+
+                var list = ListDiffer.FirstOrDefault(anjo => anjo.TypeView == PostModelType.ViewProgress);
+                if (list == null)
+                {
+                    ListDiffer.Add(new AdapterModelsClass
+                    {
+                        TypeView = PostModelType.ViewProgress,
+                        Id = long.MaxValue,
+                    });
+
+                    NotifyItemInserted(ListDiffer.Count - 1);
+                }
+                else
+                {
+                    var index = ListDiffer.IndexOf(list);
+                    if (index >= 0)
+                        NotifyItemChanged(index);
+                    else
+                        NotifyDataSetChanged();
+                }
             }
             catch (Exception e)
             {
@@ -1667,20 +1696,64 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
+                IsFooterLoading = false;
+
                 var list = ListDiffer.FirstOrDefault(anjo => anjo.TypeView == PostModelType.ViewProgress);
                 if (list != null)
                 {
                     var index = ListDiffer.IndexOf(list);
                     if (index >= 0)
                     {
-                        ListDiffer.RemoveAt(index);
-                        NotifyItemRemoved(index);
+                        NotifyItemChanged(index);
                     }
                     else
                     {
-                        ListDiffer.Remove(list);
                         NotifyDataSetChanged();
                     }
+                }
+                else if (ListDiffer.Count > 0)
+                {
+                    // Keep a manual load-more footer visible for users when auto-pagination stalls.
+                    ListDiffer.Add(new AdapterModelsClass
+                    {
+                        TypeView = PostModelType.ViewProgress,
+                        Id = long.MaxValue,
+                    });
+
+                    NotifyItemInserted(ListDiffer.Count - 1);
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        public void SetNoMorePosts()
+        {
+            try
+            {
+                IsFooterLoading = false;
+                HasMorePosts = false;
+
+                var list = ListDiffer.FirstOrDefault(anjo => anjo.TypeView == PostModelType.ViewProgress);
+                if (list != null)
+                {
+                    var index = ListDiffer.IndexOf(list);
+                    if (index >= 0)
+                        NotifyItemChanged(index);
+                    else
+                        NotifyDataSetChanged();
+                }
+                else if (ListDiffer.Count > 0)
+                {
+                    ListDiffer.Add(new AdapterModelsClass
+                    {
+                        TypeView = PostModelType.ViewProgress,
+                        Id = long.MaxValue,
+                    });
+
+                    NotifyItemInserted(ListDiffer.Count - 1);
                 }
             }
             catch (Exception e)
@@ -2017,6 +2090,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                 if (userData != null)
                 {
                     var profileAvatar = userData.Avatar;
+                    if (string.IsNullOrWhiteSpace(profileAvatar))
+                        profileAvatar = userData.AvatarFull;
                     if (!string.IsNullOrWhiteSpace(profileAvatar) && !profileAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     {
                         var baseUrl = WoWonderClient.InitializeWoWonder.WebsiteUrl?.Trim().TrimEnd('/');
@@ -2026,6 +2101,9 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                     if (!string.IsNullOrWhiteSpace(profileAvatar))
                     {
+                        userData.Avatar = profileAvatar;
+                        if (string.IsNullOrWhiteSpace(userData.AvatarFull))
+                            userData.AvatarFull = profileAvatar;
                         UserDetails.Avatar = profileAvatar;
                         ListUtils.MyProfileList = new System.Collections.ObjectModel.ObservableCollection<UserDataObject> { userData };
 

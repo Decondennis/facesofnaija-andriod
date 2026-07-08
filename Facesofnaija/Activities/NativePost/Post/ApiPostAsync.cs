@@ -362,14 +362,21 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-            offset ??= CurrentFeedOffset;
-            if (typeRun == "Refresh") CurrentFeedOffset = "0";
+            if (typeRun == "Refresh")
+            {
+                CurrentFeedOffset = "0";
+                offset = "0";
+            }
+            else
+            {
+                offset ??= CurrentFeedOffset;
+            }
 
             Log.Warn("FON_TIMELINE", $"FetchNewsFeedApiPosts called: offset={offset} typeRun={typeRun}");
 
             if (!Methods.CheckConnectivity())
             {
-                Log.Warn("FON_TIMELINE", "No connectivity — aborting feed fetch");
+                Log.Warn("FON_TIMELINE", "No connectivity ï¿½ aborting feed fetch");
                 WRecyclerView.MainScrollEvent.IsLoading = false;
                 return;
             }
@@ -443,7 +450,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             if (apiStatus != 200 || extractedResult?.Data == null)
             {
                 WRecyclerView.MainScrollEvent.IsLoading = false;
-                Log.Debug("FON_TIMELINE", $"Feed failed — apiStatus={apiStatus} respond={(respond?.ToString() ?? "").Substring(0, System.Math.Min(200, (respond?.ToString() ?? "").Length))}");
+                Log.Debug("FON_TIMELINE", $"Feed failed ï¿½ apiStatus={apiStatus} respond={(respond?.ToString() ?? "").Substring(0, System.Math.Min(200, (respond?.ToString() ?? "").Length))}");
                 Methods.DisplayReportResult(ActivityContext, respond);
 
                 ActivityContext?.RunOnUiThread(() =>
@@ -466,7 +473,7 @@ namespace Facesofnaija.Activities.NativePost.Post
             else
             {
                 respond = extractedResult;
-                Log.Warn("FON_TIMELINE", $"Feed OK — loading {extractedResult.Data.Count} posts into adapter typeRun={typeRun}");
+                Log.Warn("FON_TIMELINE", $"Feed OK ï¿½ loading {extractedResult.Data.Count} posts into adapter typeRun={typeRun}");
 
                 ActivityContext?.RunOnUiThread(() =>
                 {
@@ -484,9 +491,13 @@ namespace Facesofnaija.Activities.NativePost.Post
                     if (postData.Data?.Count > 0)
                     {
                         var lastPost = postData.Data.Last();
-                        if (!string.IsNullOrEmpty(lastPost?.Id))
+                        var nextOffset = lastPost?.PostId;
+                        if (string.IsNullOrEmpty(nextOffset))
+                            nextOffset = lastPost?.Id;
+
+                        if (!string.IsNullOrEmpty(nextOffset))
                         {
-                            CurrentFeedOffset = lastPost.Id;
+                            CurrentFeedOffset = nextOffset;
                             Log.Warn("FON_TIMELINE", $"CurrentFeedOffset updated to {CurrentFeedOffset}");
                         }
                     }
@@ -595,9 +606,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var countList = NativeFeedAdapter.ItemCount;
                     if (result.Data.Count > 0)
                     {
-                        Console.WriteLine($"DEBUG LoadDataApi: Posts before RemoveAll: {result.Data.Count}");
-                        result.Data.RemoveAll(a => a.Publisher == null && a.UserData == null);
-                        Console.WriteLine($"DEBUG LoadDataApi: Posts after RemoveAll: {result.Data.Count}");
+                        Console.WriteLine($"DEBUG LoadDataApi: Posts before validation: {result.Data.Count}");
+
                         GetAllPostLive(result.Data);
 
                         if (offset == "0" && countList > 10 && typeRun == "Insert" && NativeFeedAdapter.NativePostType == NativeFeedType.Global)
@@ -733,6 +743,10 @@ namespace Facesofnaija.Activities.NativePost.Post
                     else
                     {
                         Console.WriteLine($"DEBUG LoadDataApi: result.Data.Count is 0 or null");
+                        if (offset == "0" && typeRun == "Refresh")
+                            NativeFeedAdapter.SetLoaded();
+                        else
+                            NativeFeedAdapter.SetNoMorePosts();
                     }
 
                     ActivityContext?.RunOnUiThread(() =>
@@ -854,7 +868,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                 }
                 else
                 {
-                    result.Data.RemoveAll(a => a.Publisher == null && a.UserData == null);
                     GetAllPostLive(result.Data);
                     result.Data.Reverse();
 
@@ -934,7 +947,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                     {
                         case > 0:
                             {
-                                result.Data.Posts.RemoveAll(a => a.Publisher == null && a.UserData == null);
                                 result.Data.Posts.Reverse();
 
                                 foreach (var post in from post in result.Data.Posts let check = NativeFeedAdapter.ListDiffer.FirstOrDefault(a => a?.PostData?.PostId == post.PostId && a?.TypeView == PostFunctions.GetAdapterType(post)) where check == null select post)
@@ -1075,8 +1087,6 @@ namespace Facesofnaija.Activities.NativePost.Post
                     {
                         case > 0:
                             {
-                                result.Data.RemoveAll(a => a.Publisher == null && a.UserData == null);
-
                                 switch (countList)
                                 {
                                     case > 0:
@@ -1251,9 +1261,6 @@ namespace Facesofnaija.Activities.NativePost.Post
             try
             {
                 NativeFeedAdapter.SetLoaded();
-                var viewProgress = NativeFeedAdapter.ListDiffer.FirstOrDefault(anjo => anjo.TypeView == PostModelType.ViewProgress);
-                if (viewProgress != null)
-                    WRecyclerView.RemoveByRowIndex(viewProgress);
 
                 var emptyStateCheck = NativeFeedAdapter.ListDiffer.FirstOrDefault(a => a.PostData != null && a.TypeView != PostModelType.AddPostBox /*&& a.TypeView != PostModelType.SearchForPosts*/);
                 if (emptyStateCheck != null)
@@ -1511,75 +1518,125 @@ namespace Facesofnaija.Activities.NativePost.Post
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
-                var baseUrl = AppSettings.SiteUrl;
-                var url = $"{baseUrl}/app_api.php?application=phone&type=get_news_feed";
+                static string ExtractCanonicalHost()
+                {
+                    try
+                    {
+                        var jobsUrl = AppSettings.JobsUrl;
+                        if (System.Uri.TryCreate(jobsUrl, System.UriKind.Absolute, out var jobsUri) && !string.IsNullOrWhiteSpace(jobsUri.Host))
+                            return jobsUri.Host;
+                    }
+                    catch
+                    {
+                        // Ignore host extraction issues.
+                    }
+
+                    return "facesofnaija.com";
+                }
+
+                static bool IsIpHost(string baseUrl)
+                {
+                    try
+                    {
+                        return System.Uri.TryCreate(baseUrl, System.UriKind.Absolute, out var uri) && System.Net.IPAddress.TryParse(uri.Host, out _);
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+
+                static List<string> BuildCandidateBaseUrls()
+                {
+                    var candidates = new List<string>();
+                    // Only use the known working server IP
+                    candidates.Add("http://172.236.19.52");
+                    return candidates;
+                }
+
                 var limit = AppSettings.PostApiLimitOnScroll;
-                var filter = WRecyclerView.GetFilter();
-                var postType = WRecyclerView.GetPostType();
 
                 var userId = UserDetails.UserId?.ToString() ?? "0";
                 var accessToken = UserDetails.AccessToken ?? string.Empty;
+                var canonicalHost = ExtractCanonicalHost();
 
                 Log.Warn("FON_FEED", $"GetGlobalPostDirect phone API userId={userId} offset={offset}");
 
                 var postData = new List<KeyValuePair<string, string>>
                 {
-                    new KeyValuePair<string, string>("type", "get_news_feed"),
-                    new KeyValuePair<string, string>("access_token", accessToken),
                     new KeyValuePair<string, string>("user_id", userId),
                     new KeyValuePair<string, string>("s", accessToken),
-                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
                     new KeyValuePair<string, string>("limit", limit),
                     new KeyValuePair<string, string>("offset", offset ?? "0"),
                 };
 
-                using (var content = new FormUrlEncodedContent(postData))
+                var extendedPostData = new List<KeyValuePair<string, string>>(postData)
                 {
-                    var response = await client.PostAsync(url, content).ConfigureAwait(false);
-                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    new KeyValuePair<string, string>("access_token", accessToken),
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                    new KeyValuePair<string, string>("type", "get_news_feed"),
+                };
 
-                    if (string.IsNullOrWhiteSpace(json))
+                foreach (var baseUrl in BuildCandidateBaseUrls())
+                {
+                    var attempts = new List<(string url, List<KeyValuePair<string, string>> data)>
                     {
-                        Log.Warn("FON_FEED", $"GetGlobalPostDirect empty response, status={response.StatusCode}");
-                        return (400, "Invalid response");
-                    }
-                    if (json.TrimStart().StartsWith("<"))
-                    {
-                        Log.Warn("FON_FEED", $"GetGlobalPostDirect HTML response: {json.Substring(0, System.Math.Min(200, json.Length))}");
-                        return (400, "Invalid response");
-                    }
+                        ($"{baseUrl}/app_api.php?application=phone&type=get_news_feed", postData),
+                        ($"{baseUrl}/app_api.php?application=phone&type=get_user_posts", extendedPostData),
+                    };
 
-                    try
+                    foreach (var attempt in attempts)
                     {
-                        var jObject = JObject.Parse(json);
-                        var statusText = jObject["api_status"]?.ToString();
-                        int.TryParse(statusText, out int status);
+                        using var content = new FormUrlEncodedContent(attempt.data);
+                        using var request = new HttpRequestMessage(HttpMethod.Post, attempt.url) { Content = content };
+                        var response = await client.SendAsync(request).ConfigureAwait(false);
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-                        if (status == 200)
+                        if (string.IsNullOrWhiteSpace(json))
                         {
-                            var direct = jObject.ToObject<PostObject>();
-                            if (direct?.Data != null)
-                                return (200, (dynamic)direct);
-
-                            var arr = jObject["data"] as JArray ?? jObject["posts"] as JArray;
-                            if (arr != null)
-                            {
-                                var list = arr.ToObject<List<PostDataObject>>();
-                                if (list != null)
-                                    return (200, (dynamic)new PostObject { Data = list });
-                            }
-
-                            return (200, (dynamic)new PostObject { Data = new List<PostDataObject>() });
+                            Log.Warn("FON_FEED", $"GetGlobalPostDirect empty response, status={response.StatusCode}, url={attempt.url}");
+                            continue;
                         }
 
-                        return (status == 0 ? 400 : status, (dynamic)jObject);
-                    }
-                    catch (Exception parseEx)
-                    {
-                        Log.Warn("FON_FEED", $"GetGlobalPostDirect parse error: {parseEx.Message}");
-                        return (400, json);
+                        if (json.TrimStart().StartsWith("<"))
+                        {
+                            Log.Warn("FON_FEED", $"GetGlobalPostDirect HTML response url={attempt.url}: {json.Substring(0, System.Math.Min(200, json.Length))}");
+                            continue;
+                        }
+
+                        try
+                        {
+                            var jObject = JObject.Parse(json);
+                            var statusText = jObject["api_status"]?.ToString();
+                            int.TryParse(statusText, out int status);
+
+                            if (status == 200)
+                            {
+                                var direct = jObject.ToObject<PostObject>();
+                                if (direct?.Data != null)
+                                    return (200, (dynamic)direct);
+
+                                var arr = jObject["data"] as JArray ?? jObject["posts"] as JArray;
+                                if (arr != null)
+                                {
+                                    var list = arr.ToObject<List<PostDataObject>>();
+                                    if (list != null)
+                                        return (200, (dynamic)new PostObject { Data = list });
+                                }
+
+                                return (200, (dynamic)new PostObject { Data = new List<PostDataObject>() });
+                            }
+
+                            Log.Warn("FON_FEED", $"GetGlobalPostDirect non-200 api_status={status} url={attempt.url}");
+                        }
+                        catch (Exception parseEx)
+                        {
+                            Log.Warn("FON_FEED", $"GetGlobalPostDirect parse error url={attempt.url}: {parseEx.Message}");
+                        }
                     }
                 }
+
+                    return (400, "Invalid response");
             }
             catch (Exception ex)
             {

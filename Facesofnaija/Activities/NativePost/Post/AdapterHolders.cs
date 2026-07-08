@@ -3895,13 +3895,70 @@ namespace Facesofnaija.Activities.NativePost.Post
 
         public class ProgressViewHolder : RecyclerView.ViewHolder
         {
+            private readonly NativePostAdapter PostAdapter;
             public ProgressBar ProgressBar { get; private set; }
+            public AppCompatButton LoadMoreButton { get; private set; }
 
-            public ProgressViewHolder(View itemView) : base(itemView)
+            public ProgressViewHolder(View itemView, NativePostAdapter postAdapter) : base(itemView)
             {
                 try
                 {
+                    PostAdapter = postAdapter;
                     ProgressBar = (ProgressBar)itemView.FindViewById(Resource.Id.progress_bar);
+                    LoadMoreButton = itemView.FindViewById<AppCompatButton>(Resource.Id.btn_load_more_posts);
+
+                    if (LoadMoreButton != null)
+                    {
+                        LoadMoreButton.Click += async (sender, args) =>
+                        {
+                            try
+                            {
+                                var recycler = WRecyclerView.GetInstance();
+                                if (recycler?.ApiPostAsync == null || recycler.MainScrollEvent == null)
+                                    return;
+
+                                if (!PostAdapter.HasMorePosts)
+                                    return;
+
+                                if (recycler.MainScrollEvent.IsLoading || PostAdapter.IsFooterLoading)
+                                    return;
+
+                                recycler.MainScrollEvent.IsLoading = true;
+                                PostAdapter.SetLoading();
+                                await recycler.ApiPostAsync.FetchNewsFeedApiPosts();
+                            }
+                            catch (Exception e)
+                            {
+                                Methods.DisplayReportResultTrack(e);
+                            }
+                        };
+                    }
+                }
+                catch (Exception e)
+                {
+                    Methods.DisplayReportResultTrack(e);
+                }
+            }
+
+            public void Bind()
+            {
+                try
+                {
+                    var isLoading = PostAdapter?.IsFooterLoading == true;
+                    var hasMorePosts = PostAdapter?.HasMorePosts == true;
+
+                    if (ProgressBar != null)
+                        ProgressBar.Visibility = isLoading ? ViewStates.Visible : ViewStates.Gone;
+
+                    if (LoadMoreButton != null)
+                    {
+                        LoadMoreButton.Enabled = !isLoading && hasMorePosts;
+                        LoadMoreButton.Text = isLoading
+                            ? Application.Context.GetText(Resource.String.Lbl_Loading)
+                            : hasMorePosts
+                                ? Application.Context.GetText(Resource.String.Lbl_LoadMorePosts)
+                                : Application.Context.GetText(Resource.String.Lbl_NoMorePost);
+                    }
                 }
                 catch (Exception e)
                 {

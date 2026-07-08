@@ -4,7 +4,19 @@
               android:layout_height="wrap_content"
               android:gravity="center"
               android:minHeight="?attr/actionBarSize"
+              android:paddingTop="8dp"
+              android:paddingBottom="12dp"
               android:orientation="vertical">
+
+  <androidx.appcompat.widget.AppCompatButton
+    android:id="@+id/btn_load_more_posts"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="180dp"
+    android:text="@string/Lbl_LoadMorePosts"
+    android:textAllCaps="false"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="6dp" />
 
   <ProgressBar
     android:id="@+id/progress_bar"
@@ -12,6 +24,7 @@
     android:layout_width="25dp"
     android:layout_height="25dp"
     android:layout_margin="10dp"
+    android:visibility="gone"
     android:indeterminate="true" />
 
 </LinearLayout>

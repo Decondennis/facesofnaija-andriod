@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.NativePost.Post;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.Library.Anjo.Share;
@@ -187,6 +188,190 @@ namespace Facesofnaija.Activities.NativePost.Share
             }
         }
 
+        private bool TryGetShareMediaAttachment(out string attachmentUrl, out string fileName)
+        {
+            attachmentUrl = string.Empty;
+            fileName = string.Empty;
+
+            try
+            {
+                var candidateUrl = GetShareMediaCandidateUrl();
+
+                if (string.IsNullOrWhiteSpace(candidateUrl))
+                    return false;
+
+                attachmentUrl = candidateUrl;
+                fileName = BuildSafeFileName(candidateUrl);
+                return !string.IsNullOrWhiteSpace(fileName);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string GetShareMediaCandidateUrl()
+        {
+            try
+            {
+                var candidates = new List<string>
+                {
+                    DataPost?.PostSticker,
+                    DataPost?.PostFileFull,
+                    DataPost?.PostFile,
+                    DataPost?.PostFileThumb,
+                    DataPost?.PhotoMulti?.FirstOrDefault()?.Image,
+                    DataPost?.PhotoAlbum?.FirstOrDefault()?.Image,
+                    ReadNestedProductImage(DataPost),
+                };
+
+                // Shared posts often keep media in nested SharedInfo payload fields.
+                AppendSharedMediaCandidates(candidates, ReadSharedInfoPayload(DataPost));
+
+                return candidates.FirstOrDefault(url => !string.IsNullOrWhiteSpace(url)) ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static void AppendSharedMediaCandidates(List<string> candidates, object sharedInfo)
+        {
+            try
+            {
+                if (candidates == null || sharedInfo == null)
+                    return;
+
+                foreach (var field in new[] { "PostSticker", "PostFileFull", "PostFile", "PostFileThumb", "PostLink", "Url" })
+                {
+                    candidates.Add(ReadStringProperty(sharedInfo, field));
+                }
+
+                candidates.Add(ReadFirstImageProperty(sharedInfo, "PhotoMulti"));
+                candidates.Add(ReadFirstImageProperty(sharedInfo, "PhotoAlbum"));
+                candidates.Add(ReadNestedProductImage(sharedInfo));
+            }
+            catch
+            {
+                // Ignore reflection failures and continue with primary post candidates.
+            }
+        }
+
+        private static string ReadStringProperty(object target, string propertyName)
+        {
+            try
+            {
+                if (target == null || string.IsNullOrWhiteSpace(propertyName))
+                    return string.Empty;
+
+                var property = target.GetType().GetProperty(propertyName);
+                if (property == null)
+                    return string.Empty;
+
+                return property.GetValue(target)?.ToString() ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string ReadFirstImageProperty(object target, string propertyName)
+        {
+            try
+            {
+                var property = target?.GetType().GetProperty(propertyName);
+                if (property?.GetValue(target) is System.Collections.IEnumerable enumerable)
+                {
+                    foreach (var item in enumerable)
+                    {
+                        var image = ReadStringProperty(item, "Image");
+                        if (!string.IsNullOrWhiteSpace(image))
+                            return image;
+                    }
+                }
+
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string ReadNestedProductImage(object target)
+        {
+            try
+            {
+                var product = target?.GetType().GetProperty("Product")?.GetValue(target);
+                var value = product?.GetType().GetProperty("Value")?.GetValue(product);
+                var productClass = value?.GetType().GetProperty("ProductClass")?.GetValue(value);
+                return ReadFirstImageProperty(productClass, "Images");
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static object ReadSharedInfoPayload(object target)
+        {
+            try
+            {
+                var sharedInfo = target?.GetType().GetProperty("SharedInfo")?.GetValue(target);
+                if (sharedInfo == null)
+                    return null;
+
+                return sharedInfo.GetType().GetProperty("SharedInfoClass")?.GetValue(sharedInfo);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private string BuildSafeFileName(string url)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(url))
+                    return string.Empty;
+
+                var parsed = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null;
+                var rawName = parsed != null
+                    ? System.IO.Path.GetFileName(parsed.LocalPath)
+                    : System.IO.Path.GetFileName(url.Split('?')[0].Split('#')[0]);
+
+                if (string.IsNullOrWhiteSpace(rawName))
+                    rawName = "shared_media";
+
+                foreach (var invalidChar in System.IO.Path.GetInvalidFileNameChars())
+                    rawName = rawName.Replace(invalidChar, '_');
+
+                return rawName.Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private async Task ShareRemoteAttachmentOrTextAsync(string title)
+        {
+            if (TryGetShareMediaAttachment(out var attachmentUrl, out var fileName))
+            {
+                await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, attachmentUrl, fileName, title);
+                return;
+            }
+
+            await CrossShare.Current.Share(new ShareMessage
+            {
+                Title = string.Empty,
+                Text = BuildShareText()
+            });
+        }
+
         #endregion
 
         #region Events
@@ -257,22 +442,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                     case PostModelType.ImagePost:
                     case PostModelType.StickerPost:
                         {
-                            string urlImage = !string.IsNullOrEmpty(DataPost.PostSticker) ? DataPost.PostSticker : (DataPost.PostFileFull ?? DataPost.PostFile);
-                            var fileName = urlImage?.Split('/').Last();
-
-                            switch (AppSettings.AllowDownloadMedia)
-                            {
-                                case true:
-                                    await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, urlImage, fileName, Context.GetText(Resource.String.Lbl_Send_to));
-                                    break;
-                                default:
-                                    await CrossShare.Current.Share(new ShareMessage
-                                    {
-                                        Title = "",
-                                        Text = BuildShareText()
-                                    });
-                                    break;
-                            }
+                            await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
                             break;
                         }
                     case PostModelType.MapPost:
@@ -285,12 +455,9 @@ namespace Facesofnaija.Activities.NativePost.Share
                     case PostModelType.MultiImage8:
                     case PostModelType.MultiImage9:
                     case PostModelType.MultiImage10:
+                    case PostModelType.MultiImages:
                         {
-                            await CrossShare.Current.Share(new ShareMessage
-                            {
-                                Title = "",
-                                Text = BuildShareText()
-                            });
+                            await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
                             break;
                         }
                     case PostModelType.LinkPost:
@@ -301,64 +468,38 @@ namespace Facesofnaija.Activities.NativePost.Share
                         }
                     case PostModelType.VideoPost:
                         {
-                            var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
-                            var fileName = linkUrl?.Split('/').Last();
-
-                            switch (AppSettings.AllowDownloadMedia)
-                            {
-                                case true:
-                                    await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, linkUrl, fileName, Context.GetText(Resource.String.Lbl_Send_to));
-                                    break;
-                                default:
-                                    await CrossShare.Current.Share(new ShareMessage
-                                    {
-                                        Title = "",
-                                        Text = BuildShareText()
-                                    });
-                                    break;
-                            }
+                            await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
                             break;
                         }
                     case PostModelType.FilePost:
                         {
-                            var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
-                            var fileName = linkUrl?.Split('/').Last();
-
-                            switch (AppSettings.AllowDownloadMedia)
-                            {
-                                case true:
-                                    await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, linkUrl, fileName, Context.GetText(Resource.String.Lbl_Send_to));
-                                    break;
-                                default:
-                                    await CrossShare.Current.Share(new ShareMessage
-                                    {
-                                        Title = "",
-                                        Text = BuildShareText()
-                                    });
-                                    break;
-                            }
+                            await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
                             break;
                         }
                     case PostModelType.ProductPost:
                         {
                             if (DataPost.Product != null)
+                            {
+                                var shareOptions = new ShareOptions { ShareExternalUrl = true };
                                 await CrossShare.Current.Share(new ShareMessage
                                 {
                                     Title = Methods.FunString.DecodeString(DataPost.Product.Value.ProductClass.Name),
                                     Text = Methods.FunString.DecodeString(DataPost.Product.Value.ProductClass.Description),
                                     Url = DataPost.Product.Value.ProductClass.Url,
-                                });
+                                }, shareOptions);
+                            }
                             break;
                         }
                     case PostModelType.BlogPost:
                         if (DataPost.Blog != null)
                         {
+                            var shareOptions = new ShareOptions { ShareExternalUrl = true };
                             await CrossShare.Current.Share(new ShareMessage
                             {
                                 Title = Methods.FunString.DecodeString(DataPost.Blog.Value.BlogClass.Title),
                                 Text = Methods.FunString.DecodeString(DataPost.Blog.Value.BlogClass.Description),
                                 Url = DataPost.Blog.Value.BlogClass.Url,
-                            });
+                            }, shareOptions);
                         }
                         break;
                     case PostModelType.AdsPost:
@@ -387,23 +528,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                                 {
                                     case false:
                                         {
-                                            var linkUrl = DataPost.PostSticker;
-                                            var fileName = linkUrl?.Split('/').Last();
-
-                                            switch (AppSettings.AllowDownloadMedia)
-                                            {
-                                                case true:
-                                                    await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, linkUrl, fileName, Context.GetText(Resource.String.Lbl_Send_to));
-                                                    break;
-                                                default:
-                                                    await CrossShare.Current.Share(new ShareMessage
-                                                    {
-                                                        Title = "",
-                                                        Text = DataPost.Url,
-                                                        Url = DataPost.Url
-                                                    });
-                                                    break;
-                                            }
+                                            await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
 
                                             break;
                                         }
@@ -413,20 +538,7 @@ namespace Facesofnaija.Activities.NativePost.Share
                                             {
                                                 case false:
                                                     {
-                                                        var linkUrl = DataPost.PostFileFull ?? DataPost.PostFile;
-                                                        var fileName = linkUrl?.Split('/').Last();
-
-                                                        var type = Methods.AttachmentFiles.Check_FileExtension(linkUrl);
-                                                        switch (type)
-                                                        {
-                                                            case "Image":
-                                                            case "File":
-                                                                await ShareFileImplementation.ShareRemoteFile(Activity, DataPost.Url, linkUrl, fileName, Context.GetText(Resource.String.Lbl_Send_to));
-                                                                break;
-                                                            default:
-                                                                ShareFileImplementation.ShareText(Activity, linkUrl, Context.GetText(Resource.String.Lbl_Send_to));
-                                                                break;
-                                                        }
+                                                        await ShareRemoteAttachmentOrTextAsync(Context.GetText(Resource.String.Lbl_Send_to));
 
                                                         break;
                                                     }

@@ -46,6 +46,29 @@ namespace Facesofnaija.Activities.NativePost.Post
         private readonly Activity ActivityContext;
         private readonly NativePostAdapter NativePostAdapter;
 
+        private static bool IsPlaceholderAvatar(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                   || value.Contains("no_profile_image", StringComparison.OrdinalIgnoreCase)
+                   || value.Contains("d-avatar", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeUserId(string userId)
+        {
+            return userId?.Trim() ?? string.Empty;
+        }
+
+        private static bool IsSameUser(string leftUserId, string rightUserId)
+        {
+            var left = NormalizeUserId(leftUserId);
+            var right = NormalizeUserId(rightUserId);
+
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+                return false;
+
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static string ResolveReactionNameByType(string reactionType)
         {
             try
@@ -177,7 +200,12 @@ namespace Facesofnaija.Activities.NativePost.Post
                 var circleGlideRequestBuilder = Glide.With(holder.ItemView).AsBitmap().Downsample(DownsampleStrategy.AtMost).Apply(glideRequestOptions2).Timeout(3000).SetUseAnimationPool(false);
                 circleGlideRequestBuilder.DontTransform_T();
                 circleGlideRequestBuilder.Downsample(DownsampleStrategy.CenterInside);
-                var avatarUrl = item.PostData.PostPrivacy == "4" ? "user_anonymous" : GlideImageLoader.NormalizeImageUrl(publisher.Avatar);
+                var avatarSource = item.PostData.PostPrivacy == "4" ? "user_anonymous" : publisher?.Avatar;
+                if (string.IsNullOrWhiteSpace(avatarSource))
+                    avatarSource = UserDetails.Avatar;
+                if (string.IsNullOrWhiteSpace(avatarSource))
+                    avatarSource = WoWonderTools.GetDefaultAvatar();
+                var avatarUrl = item.PostData.PostPrivacy == "4" ? "user_anonymous" : GlideImageLoader.NormalizeImageUrl(avatarSource);
                 circleGlideRequestBuilder.AddListener(new AdapterBind.GlideCustomRequestListener("GlobalCircle")).Override(70).Load(avatarUrl).CircleCrop().Into(holder.UserAvatar);
 
                 //GlideImageLoader.LoadImage(ActivityContext, item.PostData.PostPrivacy == "4" ? "user_anonymous" : publisher.Avatar, holder.UserAvatar, ImageStyle.CircleCrop, ImagePlaceholders.DrawableUser);
@@ -195,7 +223,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                 holder.TimeText.Text = item.PostData.Time;
 
-                if (holder.PrivacyPostIcon != null && !string.IsNullOrEmpty(item.PostData.PostPrivacy) && (publisher.UserId == UserDetails.UserId || AppSettings.ShowPostPrivacyForAllUser))
+                if (holder.PrivacyPostIcon != null && !string.IsNullOrEmpty(item.PostData.PostPrivacy) && ((publisher?.UserId == UserDetails.UserId) || AppSettings.ShowPostPrivacyForAllUser))
                 {
                     switch (item.PostData.PostPrivacy)
                     {
@@ -2211,25 +2239,42 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
+                item.StoryList ??= new ObservableCollection<StoryDataObject>();
+
                 holder.StoryAdapter.StoryList = item.StoryList.Count switch
                 {
                     > 0 => new ObservableCollection<StoryDataObject>(item.StoryList),
                     _ => holder.StoryAdapter.StoryList
                 };
 
-                var dataOwner = holder.StoryAdapter.StoryList.FirstOrDefault(a => a.Type == "Your");
+                var cachedSelfGroup = StoryApiService.GetLatestSelfStoryGroup();
+                if (cachedSelfGroup != null && !IsSameUser(cachedSelfGroup.UserId, UserDetails.UserId))
+                    cachedSelfGroup = null;
+
+                var cachedSelfStoryThumb = cachedSelfGroup?.Stories?.FirstOrDefault()?.Thumbnail;
+
+                var dataOwner = holder.StoryAdapter.StoryList.FirstOrDefault(a => string.Equals(a?.Type, "Your", StringComparison.OrdinalIgnoreCase));
                 switch (dataOwner)
                 {
                     case null:
                         var initAvatar = UserDetails.Avatar;
-                        if (string.IsNullOrWhiteSpace(initAvatar) || initAvatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
+                        if (IsPlaceholderAvatar(initAvatar))
                             initAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar ?? string.Empty;
+                        if (IsPlaceholderAvatar(initAvatar))
+                            initAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull ?? string.Empty;
+                        if (IsPlaceholderAvatar(initAvatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
+                            initAvatar = cachedSelfGroup.Avatar;
+                        if (IsPlaceholderAvatar(initAvatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
+                            initAvatar = cachedSelfStoryThumb;
                         holder.StoryAdapter.StoryList.Insert(0, new StoryDataObject
                         {
+                            UserId = UserDetails.UserId,
                             Avatar = initAvatar,
                             Type = "Your",
                             Username = ActivityContext.GetText(Resource.String.Lbl_YourStory),
-                            Stories = new List<StoryDataObject.Story>
+                            Stories = cachedSelfGroup?.Stories?.Count > 0
+                                ? new List<StoryDataObject.Story>(cachedSelfGroup.Stories)
+                                : new List<StoryDataObject.Story>
                             {
                                 new StoryDataObject.Story
                                 {
@@ -2240,12 +2285,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                         break;
                     default:
                         {
-                            // If the "Your" entry already has a valid avatar URL, preserve it
+                            // Keep the first slot as the create-story bubble and use only the avatar.
                             if (string.IsNullOrWhiteSpace(dataOwner.Avatar) || dataOwner.Avatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
                             {
                                 var myAvatar = UserDetails.Avatar;
-                                if (string.IsNullOrWhiteSpace(myAvatar) || myAvatar.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase))
+                                if (IsPlaceholderAvatar(myAvatar))
                                     myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+                                if (IsPlaceholderAvatar(myAvatar))
+                                    myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull;
+                                if (IsPlaceholderAvatar(myAvatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
+                                    myAvatar = cachedSelfGroup.Avatar;
+                                if (IsPlaceholderAvatar(myAvatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
+                                    myAvatar = cachedSelfStoryThumb;
 
                                 if (!string.IsNullOrWhiteSpace(myAvatar) && !myAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                                 {
@@ -2258,7 +2309,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 dataOwner.Avatar = myAvatar;
                             }
 
+                            dataOwner.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
+
                             dataOwner.Stories ??= new List<StoryDataObject.Story>();
+
+                            if (cachedSelfGroup?.Stories?.Count > 0)
+                            {
+                                dataOwner.Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories);
+                                if (IsPlaceholderAvatar(dataOwner.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup.Avatar))
+                                    dataOwner.Avatar = cachedSelfGroup.Avatar;
+                                if (IsPlaceholderAvatar(dataOwner.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
+                                    dataOwner.Avatar = cachedSelfStoryThumb;
+                            }
 
                             if (dataOwner.Stories.Count == 0)
                             {
@@ -2276,8 +2338,109 @@ namespace Facesofnaija.Activities.NativePost.Post
                             break;
                         }
                 }
+                var currentUserId = NormalizeUserId(UserDetails.UserId);
+                var yourEntry = holder.StoryAdapter.StoryList.FirstOrDefault(a => string.Equals(a?.Type, "Your", StringComparison.OrdinalIgnoreCase));
+                var selfGroups = holder.StoryAdapter.StoryList
+                    .Where(a => a != null && IsSameUser(a.UserId, currentUserId))
+                    .ToList();
+
+                if (yourEntry == null && selfGroups.Count > 0)
+                {
+                    yourEntry = selfGroups.First();
+                    yourEntry.Type = "Your";
+                    yourEntry.UserId = currentUserId;
+                }
+
+                if (yourEntry != null)
+                {
+                    yourEntry.Type = "Your";
+                    yourEntry.UserId = currentUserId;
+                    yourEntry.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
+                    yourEntry.Stories ??= new List<StoryDataObject.Story>();
+
+                    var seenStoryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var story in yourEntry.Stories)
+                    {
+                        var storyId = story?.Id?.Trim();
+                        if (!string.IsNullOrWhiteSpace(storyId))
+                            seenStoryIds.Add(storyId);
+                    }
+
+                    foreach (var selfGroup in selfGroups)
+                    {
+                        if (selfGroup == null || ReferenceEquals(selfGroup, yourEntry))
+                            continue;
+
+                        if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(selfGroup.Avatar))
+                            yourEntry.Avatar = selfGroup.Avatar;
+
+                        if (selfGroup.Stories?.Count > 0)
+                        {
+                            foreach (var story in selfGroup.Stories)
+                            {
+                                if (story == null)
+                                    continue;
+
+                                var storyId = story.Id?.Trim();
+                                if (!string.IsNullOrWhiteSpace(storyId) && seenStoryIds.Contains(storyId))
+                                    continue;
+
+                                yourEntry.Stories.Add(story);
+                                if (!string.IsNullOrWhiteSpace(storyId))
+                                    seenStoryIds.Add(storyId);
+                            }
+                        }
+                    }
+
+                    if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
+                        yourEntry.Avatar = cachedSelfGroup.Avatar;
+                    if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
+                        yourEntry.Avatar = cachedSelfStoryThumb;
+
+                    if (yourEntry.Stories.Count == 0)
+                    {
+                        yourEntry.Stories.Add(new StoryDataObject.Story
+                        {
+                            Thumbnail = yourEntry.Avatar,
+                        });
+                    }
+                    else if (string.IsNullOrWhiteSpace(yourEntry.Stories[0]?.Thumbnail) || IsPlaceholderAvatar(yourEntry.Stories[0]?.Thumbnail))
+                    {
+                        yourEntry.Stories[0].Thumbnail = yourEntry.Avatar;
+                    }
+                }
+
+                // Keep current user story only inside the "Your" frame.
+                // Remove any duplicated server group that represents the same user.
+                var duplicatedSelfGroups = holder.StoryAdapter.StoryList
+                    .Where(a => a != null
+                                && !ReferenceEquals(a, yourEntry)
+                                && IsSameUser(a.UserId, currentUserId))
+                    .ToList();
+
+                foreach (var duplicatedSelf in duplicatedSelfGroups)
+                {
+                    holder.StoryAdapter.StoryList.Remove(duplicatedSelf);
+                }
+
+                if (yourEntry != null)
+                {
+                    var yourIndex = holder.StoryAdapter.StoryList.IndexOf(yourEntry);
+                    if (yourIndex > 0)
+                    {
+                        holder.StoryAdapter.StoryList.RemoveAt(yourIndex);
+                        holder.StoryAdapter.StoryList.Insert(0, yourEntry);
+                    }
+                }
+
+                for (var i = 0; i < holder.StoryAdapter.StoryList.Count; i++)
+                {
+                    var s = holder.StoryAdapter.StoryList[i];
+                    Android.Util.Log.Warn("FON_STORY_BIND", $"bind-list pos={i} type={s?.Type ?? "NULL"} userId={s?.UserId ?? "NULL"} stories={(s?.Stories?.Count ?? 0)}");
+                }
 
                 holder.StoryAdapter.NotifyDataSetChanged();
+                holder.StoryRecyclerView?.ScrollToPosition(0);
 
                 holder.AboutMore.Visibility = holder.StoryAdapter?.StoryList?.Count > 4 ? ViewStates.Visible : ViewStates.Invisible;
 
@@ -2542,7 +2705,14 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
-                LoadImage(item.PostData.UserData.Avatar, holder.UserAvatar);
+                var avatarSource = item.PostData.UserData?.Avatar;
+                if (string.IsNullOrWhiteSpace(avatarSource))
+                    avatarSource = item.PostData.Publisher?.Avatar;
+                if (string.IsNullOrWhiteSpace(avatarSource))
+                    avatarSource = UserDetails.Avatar;
+                if (string.IsNullOrWhiteSpace(avatarSource))
+                    avatarSource = WoWonderTools.GetDefaultAvatar();
+                LoadImage(avatarSource, holder.UserAvatar);
 
                 if (string.IsNullOrEmpty(item.PostData.AdMedia))
                     holder.Image.Visibility = ViewStates.Gone;
