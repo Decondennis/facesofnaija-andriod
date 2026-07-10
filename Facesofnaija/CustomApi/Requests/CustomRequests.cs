@@ -1507,7 +1507,7 @@ namespace Facesofnaija.CustomApi.Requests
 
                         var shareText = text ?? string.Empty;
                         if (string.IsNullOrWhiteSpace(shareText))
-                            shareText = "shared";
+                            shareText = " ";
 
                         Log.Info("FON_SHARE", $"SharePostFallback postId={postId} targetId={targetId} mode={shareMode} textLen={text?.Length}");
 

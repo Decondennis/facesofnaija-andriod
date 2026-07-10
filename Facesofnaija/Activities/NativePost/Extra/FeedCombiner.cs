@@ -1,4 +1,5 @@
 ﻿using Android.Content;
+using Android.Util;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -56,6 +57,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
                         {
                             var getSharedPostType = PostFunctions.GetAdapterType(PostCollection.SharedInfo.SharedInfoClass);
                             var collection = PostCollection.SharedInfo.SharedInfoClass;
+                            Log.Info("FON_SHARE", $"AddAutoSection(isSharing=true) type={getSharedPostType} postFileFull={collection?.PostFileFull} postId={collection?.PostId}");
 
                             switch (getSharedPostType)
                             {
@@ -184,6 +186,31 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                         }
                                     }
                                     break;
+                                case PostModelType.ImagePost:
+                                case PostModelType.MultiImages:
+                                case PostModelType.MultiImage2:
+                                case PostModelType.MultiImage3:
+                                case PostModelType.MultiImage4:
+                                case PostModelType.MultiImage5:
+                                case PostModelType.MultiImage6:
+                                case PostModelType.MultiImage7:
+                                case PostModelType.MultiImage8:
+                                case PostModelType.MultiImage9:
+                                case PostModelType.MultiImage10:
+                                    break;
+                                case PostModelType.SharedPost:
+                                {
+                                    var inner = collection;
+                                    var innerType = getSharedPostType;
+                                    while (innerType == PostModelType.SharedPost && inner?.SharedInfo.SharedInfoClass != null)
+                                    {
+                                        inner = inner.SharedInfo.SharedInfoClass;
+                                        innerType = PostFunctions.GetAdapterType(inner);
+                                    }
+                                    collection = inner;
+                                    getSharedPostType = innerType;
+                                    break;
+                                }
                             }
 
                             var item = new AdapterModelsClass
@@ -1679,6 +1706,31 @@ namespace Facesofnaija.Activities.NativePost.Extra
                                         }
                                     }
                                     break;
+                                case PostModelType.ImagePost:
+                                case PostModelType.MultiImages:
+                                case PostModelType.MultiImage2:
+                                case PostModelType.MultiImage3:
+                                case PostModelType.MultiImage4:
+                                case PostModelType.MultiImage5:
+                                case PostModelType.MultiImage6:
+                                case PostModelType.MultiImage7:
+                                case PostModelType.MultiImage8:
+                                case PostModelType.MultiImage9:
+                                case PostModelType.MultiImage10:
+                                    break;
+                                case PostModelType.SharedPost:
+                                {
+                                    var inner = collection;
+                                    var innerType = getSharedPostType;
+                                    while (innerType == PostModelType.SharedPost && inner?.SharedInfo.SharedInfoClass != null)
+                                    {
+                                        inner = inner.SharedInfo.SharedInfoClass;
+                                        innerType = PostFunctions.GetAdapterType(inner);
+                                    }
+                                    collection = inner;
+                                    getSharedPostType = innerType;
+                                    break;
+                                }
                             }
 
                             var item = new AdapterModelsClass
