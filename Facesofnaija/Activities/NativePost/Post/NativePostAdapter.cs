@@ -1378,6 +1378,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                             if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = new SqLiteDatabase().Get_MyProfile()?.Avatar;
                             if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
+                            {
+                                // Check story data for the user's avatar
+                                try
+                                {
+                                    var storySection = ListDiffer?.FirstOrDefault(a => a.TypeView == PostModelType.Story);
+                                    var yourStory = storySection?.StoryList?.FirstOrDefault(s => s != null && string.Equals(s.Type, "Your", StringComparison.OrdinalIgnoreCase));
+                                    if (yourStory != null && !string.IsNullOrWhiteSpace(yourStory.Avatar) && !yourStory.Avatar.Contains("no_profile"))
+                                        avatarUrl = yourStory.Avatar;
+                                }
+                                catch { }
+                            }
+                            if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = item?.PostData?.Publisher?.Avatar;
                             if (string.IsNullOrWhiteSpace(avatarUrl) || avatarUrl.Equals("null", StringComparison.OrdinalIgnoreCase) || avatarUrl == "0" || (avatarUrl?.StartsWith("no_profile", StringComparison.OrdinalIgnoreCase) ?? false) || (avatarUrl?.Contains("d-avatar", StringComparison.OrdinalIgnoreCase) ?? false))
                                 avatarUrl = WoWonderTools.GetDefaultAvatar();
