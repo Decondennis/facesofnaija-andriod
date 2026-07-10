@@ -1,0 +1,92 @@
+Note: The tool simplified the command to `cd "C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija" ; dotnet build -c Debug ; & "C:\Users\Dell\AppData\Local\Android\Sdk\platform-tools\adb.exe" devices -l ; & "C:\Users\Dell\AppData\Local\Android\Sdk\platform-tools\adb.exe" install -r "C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\bin\Debug\net9.0-android36.0\com.facesofnaija.tlapp-debugsigned.apk" ; & "C:\Users\Dell\AppData\Local\Android\Sdk\platform-tools\adb.exe" shell am start -n com.facesofnaija.tlapp/.MainActivity ; & "C:\Users\Dell\AppData\Local\Android\Sdk\platform-tools\adb.exe" shell monkey -p com.facesofnaija.tlapp -c android.intent.category.LAUNCHER 1` (terminal ID=80ff6af9-1429-4fd7-9a70-8b2e441c4908). This is the output of running that command instead:
+C:\Program Files\dotnet\sdk\10.0.203\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.EolTargetFrameworks.targets(32,5): warning NETSDK1138: The target framework 'net7.0' is out of support and will not receive security updates in the future. Please refer to https://aka.ms/dotnet-core-support for more information about the support policy.
+Restore succeeded with 3 warning(s) in 1.2s
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\tools\decompiler\Decompiler.csproj : warning NU1603: Decompiler depends on ICSharpCode.Decompiler (>= 8.0.0) but ICSharpCode.Decompiler 8.0.0 was not found. ICSharpCode.Decompiler 8.0.0.7345 was resolved instead.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Facesofnaija.csproj : warning NU1608: Detected package version outside of dependency constraint: Xamarin.Essentials 1.7.4 requires Xamarin.AndroidX.Browser (>= 1.3.0.5 && < 1.4.0.3) but version Xamarin.AndroidX.Browser 1.4.0.3 was resolved.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Facesofnaija.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+  Decompiler net7.0 failed with 1 error(s) and 2 warning(s) (5.9s)
+    C:\Program Files\dotnet\sdk\10.0.203\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.EolTargetFrameworks.targets(32,5): warning NETSDK1138: The target framework 'net7.0' is out of support and will not receive security updates in the future. Please refer to https://aka.ms/dotnet-core-support for more information about the support policy.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\tools\decompiler\Decompiler.csproj : warning NU1603: Decompiler depends on ICSharpCode.Decompiler (>= 8.0.0) but ICSharpCode.Decompiler 8.0.0 was not found. ICSharpCode.Decompiler 8.0.0.7345 was resolved instead.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\tools\decompiler\Program.cs(23,32): error CS0246: The type or namespace name 'DecompilerSettings' could not be found (are you missing a using directive or an assembly reference?)
+  Facesofnaija net9.0-android36.0 failed with 47 error(s) and 6 warning(s) (7.8s)
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Facesofnaija.csproj : warning NU1608: Detected package version outside of dependency constraint: Xamarin.Essentials 1.7.4 requires Xamarin.AndroidX.Browser (>= 1.3.0.5 && < 1.4.0.3) but version Xamarin.AndroidX.Browser 1.4.0.3 was resolved.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Facesofnaija.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\.NETCoreApp,Version=v9.0.AssemblyAttributes.cs(4,12): error CS0579: Duplicate 'global::System.Runtime.Versioning.TargetFrameworkAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(13,12): error CS0579: Duplicate 'System.Reflection.AssemblyCompanyAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(14,12): error CS0579: Duplicate 'System.Reflection.AssemblyConfigurationAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(16,12): error CS0579: Duplicate 'System.Reflection.AssemblyFileVersionAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(17,12): error CS0579: Duplicate 'System.Reflection.AssemblyInformationalVersionAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(18,12): error CS0579: Duplicate 'System.Reflection.AssemblyProductAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(19,12): error CS0579: Duplicate 'System.Reflection.AssemblyTitleAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\obj\Debug\net9.0-android36.0\Facesofnaija.AssemblyInfo.cs(20,12): error CS0579: Duplicate 'System.Reflection.AssemblyVersionAttribute' attribute
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\Tabbes\TabbedMainActivity.cs(11,7): warning CS0105: The using directive for 'Android.Util' appeared previously in this namespace
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\tools\decompiler\Program.cs(3,7): error CS0246: The type or namespace name 'ICSharpCode' could not be found (are you missing a using directive or an assembly reference?)
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\tools\decompiler\Program.cs(4,7): error CS0246: The type or namespace name 'ICSharpCode' could not be found (are you missing a using directive or an assembly reference?)
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\AddPost\VoiceRecorder.cs(39,17): error CS0104: 'Timer' is an ambiguous reference between 'System.Timers.Timer' and 'System.Threading.Timer'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Controller\IntentController.cs(227,17): error CS0104: 'File' is an ambiguous reference between 'Java.IO.File' and 'System.IO.File'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Controller\IntentController.cs(312,17): error CS0104: 'File' is an ambiguous reference between 'Java.IO.File' and 'System.IO.File'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\Comment\Fragment\RecordSoundFragment.cs(26,17): error CS0104: 'Timer' is an ambiguous reference between 'System.Timers.Timer' and 'System.Threading.Timer'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,39): error CS0104: 'Object' is an ambiguous reference between 'Java.Lang.Object' and 'object'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(60,45): error CS0104: 'Task' is an ambiguous reference between 'Com.Google.Android.Play.Core.Tasks.Task' and 'System.Threading.Tasks.Task'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(60,34): error CS0539: 'OnCompleteListener.OnComplete(Task)' in explicit interface declaration is not found among members of the interface that can be implemented
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(81,35): error CS0104: 'Task' is an ambiguous reference between 'Com.Google.Android.Play.Core.Tasks.Task' and 'System.Threading.Tasks.Task'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IOnCompleteListener.OnComplete(Task)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaObject.Handle'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.SetJniIdentityHashCode(int)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.SetPeerReference(JniObjectReference)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.SetJniManagedPeerState(JniManagedPeerStates)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.UnregisterFromRuntime()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.DisposeUnlessReferenced()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.Disposed()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.Finalized()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.JniIdentityHashCode'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.PeerReference'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.JniPeerMembers'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IJavaPeerable.JniManagedPeerState'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(42,47): error CS0535: 'OnCompleteListener' does not implement interface member 'IDisposable.Dispose()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,47): error CS0104: 'Object' is an ambiguous reference between 'Java.Lang.Object' and 'object'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaObject.Handle'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.SetJniIdentityHashCode(int)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.SetPeerReference(JniObjectReference)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.SetJniManagedPeerState(JniManagedPeerStates)'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.UnregisterFromRuntime()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.DisposeUnlessReferenced()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.Disposed()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.Finalized()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.JniIdentityHashCode'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.PeerReference'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.JniPeerMembers'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IJavaPeerable.JniManagedPeerState'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Helpers\Utils\InAppReview.cs(96,55): error CS0535: 'AppReviewOnFailureListener' does not implement interface member 'IDisposable.Dispose()'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\Live\Page\LiveStreamingActivity.cs(75,17): error CS0104: 'Timer' is an ambiguous reference between 'System.Timers.Timer' and 'System.Threading.Timer'
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\WalkTroutPage\WalkTroutActivity.cs(43,24): warning CS0108: 'WalkTroutActivity.Caller' hides inherited member 'Activity.Caller'. Use the new keyword if hiding was intended.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\Suggested\User\SuggestionsUsersActivity.cs(47,24): warning CS0108: 'SuggestionsUsersActivity.Caller' hides inherited member 'Activity.Caller'. Use the new keyword if hiding was intended.
+    C:\Users\Dell\source\repos\workspace\Facesofnaija-andriod\Facesofnaija\Activities\Upgrade\GoProActivity.cs(54,24): warning CS0108: 'GoProActivity.Caller' hides inherited member 'Activity.Caller'. Use the new keyword if hiding was intended.
+
+Build failed with 48 error(s) and 12 warning(s) in 9.9s
+List of devices attached
+069683718F101614       device product:X689C-OP model:Infinix_X689C device:Infinix-X689C transport_id:1
+
+Performing Incremental Install
+Serving...
+All files should be loaded. Notifying the device.
+Success
+Install command complete in 31564 ms
+Starting: Intent { cmp=com.facesofnaija.tlapp/.MainActivity }
+Error type 3
+Error: Activity class {com.facesofnaija.tlapp/com.facesofnaija.tlapp.MainActivity} does not exist.
+  bash arg: -p
+  bash arg: com.facesofnaija.tlapp
+  bash arg: -c
+  bash arg: android.intent.category.LAUNCHER
+  bash arg: 1
+args: [-p, com.facesofnaija.tlapp, -c, android.intent.category.LAUNCHER, 1]
+ arg: "-p"
+ arg: "com.facesofnaija.tlapp"
+ arg: "-c"
+ arg: "android.intent.category.LAUNCHER"
+ arg: "1"
+data="com.facesofnaija.tlapp"
+data="android.intent.category.LAUNCHER"
+Events injected: 1
+## Network stats: elapsed time=189ms (0ms mobile, 0ms wifi, 189ms not connected)

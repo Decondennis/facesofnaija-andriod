@@ -1,0 +1,16 @@
+HTTP/1.0 500 Internal Server Error
+Date: Thu, 25 Jun 2026 09:42:32 GMT
+Server: Apache/2.4.58 (Ubuntu)
+X-FRAME-OPTIONS: SAMEORIGIN
+Set-Cookie: PHPSESSID=rjvlitegmbr0hgsr09q96fldf4; path=/; HttpOnly
+Expires: Thu, 19 Nov 1981 08:52:00 GMT
+Cache-Control: no-store, no-cache, must-revalidate
+Pragma: no-cache
+Set-Cookie: _us=1782466952; expires=Sun, 22 Jun 2036 09:42:32 GMT; Max-Age=315360000
+Set-Cookie: _us=1782466952; expires=Sun, 22 Jun 2036 09:42:32 GMT; Max-Age=315360000
+Set-Cookie: mode=day; expires=Sun, 22 Jun 2036 09:42:32 GMT; Max-Age=315360000; path=/
+Set-Cookie: access=1; expires=Fri, 26 Jun 2026 09:42:32 GMT; Max-Age=86400; path=/
+Set-Cookie: src=1; expires=Fri, 25 Jun 2027 15:31:18 GMT; Max-Age=31556926; path=/
+Connection: close
+Content-Type: text/html; charset=UTF-8
+

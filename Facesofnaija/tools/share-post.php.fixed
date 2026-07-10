@@ -1,0 +1,114 @@
+<?php
+chdir(dirname(__DIR__));
+require_once("assets/init.php");
+header("Content-type: application/json");
+
+$access_token = $_GET["access_token"] ?? $_POST["access_token"] ?? "";
+$type = $_POST["type"] ?? "";
+$id = $_POST["id"] ?? "";
+$text = $_POST["text"] ?? "";
+$user_id_param = $_POST["user_id"] ?? "";
+$page_id_input = $_POST["page_id"] ?? "";
+$group_id = $_POST["group_id"] ?? "";
+
+$wo["loggedin"] = false;
+if (!empty($access_token)) {
+    $session = $db->where("session_id", Wo_Secure($access_token))->getOne(T_APP_SESSIONS);
+    if (!empty($session) && !empty($session->user_id)) {
+        $wo["loggedin"] = true;
+        $wo["user"] = Wo_UserData($session->user_id);
+    }
+}
+if (!$wo["loggedin"]) {
+    $sid_val = $_POST["s"] ?? $_POST["session"] ?? "";
+    if (!empty($_POST["user_id"]) && !empty($sid_val)) {
+        $uid = Wo_Secure($_POST["user_id"]);
+        if (Wo_CheckUserSessionID($uid, Wo_Secure($sid_val), "phone") !== false) {
+            $wo["loggedin"] = true;
+            $wo["user"] = Wo_UserData($uid);
+        }
+    }
+}
+if (!$wo["loggedin"] || empty($wo["user"]["user_id"])) {
+    echo json_encode(array("api_status" => 400, "error" => "Authentication required"));
+    exit;
+}
+if (empty($id)) {
+    echo json_encode(array("api_status" => 400, "error" => "Post ID required"));
+    exit;
+}
+$logged_user_id = $wo["user"]["user_id"];
+
+if ($type == "share_post_on_timeline" || $type == "share_post_on_group" || $type == "share_post_on_page") {
+    $original_post = Wo_PostData($id);
+    if (empty($original_post) || empty($original_post["id"])) {
+        echo json_encode(array("api_status" => 400, "error" => "Original post not found"));
+        exit;
+    }
+
+    $source_post_id = (int) $original_post["id"];
+    if (!empty($original_post["parent_id"])) {
+        $source_post_id = (int) $original_post["parent_id"];
+    } elseif (!empty($original_post["postShare"]) && !empty($original_post["post_id"])) {
+        $source_post_id = (int) $original_post["post_id"];
+    }
+
+    if ($source_post_id <= 0) {
+        echo json_encode(array("api_status" => 400, "error" => "Invalid share source"));
+        exit;
+    }
+
+    $source_post = Wo_PostData($source_post_id);
+    if (empty($source_post) || empty($source_post["id"])) {
+        echo json_encode(array("api_status" => 400, "error" => "Share source not found"));
+        exit;
+    }
+
+    $share_type = "user";
+    $share_type_id = $logged_user_id;
+
+    if ($type == "share_post_on_group") {
+        if (empty($group_id)) {
+            echo json_encode(array("api_status" => 400, "error" => "Group ID required"));
+            exit;
+        }
+
+        $group = Wo_GroupData(Wo_Secure($group_id));
+        if (empty($group) || $group["user_id"] != $wo["user"]["user_id"]) {
+            echo json_encode(array("api_status" => 400, "error" => "Group access denied"));
+            exit;
+        }
+
+        $share_type = "group";
+        $share_type_id = $group["id"];
+    } elseif ($type == "share_post_on_page") {
+        if (empty($page_id_input)) {
+            echo json_encode(array("api_status" => 400, "error" => "Page ID required"));
+            exit;
+        }
+
+        $page = Wo_PageData(Wo_Secure($page_id_input));
+        if (empty($page) || ($page["user_id"] != $wo["user"]["user_id"] && Wo_UserCanPostPage($page["id"]) === false)) {
+            echo json_encode(array("api_status" => 400, "error" => "Page access denied"));
+            exit;
+        }
+
+        $share_type = "page";
+        $share_type_id = $page["id"];
+    }
+
+    $result = Wo_SharePostOn($source_post["id"], $share_type_id, $share_type);
+    if ($result) {
+        if (!empty($text)) {
+            Wo_UpdatePost(array(
+                'post_id' => $result,
+                'text' => $text
+            ));
+        }
+        echo json_encode(array("api_status" => 200, "post_id" => (string)$result, "code" => 0));
+    } else {
+        echo json_encode(array("api_status" => 400, "error" => "Failed"));
+    }
+} else {
+    echo json_encode(array("api_status" => 400, "error" => "Invalid share type"));
+}
