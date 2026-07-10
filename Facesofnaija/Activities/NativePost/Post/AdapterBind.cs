@@ -2266,21 +2266,27 @@ namespace Facesofnaija.Activities.NativePost.Post
                             initAvatar = cachedSelfGroup.Avatar;
                         if (IsPlaceholderAvatar(initAvatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
                             initAvatar = cachedSelfStoryThumb;
+                        if (!string.IsNullOrWhiteSpace(initAvatar) && !initAvatar.Contains("no_profile") && UserDetails.Avatar != initAvatar)
+                        {
+                            UserDetails.Avatar = initAvatar;
+                            // Refresh parent adapter to update AddPostBox avatar
+                            try
+                            {
+                                var parentList = holder.StoryAdapter?.StoryList;
+                                if (parentList != null)
+                                {
+                                    var storyHolder = holder.StoryAdapter;
+                                    storyHolder?.NotifyDataSetChanged();
+                                }
+                            }
+                            catch { }
+                        }
                         holder.StoryAdapter.StoryList.Insert(0, new StoryDataObject
                         {
                             UserId = UserDetails.UserId,
                             Avatar = initAvatar,
                             Type = "Your",
                             Username = ActivityContext.GetText(Resource.String.Lbl_YourStory),
-                            Stories = cachedSelfGroup?.Stories?.Count > 0
-                                ? new List<StoryDataObject.Story>(cachedSelfGroup.Stories)
-                                : new List<StoryDataObject.Story>
-                            {
-                                new StoryDataObject.Story
-                                {
-                                    Thumbnail = initAvatar,
-                                }
-                            }
                         });
                         break;
                     default:
@@ -2311,29 +2317,7 @@ namespace Facesofnaija.Activities.NativePost.Post
 
                             dataOwner.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
 
-                            dataOwner.Stories ??= new List<StoryDataObject.Story>();
-
-                            if (cachedSelfGroup?.Stories?.Count > 0)
-                            {
-                                dataOwner.Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories);
-                                if (IsPlaceholderAvatar(dataOwner.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup.Avatar))
-                                    dataOwner.Avatar = cachedSelfGroup.Avatar;
-                                if (IsPlaceholderAvatar(dataOwner.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
-                                    dataOwner.Avatar = cachedSelfStoryThumb;
-                            }
-
-                            if (dataOwner.Stories.Count == 0)
-                            {
-                                dataOwner.Stories.Add(new StoryDataObject.Story
-                                {
-                                    Thumbnail = dataOwner.Avatar,
-                                });
-                            }
-                            else
-                            {
-                                if (string.IsNullOrWhiteSpace(dataOwner.Stories[0].Thumbnail))
-                                    dataOwner.Stories[0].Thumbnail = dataOwner.Avatar;
-                            }
+                            // Keep "Your Story" as pure add-button — no stories attached
 
                             break;
                         }
@@ -2366,62 +2350,15 @@ namespace Facesofnaija.Activities.NativePost.Post
                             seenStoryIds.Add(storyId);
                     }
 
-                    foreach (var selfGroup in selfGroups)
-                    {
-                        if (selfGroup == null || ReferenceEquals(selfGroup, yourEntry))
-                            continue;
-
-                        if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(selfGroup.Avatar))
-                            yourEntry.Avatar = selfGroup.Avatar;
-
-                        if (selfGroup.Stories?.Count > 0)
-                        {
-                            foreach (var story in selfGroup.Stories)
-                            {
-                                if (story == null)
-                                    continue;
-
-                                var storyId = story.Id?.Trim();
-                                if (!string.IsNullOrWhiteSpace(storyId) && seenStoryIds.Contains(storyId))
-                                    continue;
-
-                                yourEntry.Stories.Add(story);
-                                if (!string.IsNullOrWhiteSpace(storyId))
-                                    seenStoryIds.Add(storyId);
-                            }
-                        }
-                    }
-
+                    // Keep "Your Story" as pure add-button - no stories attached
                     if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
                         yourEntry.Avatar = cachedSelfGroup.Avatar;
                     if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
                         yourEntry.Avatar = cachedSelfStoryThumb;
-
-                    if (yourEntry.Stories.Count == 0)
-                    {
-                        yourEntry.Stories.Add(new StoryDataObject.Story
-                        {
-                            Thumbnail = yourEntry.Avatar,
-                        });
-                    }
-                    else if (string.IsNullOrWhiteSpace(yourEntry.Stories[0]?.Thumbnail) || IsPlaceholderAvatar(yourEntry.Stories[0]?.Thumbnail))
-                    {
-                        yourEntry.Stories[0].Thumbnail = yourEntry.Avatar;
-                    }
                 }
 
-                // Keep current user story only inside the "Your" frame.
-                // Remove any duplicated server group that represents the same user.
-                var duplicatedSelfGroups = holder.StoryAdapter.StoryList
-                    .Where(a => a != null
-                                && !ReferenceEquals(a, yourEntry)
-                                && IsSameUser(a.UserId, currentUserId))
-                    .ToList();
-
-                foreach (var duplicatedSelf in duplicatedSelfGroups)
-                {
-                    holder.StoryAdapter.StoryList.Remove(duplicatedSelf);
-                }
+                // Keep the user's own story as a separate frame in the list (like web).
+                // Do NOT remove it - it should appear alongside the "Your Story" button.
 
                 if (yourEntry != null)
                 {

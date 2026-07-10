@@ -726,6 +726,48 @@ namespace Facesofnaija.Helpers.Controller
                 var (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(UserDetails.UserId);
                 Console.WriteLine($"FON_PROFILE: apiStatus={apiStatus} respondType={respond?.GetType()?.FullName}");
 
+                // If SDK fails (404 due to wrong URL), try direct HTTP call
+                if (apiStatus != 200 || respond == null)
+                {
+                    Console.WriteLine("FON_PROFILE: SDK failed, trying direct HTTP fallback");
+                    try
+                    {
+                        using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+                        var url = "http://172.236.19.52/app_api.php?application=phone&type=get_user_data";
+                        var uidStr = UserDetails.UserId?.ToString() ?? "0";
+                        var form = new FormUrlEncodedContent(new[]
+                        {
+                            new KeyValuePair<string, string>("user_id", uidStr),
+                            new KeyValuePair<string, string>("user_profile_id", uidStr),
+                            new KeyValuePair<string, string>("s", UserDetails.AccessToken ?? ""),
+                        });
+                        var response = await client.PostAsync(url, form).ConfigureAwait(false);
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        Console.WriteLine($"FON_PROFILE: Direct HTTP -> {response.StatusCode} bodyLen={json?.Length ?? 0}");
+                        if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                        {
+                            var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                            var status = jObj["api_status"]?.ToString();
+                            Console.WriteLine($"FON_PROFILE: Direct HTTP status={status} has_user_data={jObj["user_data"] != null}");
+                            if (status == "200")
+                            {
+                                var userData = jObj["user_data"]?.ToObject<UserDataObject>();
+                                if (userData != null)
+                                {
+                                    Console.WriteLine($"FON_PROFILE: Direct HTTP avatar={userData.Avatar?.Substring(0, System.Math.Min(50, userData.Avatar?.Length ?? 0))}");
+                                    respond = new GetUserDataObject { UserData = userData };
+                                    apiStatus = 200;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"FON_PROFILE: Direct HTTP error: {ex.Message}");
+                    }
+                }
+
                 switch (apiStatus)
                 {
                     case 200:

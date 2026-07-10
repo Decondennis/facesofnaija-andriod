@@ -236,20 +236,16 @@ namespace Facesofnaija.Activities.Story.Adapters
                                             holder.Image.Visibility = ViewStates.Visible;
                                             holder.Image.BringToFront();
 
-                                            YourImageUri = ResolveStoryCover(item.Stories[0]?.Thumbnail, item.Avatar);
+                                            YourImageUri = ResolveStoryCover(item.Stories?.Count > 0 ? item.Stories[0]?.Thumbnail : null, item.Avatar);
                                             var resolvedMyAvatar = ResolveMyAvatar();
                                             if (!string.IsNullOrWhiteSpace(resolvedMyAvatar)
                                                 && (string.IsNullOrWhiteSpace(item.Avatar)
-                                                    || IsPlaceholderAvatar(item.Avatar)
-                                                    || (item.Stories?.Count > 0 && IsPlaceholderAvatar(item.Stories[0]?.Thumbnail))))
+                                                    || IsPlaceholderAvatar(item.Avatar)))
                                             {
                                                 if (string.IsNullOrWhiteSpace(item.Avatar) || IsPlaceholderAvatar(item.Avatar))
                                                     item.Avatar = resolvedMyAvatar;
 
-                                                if (item.Stories?.Count > 0 && IsPlaceholderAvatar(item.Stories[0]?.Thumbnail))
-                                                    item.Stories[0].Thumbnail = resolvedMyAvatar;
-
-                                                YourImageUri = ResolveStoryCover(item.Stories?[0]?.Thumbnail, item.Avatar);
+                                                YourImageUri = ResolveStoryCover(null, item.Avatar);
                                             }
 
                                             if (IsPlaceholderAvatar(YourImageUri))

@@ -26,6 +26,7 @@ using Plugin.Geolocator;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using System.Globalization;
 using System.Linq;
 using Facesofnaija.Activities.AddPost;
@@ -1606,6 +1607,16 @@ namespace Facesofnaija.Activities.Tabbes
 
                 if (string.IsNullOrEmpty(Current.AccessToken) || string.IsNullOrEmpty(UserDetails.UserId))
                     sqlEntity.Get_data_Login_Credentials();
+
+                // Fetch user profile avatar asynchronously after auto-login
+                if (!string.IsNullOrEmpty(UserDetails.UserId) && !string.IsNullOrEmpty(UserDetails.AccessToken))
+                {
+                    Task.Run(async () =>
+                    {
+                        try { await Task.Delay(1000); await ApiRequest.Get_MyProfileData_Api(this); }
+                        catch { }
+                    });
+                }
 
                 var data = ListUtils.DataUserLoginList.FirstOrDefault();
                 if (data != null && data.Status != "Active")
