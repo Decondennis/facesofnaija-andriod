@@ -130,13 +130,6 @@ namespace Facesofnaija.Activities.Story.Adapters
                             Avatar = initAvatar,
                             Type = "Your",
                             Username = context.GetText(Resource.String.Lbl_YourStory),
-                            Stories = new List<StoryDataObject.Story>
-                            {
-                                new StoryDataObject.Story
-                                {
-                                    Thumbnail = initAvatar,
-                                }
-                            }
                         });
                         break;
                 }

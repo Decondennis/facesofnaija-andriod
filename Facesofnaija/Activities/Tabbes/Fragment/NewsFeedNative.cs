@@ -646,13 +646,6 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     Avatar = ResolveCurrentUserAvatar(),
                                                     Type = "Your",
                                                     Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
-                                                    Stories = new List<StoryDataObject.Story>
-                                                    {
-                                                        new StoryDataObject.Story
-                                                        {
-                                                            Thumbnail = ResolveCurrentUserAvatar(),
-                                                        }
-                                                    }
                                                 };
                                                 freshSection.StoryList.Insert(0, yourEntry);
                                                 insertedYourEntry = true;
@@ -660,58 +653,23 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                                             yourEntry.UserId = UserDetails.UserId;
                                             yourEntry.Type = "Your";
-                                            yourEntry.Stories ??= new List<StoryDataObject.Story>();
+                                            yourEntry.Stories = new List<StoryDataObject.Story>();
 
-                                            var cachedSelfGroup = StoryApiService.GetLatestSelfStoryGroup();
-                                            if (cachedSelfGroup != null
-                                                && string.Equals(cachedSelfGroup.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
-                                                && cachedSelfGroup.Stories?.Count > 0)
-                                            {
-                                                if (string.IsNullOrWhiteSpace(yourEntry.Avatar)
-                                                    || yourEntry.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
-                                                    || yourEntry.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    yourEntry.Avatar = NormalizeStoryUrl(cachedSelfGroup.Avatar);
-                                                }
-
-                                                if (yourEntry.Stories.Count <= 1
-                                                    && (string.IsNullOrWhiteSpace(yourEntry.Stories.FirstOrDefault()?.Id)
-                                                        || (yourEntry.Stories.FirstOrDefault()?.Thumbnail?.Contains("no_profile", StringComparison.OrdinalIgnoreCase) ?? true)))
-                                                {
-                                                    yourEntry.Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories);
-                                                }
-                                            }
-
-                                            var duplicateSelfEntries = freshSection.StoryList
+                                            // Do NOT copy cachedSelfGroup stories into "Your Story" entry.
+                                            // The user's own story appears as a separate frame in the list.
+                                            var selfEntries = freshSection.StoryList
                                                 .Where(s => s != null
                                                             && !ReferenceEquals(s, yourEntry)
                                                             && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
                                                 .ToList();
-                                            foreach (var duplicate in duplicateSelfEntries)
+                                            foreach (var selfEntry in selfEntries)
                                             {
-                                                if (duplicate?.Stories?.Count > 0)
+                                                if (!string.IsNullOrWhiteSpace(selfEntry?.Avatar)
+                                                    && !selfEntry.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
+                                                    && !selfEntry.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
                                                 {
-                                                    if (yourEntry.Stories.Count == 1 && string.IsNullOrWhiteSpace(yourEntry.Stories[0]?.Id))
-                                                        yourEntry.Stories.Clear();
-
-                                                    foreach (var story in duplicate.Stories)
-                                                    {
-                                                        if (story == null) continue;
-                                                        var storyId = story.Id ?? string.Empty;
-                                                        if (!string.IsNullOrWhiteSpace(storyId) && yourEntry.Stories.Any(s => string.Equals(s?.Id, storyId, StringComparison.OrdinalIgnoreCase)))
-                                                            continue;
-                                                        yourEntry.Stories.Add(story);
-                                                    }
+                                                    yourEntry.Avatar = NormalizeStoryUrl(selfEntry.Avatar);
                                                 }
-
-                                                if (!string.IsNullOrWhiteSpace(duplicate?.Avatar)
-                                                    && !duplicate.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
-                                                    && !duplicate.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    yourEntry.Avatar = NormalizeStoryUrl(duplicate.Avatar);
-                                                }
-
-                                                freshSection.StoryList.Remove(duplicate);
                                             }
 
                                             var yourIndex = freshSection.StoryList.IndexOf(yourEntry);
