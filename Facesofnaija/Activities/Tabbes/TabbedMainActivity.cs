@@ -1446,13 +1446,17 @@ namespace Facesofnaija.Activities.Tabbes
                                 {
                                     // Fetch all stories for this user from the server
                                     var targetUserId = item.UserId;
+                                    Android.Util.Log.Warn("FON_FETCH", $"default case: item.UserId=[{item.UserId}] item.Type=[{item.Type}] pos={e.Position}");
                                     if (string.IsNullOrWhiteSpace(targetUserId))
                                     {
                                         var storyList = NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList;
                                         if (storyList != null && e.Position >= 0 && e.Position < storyList.Count)
+                                        {
                                             targetUserId = storyList[e.Position].UserId;
+                                            Android.Util.Log.Warn("FON_FETCH", $"fallback from position: targetUserId=[{targetUserId}]");
+                                        }
                                     }
-                                    Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetching stories for userId={targetUserId} position={e.Position}");
+                                    Android.Util.Log.Warn("FON_FETCH", $"Fetching stories for userId=[{targetUserId}] position={e.Position}");
                                     var allStoriesForUser = await FetchUserStoriesAsync(targetUserId);
                                     if (allStoriesForUser?.Count > 0)
                                     {
@@ -2129,10 +2133,19 @@ namespace Facesofnaija.Activities.Tabbes
 
         private async Task<List<StoryDataObject>> FetchUserStoriesAsync(string userId)
         {
+            Android.Util.Log.Warn("FON_FETCH", $"===== FetchUserStoriesAsync called userId=[{userId}] tokenLen={UserDetails.AccessToken?.Length ?? 0} =====");
             try
             {
-                if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    Android.Util.Log.Warn("FON_FETCH", "FAIL: userId is empty");
                     return null;
+                }
+                if (string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                {
+                    Android.Util.Log.Warn("FON_FETCH", "FAIL: AccessToken is empty");
+                    return null;
+                }
 
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
@@ -2144,17 +2157,29 @@ namespace Facesofnaija.Activities.Tabbes
                 });
                 var response = await client.PostAsync(url, form).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Android.Util.Log.Warn("FON_FETCH", $"HTTP {(int)response.StatusCode} bodyLen={json?.Length ?? 0}");
                 if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                {
+                    Android.Util.Log.Warn("FON_FETCH", "FAIL: empty or HTML response");
                     return null;
+                }
 
                 var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
                 var status = jObj["api_status"]?.ToString();
+                Android.Util.Log.Warn("FON_FETCH", $"api_status={status}");
                 if (status != "200")
+                {
+                    Android.Util.Log.Warn("FON_FETCH", $"FAIL: api_status={status} error={jObj["errors"]?["error_text"]}");
                     return null;
+                }
 
                 var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
+                Android.Util.Log.Warn("FON_FETCH", $"rawStories count={rawStories?.Count ?? 0}");
                 if (rawStories?.Count <= 0)
+                {
+                    Android.Util.Log.Warn("FON_FETCH", "FAIL: no stories in response");
                     return null;
+                }
 
                 var groupAvatar = GlideImageLoader.NormalizeImageUrl(rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "");
                 var storyItems = new List<StoryDataObject.Story>();
@@ -2268,13 +2293,14 @@ namespace Facesofnaija.Activities.Tabbes
                     DurationsList = durationsList
                 };
                 var result = new List<StoryDataObject> { group };
-                Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} story entries for user {userId}");
+                Android.Util.Log.Warn("FON_FETCH", $"SUCCESS: {storyItems.Count} story entries for user {userId}");
                 return result;
             }
             catch (Exception ex)
             {
-                Android.Util.Log.Warn("FON_STORY_FLOW", $"FetchUserStories error: {ex.Message}");
+                Android.Util.Log.Warn("FON_FETCH", $"EXCEPTION: {ex.Message}");
             }
+            Android.Util.Log.Warn("FON_FETCH", $"RETURNING NULL for userId={userId}");
             return null;
         }
 
