@@ -2146,64 +2146,132 @@ namespace Facesofnaija.Activities.Tabbes
                 });
                 var response = await client.PostAsync(url, form).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return null;
+
+                var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var status = jObj["api_status"]?.ToString();
+                if (status != "200")
+                    return null;
+
+                var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
+                if (rawStories?.Count <= 0)
+                    return null;
+
+                var groupAvatar = GlideImageLoader.NormalizeImageUrl(rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "");
+                var storyItems = new List<StoryDataObject.Story>();
+                var durationsList = new List<long>();
+
+                foreach (var rawStory in rawStories)
                 {
-                    var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
-                    var status = jObj["api_status"]?.ToString();
-                    if (status == "200")
+                    var rawId = rawStory["id"]?.ToString() ?? "";
+                    var rawUserId = rawStory["user_id"]?.ToString() ?? userId;
+                    var rawTitle = rawStory["title"]?.ToString() ?? "";
+                    var rawDescription = rawStory["description"]?.ToString() ?? "";
+                    var rawPosted = rawStory["posted"]?.ToString() ?? "";
+                    var rawExpire = rawStory["expire"]?.ToString() ?? "";
+
+                    // Expand multi-image stories into separate entries
+                    var imagesToken = rawStory["images"] as Newtonsoft.Json.Linq.JArray;
+                    var videosToken = rawStory["videos"] as Newtonsoft.Json.Linq.JArray;
+                    var hasMultipleImages = imagesToken?.Count > 1;
+                    var hasMultipleVideos = videosToken?.Count > 1;
+
+                    if (hasMultipleImages && (videosToken?.Count ?? 0) == 0)
                     {
-                        var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
-                        if (rawStories?.Count > 0)
+                        var firstImg = rawStory["thumbnail"]?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(firstImg) && imagesToken?.Count > 0)
+                            firstImg = imagesToken[0]["filename"]?.ToString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(firstImg))
                         {
-                            var groupAvatar = GlideImageLoader.NormalizeImageUrl(rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "");
-                            var storyItems = new List<StoryDataObject.Story>();
-                            foreach (var rawStory in rawStories)
+                            storyItems.Add(new StoryDataObject.Story
                             {
-                                var thumbnail = rawStory["thumbnail"]?.ToString() ?? "";
-                                if (string.IsNullOrWhiteSpace(thumbnail))
-                                {
-                                    var images = rawStory["images"] as Newtonsoft.Json.Linq.JArray;
-                                    if (images?.Count > 0)
-                                        thumbnail = images[0]["filename"]?.ToString() ?? "";
-                                }
-                                if (string.IsNullOrWhiteSpace(thumbnail))
-                                {
-                                    var videos = rawStory["videos"] as Newtonsoft.Json.Linq.JArray;
-                                    if (videos?.Count > 0)
-                                        thumbnail = videos[0]["filename"]?.ToString() ?? "";
-                                }
-                                if (string.IsNullOrWhiteSpace(thumbnail))
-                                    thumbnail = groupAvatar;
-
-                                var item = new StoryDataObject.Story
-                                {
-                                    Id = rawStory["id"]?.ToString() ?? "",
-                                    UserId = rawStory["user_id"]?.ToString() ?? userId,
-                                    Title = rawStory["title"]?.ToString() ?? "",
-                                    Description = rawStory["description"]?.ToString() ?? "",
-                                    Posted = rawStory["posted"]?.ToString() ?? "",
-                                    Expire = rawStory["expire"]?.ToString() ?? "",
-                                    Thumbnail = GlideImageLoader.NormalizeImageUrl(thumbnail),
-                                };
-                                storyItems.Add(item);
-                            }
-                            var durationsList = new List<long>();
-                            for (int i = 0; i < storyItems.Count; i++)
-                                durationsList.Add(5000L);
-
-                            var group = new StoryDataObject
+                                Id = rawId,
+                                UserId = rawUserId,
+                                Title = rawTitle,
+                                Description = rawDescription,
+                                Posted = rawPosted,
+                                Expire = rawExpire,
+                                Thumbnail = GlideImageLoader.NormalizeImageUrl(firstImg),
+                            });
+                            durationsList.Add(5000L);
+                        }
+                        foreach (var imgToken in imagesToken)
+                        {
+                            var imgUrl = imgToken["filename"]?.ToString() ?? "";
+                            if (string.IsNullOrWhiteSpace(imgUrl)) continue;
+                            storyItems.Add(new StoryDataObject.Story
                             {
-                                UserId = userId,
-                                Avatar = groupAvatar,
-                                Stories = storyItems,
-                                DurationsList = durationsList
-                            };
-                            var result = new List<StoryDataObject> { group };
-                            Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} stories for user {userId}");
-                            return result;
+                                Id = rawId,
+                                UserId = rawUserId,
+                                Title = rawTitle,
+                                Description = rawDescription,
+                                Posted = rawPosted,
+                                Expire = rawExpire,
+                                Thumbnail = GlideImageLoader.NormalizeImageUrl(imgUrl),
+                            });
+                            durationsList.Add(5000L);
                         }
                     }
+                    else if (hasMultipleVideos)
+                    {
+                        foreach (var vidToken in videosToken)
+                        {
+                            var vidUrl = vidToken["filename"]?.ToString() ?? "";
+                            if (string.IsNullOrWhiteSpace(vidUrl)) continue;
+                            storyItems.Add(new StoryDataObject.Story
+                            {
+                                Id = rawId,
+                                UserId = rawUserId,
+                                Title = rawTitle,
+                                Description = rawDescription,
+                                Posted = rawPosted,
+                                Expire = rawExpire,
+                                Thumbnail = GlideImageLoader.NormalizeImageUrl(rawStory["thumbnail"]?.ToString() ?? groupAvatar),
+                            });
+                            durationsList.Add(5000L);
+                        }
+                    }
+                    else
+                    {
+                        var thumbnail = rawStory["thumbnail"]?.ToString() ?? "";
+                        if (string.IsNullOrWhiteSpace(thumbnail))
+                        {
+                            if (imagesToken?.Count > 0)
+                                thumbnail = imagesToken[0]["filename"]?.ToString() ?? "";
+                        }
+                        if (string.IsNullOrWhiteSpace(thumbnail))
+                        {
+                            if (videosToken?.Count > 0)
+                                thumbnail = videosToken[0]["filename"]?.ToString() ?? "";
+                        }
+                        if (string.IsNullOrWhiteSpace(thumbnail))
+                            thumbnail = groupAvatar;
+
+                        storyItems.Add(new StoryDataObject.Story
+                        {
+                            Id = rawId,
+                            UserId = rawUserId,
+                            Title = rawTitle,
+                            Description = rawDescription,
+                            Posted = rawPosted,
+                            Expire = rawExpire,
+                            Thumbnail = GlideImageLoader.NormalizeImageUrl(thumbnail),
+                        });
+                        durationsList.Add(5000L);
+                    }
                 }
+
+                var group = new StoryDataObject
+                {
+                    UserId = userId,
+                    Avatar = groupAvatar,
+                    Stories = storyItems,
+                    DurationsList = durationsList
+                };
+                var result = new List<StoryDataObject> { group };
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} story entries for user {userId}");
+                return result;
             }
             catch (Exception ex)
             {
