@@ -74,6 +74,7 @@
 	<color name="gnt_black">#000000</color>
 	<color name="gnt_white">#FFFFFF</color>
 	<color name="brand_green">#2e7806</color>
+	<color name="login_header_bg">#0f3d00</color>
 	<color name="brand_green_dark">#1e5520</color>
 	<color name="brand_green_light">#4CAF50</color>
 	<color name="fb_blue">#334c8c</color>

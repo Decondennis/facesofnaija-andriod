@@ -14,7 +14,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="@color/brand_green"
+            android:background="@color/login_header_bg"
             android:paddingTop="50dp"
             android:paddingBottom="40dp"
             android:paddingStart="30dp"
@@ -70,7 +70,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/Lbl_Email"
+                android:text="@string/Lbl_Username"
                 android:layout_marginTop="18dp"
                 android:textSize="14sp"
                 android:textColor="#44000000" />
@@ -81,9 +81,9 @@
                 android:background="@drawable/EditTextStyleOne"
                 style="@style/EditTextNormalStyle"
                 android:layout_marginTop="4dp"
-                android:hint="@string/Lbl_YourEmail"
+                android:hint="@string/Lbl_Username"
                 android:textSize="14sp"
-                android:inputType="textEmailAddress" />
+                android:inputType="text" />
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

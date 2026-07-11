@@ -24,8 +24,8 @@
             android:id="@+id/EmailEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Email"
-            android:inputType="textEmailAddress"
+            android:hint="Username"
+            android:inputType="text"
             android:textColor="#111111"
             android:textColorHint="#777777" />
 
