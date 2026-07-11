@@ -128,6 +128,7 @@
 		<include
 			android:id="@+id/viewStubFullScreenPlayer"
 			layout="@layout/stubViewAudioPlayer"
+			android:visibility="gone"
 		/>  
 	</LinearLayout>
 	<com.google.android.material.floatingactionbutton.FloatingActionButton
