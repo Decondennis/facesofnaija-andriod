@@ -1446,13 +1446,17 @@ namespace Facesofnaija.Activities.Tabbes
                                 {
                                     // Fetch all stories for this user from the server
                                     var targetUserId = item.UserId;
+                                    Android.Util.Log.Warn("FON_DEBUG", $"default case: item.UserId={item.UserId} item.Type={item.Type} position={e.Position} storiesCount={item.Stories?.Count}");
                                     if (string.IsNullOrWhiteSpace(targetUserId))
                                     {
                                         var storyList = NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList;
                                         if (storyList != null && e.Position >= 0 && e.Position < storyList.Count)
+                                        {
                                             targetUserId = storyList[e.Position].UserId;
+                                            Android.Util.Log.Warn("FON_DEBUG", $"fallback from position: targetUserId={targetUserId}");
+                                        }
                                     }
-                                    Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetching stories for userId={targetUserId} position={e.Position}");
+                                    Android.Util.Log.Warn("FON_DEBUG", $"Fetching stories for userId={targetUserId} position={e.Position}");
                                     var allStoriesForUser = await FetchUserStoriesAsync(targetUserId);
                                     if (allStoriesForUser?.Count > 0)
                                     {
@@ -2129,10 +2133,14 @@ namespace Facesofnaija.Activities.Tabbes
 
         private async Task<List<StoryDataObject>> FetchUserStoriesAsync(string userId)
         {
+            Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStoriesAsync called with userId={userId}");
             try
             {
                 if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                {
+                    Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStoriesAsync: null/empty userId or token");
                     return null;
+                }
 
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
@@ -2144,15 +2152,21 @@ namespace Facesofnaija.Activities.Tabbes
                 });
                 var response = await client.PostAsync(url, form).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Android.Util.Log.Warn("FON_DEBUG", $"HTTP response status={response.StatusCode} jsonLen={json?.Length ?? 0} preview={(json?.Length > 200 ? json.Substring(0, 200) : json)}");
                 if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                {
+                    Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStoriesAsync: invalid response (empty or HTML)");
                     return null;
+                }
 
                 var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
                 var status = jObj["api_status"]?.ToString();
+                Android.Util.Log.Warn("FON_DEBUG", $"api_status={status}");
                 if (status != "200")
                     return null;
 
                 var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
+                Android.Util.Log.Warn("FON_DEBUG", $"rawStories count={rawStories?.Count ?? 0}");
                 if (rawStories?.Count <= 0)
                     return null;
 
@@ -2268,13 +2282,15 @@ namespace Facesofnaija.Activities.Tabbes
                     DurationsList = durationsList
                 };
                 var result = new List<StoryDataObject> { group };
-                Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} story entries for user {userId}");
+                Android.Util.Log.Warn("FON_DEBUG", $"Fetched {storyItems.Count} story entries for user {userId}");
+                Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStoriesAsync: success, returning {storyItems.Count} story entries for user {userId}");
                 return result;
             }
             catch (Exception ex)
             {
-                Android.Util.Log.Warn("FON_STORY_FLOW", $"FetchUserStories error: {ex.Message}");
+                Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStories error: {ex.Message}");
             }
+            Android.Util.Log.Warn("FON_DEBUG", $"FetchUserStoriesAsync: returning null for user {userId}");
             return null;
         }
 
