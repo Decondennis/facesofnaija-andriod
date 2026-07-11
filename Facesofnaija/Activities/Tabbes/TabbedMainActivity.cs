@@ -1423,16 +1423,8 @@ namespace Facesofnaija.Activities.Tabbes
                         {
                             case "Your":
                                 {
-                                    var hasRealStories = HasRealStories(item) && !IsPlaceholderMedia(item.Stories?.FirstOrDefault()?.Thumbnail);
-                                    if (hasRealStories)
-                                    {
-                                        OpenStoryViewer(item, true);
-                                    }
-                                    else
-                                    {
-                                        ShowDialogAddStory();
-                                    }
-
+                                    // Like web: "Your Story" button always opens Add Story dialog
+                                    ShowDialogAddStory();
                                     break;
                                 }
                             case "Live":

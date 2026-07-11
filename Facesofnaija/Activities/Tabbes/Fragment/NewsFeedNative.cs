@@ -682,28 +682,20 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             bool added = insertedYourEntry;
                                             foreach (var storyItem in storiesToAdd)
                                             {
-                                                var isMyStory = string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase);
-                                                var existing = isMyStory
-                                                    ? yourEntry
-                                                    : freshSection.StoryList.FirstOrDefault(s => s.UserId == storyItem.UserId);
+                                                var existing = freshSection.StoryList.FirstOrDefault(s => s != null && !ReferenceEquals(s, yourEntry) && string.Equals(s.UserId, storyItem?.UserId, StringComparison.OrdinalIgnoreCase));
                                                 if (existing != null)
                                                 {
                                                     var existingCount = existing.Stories?.Count ?? 0;
                                                     var incomingCount = storyItem.Stories?.Count ?? 0;
 
-                                                    // Keep optimistic local self-story items if backend is temporarily stale after upload.
-                                                    if (isMyStory && incomingCount < existingCount)
-                                                    {
-                                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"LoadStory: keeping local self stories existing={existingCount} incoming={incomingCount}");
-                                                    }
-                                                    else if (existingCount != incomingCount)
+                                                    if (existingCount != incomingCount)
                                                     {
                                                         existing.Stories = storyItem.Stories;
                                                         existing.Avatar = storyItem.Avatar;
                                                         added = true;
                                                     }
                                                 }
-                                                else
+                                                else if (!ReferenceEquals(storyItem, yourEntry))
                                                 {
                                                     freshSection.StoryList.Add(storyItem);
                                                     added = true;
@@ -723,6 +715,18 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     if (!string.IsNullOrWhiteSpace(resolvedAvatar) && resolvedAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                                                         UserDetails.Avatar = resolvedAvatar;
                                                     if (hasChanges) added = true;
+                                                }
+                                            }
+
+                                            // If the user's own story is not in the list from the server, add it from local cache
+                                            var myExisting = freshSection.StoryList.FirstOrDefault(s => s != null && !ReferenceEquals(s, yourEntry) && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+                                            if (myExisting == null)
+                                            {
+                                                var cachedSelf = StoryApiService.GetLatestSelfStoryGroup();
+                                                if (cachedSelf != null && string.Equals(cachedSelf.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase) && cachedSelf.Stories?.Count > 0)
+                                                {
+                                                    freshSection.StoryList.Add(cachedSelf);
+                                                    added = true;
                                                 }
                                             }
 

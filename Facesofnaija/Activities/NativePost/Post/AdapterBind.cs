@@ -2340,7 +2340,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                     yourEntry.Type = "Your";
                     yourEntry.UserId = currentUserId;
                     yourEntry.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
-                    yourEntry.Stories ??= new List<StoryDataObject.Story>();
+                    yourEntry.Stories = new List<StoryDataObject.Story>();
 
                     var seenStoryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var story in yourEntry.Stories)
