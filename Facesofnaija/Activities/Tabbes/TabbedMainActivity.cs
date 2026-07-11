@@ -2133,17 +2133,12 @@ namespace Facesofnaija.Activities.Tabbes
 
         private async Task<List<StoryDataObject>> FetchUserStoriesAsync(string userId)
         {
-            Android.Util.Log.Warn("FON_FETCH", $"===== FetchUserStoriesAsync called userId=[{userId}] tokenLen={UserDetails.AccessToken?.Length ?? 0} =====");
+            Android.Util.Log.Warn("FON_FETCH", $"===== FetchUserStoriesAsync called userId=[{userId}] =====");
             try
             {
                 if (string.IsNullOrWhiteSpace(userId))
                 {
                     Android.Util.Log.Warn("FON_FETCH", "FAIL: userId is empty");
-                    return null;
-                }
-                if (string.IsNullOrWhiteSpace(UserDetails.AccessToken))
-                {
-                    Android.Util.Log.Warn("FON_FETCH", "FAIL: AccessToken is empty");
                     return null;
                 }
 
@@ -2153,7 +2148,6 @@ namespace Facesofnaija.Activities.Tabbes
                 var form = new FormUrlEncodedContent(new[]
                 {
                     new KeyValuePair<string, string>("user_id", userId),
-                    new KeyValuePair<string, string>("s", UserDetails.AccessToken ?? ""),
                 });
                 var response = await client.PostAsync(url, form).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -2293,14 +2287,13 @@ namespace Facesofnaija.Activities.Tabbes
                     DurationsList = durationsList
                 };
                 var result = new List<StoryDataObject> { group };
-                Android.Util.Log.Warn("FON_FETCH", $"SUCCESS: {storyItems.Count} story entries for user {userId}");
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} story entries for user {userId}");
                 return result;
             }
             catch (Exception ex)
             {
-                Android.Util.Log.Warn("FON_FETCH", $"EXCEPTION: {ex.Message}");
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"FetchUserStories error: {ex.Message}");
             }
-            Android.Util.Log.Warn("FON_FETCH", $"RETURNING NULL for userId={userId}");
             return null;
         }
 
