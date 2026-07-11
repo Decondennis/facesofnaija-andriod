@@ -229,7 +229,8 @@ namespace Facesofnaija.Activities.Story.Adapters
                                             holder.Image.Visibility = ViewStates.Visible;
                                             holder.Image.BringToFront();
 
-                                            YourImageUri = ResolveStoryCover(item.Stories?.Count > 0 ? item.Stories[0]?.Thumbnail : null, item.Avatar);
+                                            // Always use avatar for "Your Story" entry (like web create button)
+                                            YourImageUri = ResolveStoryCover(null, item.Avatar);
                                             var resolvedMyAvatar = ResolveMyAvatar();
                                             if (!string.IsNullOrWhiteSpace(resolvedMyAvatar)
                                                 && (string.IsNullOrWhiteSpace(item.Avatar)
