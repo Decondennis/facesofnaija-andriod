@@ -620,6 +620,9 @@ namespace Facesofnaija.Activities.Story
                         }
                     }
 
+                    if (dataStories.DurationsList == null || dataStories.DurationsList.Count == 0)
+                        dataStories.DurationsList = Enumerable.Repeat(5000L, stories.Count).ToList();
+
                     StoriesProgress ??= MainView?.FindViewById<StoriesProgressView>(Resource.Id.storyProgressView);
 
                     if (StoriesProgress != null)
