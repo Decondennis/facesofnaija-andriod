@@ -2160,11 +2160,16 @@ namespace Facesofnaija.Activities.Tabbes
                                 };
                                 storyItems.Add(item);
                             }
+                            var durationsList = new List<long>();
+                            for (int i = 0; i < storyItems.Count; i++)
+                                durationsList.Add(5000L);
+
                             var group = new StoryDataObject
                             {
                                 UserId = userId,
                                 Avatar = rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "",
-                                Stories = storyItems
+                                Stories = storyItems,
+                                DurationsList = durationsList
                             };
                             var result = new List<StoryDataObject> { group };
                             Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} stories for user {userId}");
