@@ -1444,14 +1444,23 @@ namespace Facesofnaija.Activities.Tabbes
                             default:
                                 {
                                     // Fetch all stories for this user from the server (like web)
-                                    var allStoriesForUser = await FetchUserStoriesAsync(item.UserId);
+                                    var targetUserId = item.UserId;
+                                    if (string.IsNullOrWhiteSpace(targetUserId))
+                                    {
+                                        // Fallback: resolve userId from the story list at this position
+                                        var storyList = NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList;
+                                        if (storyList != null && e.Position >= 0 && e.Position < storyList.Count)
+                                            targetUserId = storyList[e.Position].UserId;
+                                    }
+                                    Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetching stories for userId={targetUserId} (original={item.UserId}) position={e.Position}");
+                                    var allStoriesForUser = await FetchUserStoriesAsync(targetUserId);
                                     if (allStoriesForUser?.Count > 0)
                                     {
                                         var storyList2 = new List<StoryDataObject>(allStoriesForUser);
                                         var indexItem2 = 0;
-                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer with {allStoriesForUser.Count} stories for userId={item.UserId}");
+                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer with {allStoriesForUser.Count} stories for userId={targetUserId}");
                                         Intent intent2 = new Intent(this, typeof(StoryDetailsActivity));
-                                        intent2.PutExtra("UserId", item.UserId);
+                                        intent2.PutExtra("UserId", targetUserId);
                                         intent2.PutExtra("IndexItem", indexItem2);
                                         intent2.PutExtra("StoriesCount", allStoriesForUser.Count);
                                         intent2.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(allStoriesForUser)));
