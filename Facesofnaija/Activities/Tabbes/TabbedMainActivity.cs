@@ -1444,8 +1444,31 @@ namespace Facesofnaija.Activities.Tabbes
                                 }
                             default:
                                 {
-                                    // Use feed data which already has multi-image stories expanded by LoadStory
-                                    OpenStoryViewer(item, false);
+                                    // Fetch all stories for this user from the server
+                                    var targetUserId = item.UserId;
+                                    if (string.IsNullOrWhiteSpace(targetUserId))
+                                    {
+                                        var storyList = NewsFeedTab?.PostFeedAdapter?.HolderStory?.StoryAdapter?.StoryList;
+                                        if (storyList != null && e.Position >= 0 && e.Position < storyList.Count)
+                                            targetUserId = storyList[e.Position].UserId;
+                                    }
+                                    Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetching stories for userId={targetUserId} position={e.Position}");
+                                    var allStoriesForUser = await FetchUserStoriesAsync(targetUserId);
+                                    if (allStoriesForUser?.Count > 0)
+                                    {
+                                        var storyList2 = new List<StoryDataObject>(allStoriesForUser);
+                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer with {storyList2.Count} groups, first group has {storyList2[0]?.Stories?.Count ?? 0} stories");
+                                        Intent intent2 = new Intent(this, typeof(StoryDetailsActivity));
+                                        intent2.PutExtra("UserId", targetUserId);
+                                        intent2.PutExtra("IndexItem", 0);
+                                        intent2.PutExtra("StoriesCount", allStoriesForUser.Count);
+                                        intent2.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(allStoriesForUser)));
+                                        StartActivity(intent2);
+                                    }
+                                    else
+                                    {
+                                        OpenStoryViewer(item, false);
+                                    }
                                     break;
                                 }
                         }
