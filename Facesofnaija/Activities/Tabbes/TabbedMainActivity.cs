@@ -11,6 +11,7 @@ using Android.OS;
 using Android.Util;
 using Android.Views;
 using Android.Widget;
+using Facesofnaija.Helpers.CacheLoaders;
 using AndroidX.Activity.Result;
 using AndroidX.AppCompat.App;
 using AndroidX.Core.Content;
@@ -2154,9 +2155,26 @@ namespace Facesofnaija.Activities.Tabbes
                         var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
                         if (rawStories?.Count > 0)
                         {
+                            var groupAvatar = GlideImageLoader.NormalizeImageUrl(rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "");
                             var storyItems = new List<StoryDataObject.Story>();
                             foreach (var rawStory in rawStories)
                             {
+                                var thumbnail = rawStory["thumbnail"]?.ToString() ?? "";
+                                if (string.IsNullOrWhiteSpace(thumbnail))
+                                {
+                                    var images = rawStory["images"] as Newtonsoft.Json.Linq.JArray;
+                                    if (images?.Count > 0)
+                                        thumbnail = images[0]["filename"]?.ToString() ?? "";
+                                }
+                                if (string.IsNullOrWhiteSpace(thumbnail))
+                                {
+                                    var videos = rawStory["videos"] as Newtonsoft.Json.Linq.JArray;
+                                    if (videos?.Count > 0)
+                                        thumbnail = videos[0]["filename"]?.ToString() ?? "";
+                                }
+                                if (string.IsNullOrWhiteSpace(thumbnail))
+                                    thumbnail = groupAvatar;
+
                                 var item = new StoryDataObject.Story
                                 {
                                     Id = rawStory["id"]?.ToString() ?? "",
@@ -2165,7 +2183,7 @@ namespace Facesofnaija.Activities.Tabbes
                                     Description = rawStory["description"]?.ToString() ?? "",
                                     Posted = rawStory["posted"]?.ToString() ?? "",
                                     Expire = rawStory["expire"]?.ToString() ?? "",
-                                    Thumbnail = rawStory["thumbnail"]?.ToString() ?? "",
+                                    Thumbnail = GlideImageLoader.NormalizeImageUrl(thumbnail),
                                 };
                                 storyItems.Add(item);
                             }
@@ -2176,7 +2194,7 @@ namespace Facesofnaija.Activities.Tabbes
                             var group = new StoryDataObject
                             {
                                 UserId = userId,
-                                Avatar = rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "",
+                                Avatar = groupAvatar,
                                 Stories = storyItems,
                                 DurationsList = durationsList
                             };
