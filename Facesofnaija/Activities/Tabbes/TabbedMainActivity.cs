@@ -26,6 +26,7 @@ using Plugin.Geolocator;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Globalization;
 using System.Linq;
@@ -1364,7 +1365,7 @@ namespace Facesofnaija.Activities.Tabbes
 
         #region Stories
 
-        public void StoryAdapterOnItemClick(object sender, StoryAdapterClickEventArgs e)
+        public async void StoryAdapterOnItemClick(object sender, StoryAdapterClickEventArgs e)
         {
             try
             {
@@ -1442,7 +1443,24 @@ namespace Facesofnaija.Activities.Tabbes
                                 }
                             default:
                                 {
-                                    OpenStoryViewer(item, false);
+                                    // Fetch all stories for this user from the server (like web)
+                                    var allStoriesForUser = await FetchUserStoriesAsync(item.UserId);
+                                    if (allStoriesForUser?.Count > 0)
+                                    {
+                                        var storyList2 = new List<StoryDataObject>(allStoriesForUser);
+                                        var indexItem2 = 0;
+                                        Android.Util.Log.Warn("FON_STORY_FLOW", $"Opening viewer with {allStoriesForUser.Count} stories for userId={item.UserId}");
+                                        Intent intent2 = new Intent(this, typeof(StoryDetailsActivity));
+                                        intent2.PutExtra("UserId", item.UserId);
+                                        intent2.PutExtra("IndexItem", indexItem2);
+                                        intent2.PutExtra("StoriesCount", allStoriesForUser.Count);
+                                        intent2.PutExtra("DataItem", JsonConvert.SerializeObject(new ObservableCollection<StoryDataObject>(allStoriesForUser)));
+                                        StartActivity(intent2);
+                                    }
+                                    else
+                                    {
+                                        OpenStoryViewer(item, false);
+                                    }
                                     break;
                                 }
                         }
@@ -2099,6 +2117,67 @@ namespace Facesofnaija.Activities.Tabbes
             {
                 Methods.DisplayReportResultTrack(e);
             }
+        }
+
+        private async Task<List<StoryDataObject>> FetchUserStoriesAsync(string userId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                    return null;
+
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
+                var url = "http://172.236.19.52/app_api.php?application=phone&type=get_user_stories";
+                var form = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("user_id", userId),
+                    new KeyValuePair<string, string>("s", UserDetails.AccessToken ?? ""),
+                });
+                var response = await client.PostAsync(url, form).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                {
+                    var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    var status = jObj["api_status"]?.ToString();
+                    if (status == "200")
+                    {
+                        var rawStories = jObj["stories"] as Newtonsoft.Json.Linq.JArray;
+                        if (rawStories?.Count > 0)
+                        {
+                            var storyItems = new List<StoryDataObject.Story>();
+                            foreach (var rawStory in rawStories)
+                            {
+                                var item = new StoryDataObject.Story
+                                {
+                                    Id = rawStory["id"]?.ToString() ?? "",
+                                    UserId = rawStory["user_id"]?.ToString() ?? userId,
+                                    Title = rawStory["title"]?.ToString() ?? "",
+                                    Description = rawStory["description"]?.ToString() ?? "",
+                                    Posted = rawStory["posted"]?.ToString() ?? "",
+                                    Expire = rawStory["expire"]?.ToString() ?? "",
+                                    Thumbnail = rawStory["thumbnail"]?.ToString() ?? "",
+                                };
+                                storyItems.Add(item);
+                            }
+                            var group = new StoryDataObject
+                            {
+                                UserId = userId,
+                                Avatar = rawStories[0]?["user_data"]?["avatar"]?.ToString() ?? "",
+                                Stories = storyItems
+                            };
+                            var result = new List<StoryDataObject> { group };
+                            Android.Util.Log.Warn("FON_STORY_FLOW", $"Fetched {storyItems.Count} stories for user {userId}");
+                            return result;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Warn("FON_STORY_FLOW", $"FetchUserStories error: {ex.Message}");
+            }
+            return null;
         }
 
         #endregion
