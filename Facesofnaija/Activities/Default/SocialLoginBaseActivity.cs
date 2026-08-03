@@ -1296,9 +1296,13 @@ namespace Facesofnaija.Activities.Default
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
+                // The phone registration endpoint requires the 's' session parameter
+                var sessionToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+
                 using var content = new FormUrlEncodedContent(new[]
                 {
                     new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                    new KeyValuePair<string, string>("s", sessionToken),
                     new KeyValuePair<string, string>("username", username),
                     new KeyValuePair<string, string>("email", email),
                     new KeyValuePair<string, string>("password", password),
@@ -1310,7 +1314,7 @@ namespace Facesofnaija.Activities.Default
 
                 var response = await client.PostAsync(url, content).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                Console.WriteLine($"FON_AUTH: register direct -> Status: {response.StatusCode}");
+                Console.WriteLine($"FON_AUTH: register direct -> Status: {response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
 
                 if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                 {
@@ -1319,7 +1323,20 @@ namespace Facesofnaija.Activities.Default
 
                     if (apiStatus == 200)
                     {
-                        var auth = jObject.ToObject<CreatAccountObject>();
+                        // Registration response uses session_id (md5 of s) and user_id
+                        var sessionId = jObject["session_id"]?.ToString() ?? sessionToken;
+                        var cookie = jObject["cookie"]?.ToString() ?? "";
+                        var userId = jObject["user_id"]?.ToString() ?? "";
+
+                        dynamic fakeAuth = new JObject();
+                        fakeAuth["api_status"] = 200;
+                        fakeAuth["access_token"] = !string.IsNullOrEmpty(sessionId) ? sessionId : cookie;
+                        fakeAuth["user_id"] = userId;
+                        fakeAuth["session_id"] = sessionId;
+                        fakeAuth["cookie"] = cookie;
+                        fakeAuth["message"] = jObject["message"]?.ToString() ?? "Successfully joined";
+
+                        var auth = fakeAuth.ToObject<CreatAccountObject>();
                         return auth != null ? (200, (dynamic)auth) : (200, (dynamic)json);
                     }
 
