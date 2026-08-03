@@ -65,7 +65,7 @@ namespace Facesofnaija.Helpers.CacheLoaders
 
                 var host = sourceUri.Host;
                 var isIpHost = IPAddress.TryParse(host, out _);
-                var isJobHost = host.Equals("job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase) || host.Equals("www.job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase);
+                var isJobHost = host.Equals("job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase) || host.Equals("www.job.facesofnaija.com", System.StringComparison.OrdinalIgnoreCase) || host.Equals("job.facesofnaija.ng", System.StringComparison.OrdinalIgnoreCase) || host.Equals("www.job.facesofnaija.ng", System.StringComparison.OrdinalIgnoreCase);
 
                 var isFacesHost = host.IndexOf("facesofnaija", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!isIpHost && !isJobHost && !isFacesHost)

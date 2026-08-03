@@ -212,8 +212,8 @@ namespace Facesofnaija
         public static readonly int ShowSuggestedUserCount = 50;
         public static readonly int ShowSuggestedCommunityCount = 110;
 
-        public static string JobsUrl = "https://job.facesofnaija.com/";
-        public static string VirtualTourUrl = "https://virtualtour.facesofnaija.com/";
+        public static string JobsUrl = "https://job.facesofnaija.ng/";
+        public static string VirtualTourUrl = "https://virtualtour.facesofnaija.ng/";
 
         //allow download or not when share
         public static readonly bool AllowDownloadMedia = true;

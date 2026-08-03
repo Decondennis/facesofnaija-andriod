@@ -6,15 +6,22 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using WoWonder.Helpers.Utils;
+using AndroidX.Activity.Result;
 using AndroidX.AppCompat.Content.Res;
 using AndroidX.AppCompat.Widget;
+using Bumptech.Glide;
+using Bumptech.Glide.Request;
+using Com.Canhub.Cropper;
 using Google.Android.Material.Dialog; 
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Controller;
+using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.SQLite;
 using WoWonderClient.Classes.Global;
@@ -24,13 +31,15 @@ using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
 namespace Facesofnaija.Activities.SettingsPreferences.General
 {
     [Activity(Icon = "@mipmap/icon", Theme = "@style/MyTheme", ConfigurationChanges = ConfigChanges.Locale | ConfigChanges.UiMode | ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize)]
-    public class MyAccountActivity : BaseActivity, View.IOnClickListener, IDialogListCallBack
+    public class MyAccountActivity : BaseActivity, View.IOnClickListener, IDialogListCallBack, IActivityResultCallback
     {
         #region Variables Basic
 
         private EditText TxtUsername, TxtEmail, TxtBirthday, TxtGender, TxtCountry;
         private AppCompatButton BtnSave;
-        private string GenderStatus = "", CountryId, TypeDialog = "";
+        private ImageView YourImage;
+        private string GenderStatus = "", CountryId, TypeDialog = "", PathYourImage = "";
+        private DialogGalleryController GalleryController;
 
         #endregion
 
@@ -53,6 +62,7 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
                 InitComponent();
                 InitToolbar();
                 Get_Data_User();
+                GalleryController = new DialogGalleryController(this, this);
             }
             catch (Exception e)
             {
@@ -160,6 +170,11 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
 
                 TxtCountry = FindViewById<EditText>(Resource.Id.CountryEditText);
 
+                YourImage = FindViewById<ImageView>(Resource.Id.Image);
+                var btnAddPhoto = FindViewById<ImageView>(Resource.Id.btn_AddPhoto);
+                if (btnAddPhoto != null)
+                    btnAddPhoto.Click += BtnAddImageOnClick;
+
                 Methods.SetColorEditText(TxtCountry, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                 Methods.SetColorEditText(TxtUsername, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
                 Methods.SetColorEditText(TxtEmail, WoWonderTools.IsTabDark() ? Color.White : Color.Black);
@@ -226,6 +241,51 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
                 Methods.DisplayReportResultTrack(e);
             }
         }
+
+        private void BtnAddImageOnClick(object sender, EventArgs e)
+        {
+            try
+            {
+                GalleryController?.OpenDialogGallery();
+            }
+            catch (Exception ex)
+            {
+                Methods.DisplayReportResultTrack(ex);
+            }
+        }
+
+        public void OnActivityResult(Java.Lang.Object p0)
+        {
+            try
+            {
+                if (p0 is CropImageView.CropResult result)
+                {
+                    if (result.IsSuccessful)
+                    {
+                        var resultUri = result.UriContent;
+                        var filepath = Methods.AttachmentFiles.GetActualPathFromFile(this, resultUri);
+                        if (!string.IsNullOrEmpty(filepath))
+                        {
+                            PathYourImage = filepath;
+                            Glide.With(this).Load(filepath).Apply(new RequestOptions()).Into(YourImage);
+                        }
+                        else
+                        {
+                            Toast.MakeText(this, GetText(Resource.String.Lbl_something_went_wrong), ToastLength.Long)?.Show();
+                        }
+                    }
+                    else
+                    {
+                        Toast.MakeText(this, GetText(Resource.String.Lbl_something_went_wrong), ToastLength.Long)?.Show();
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
         private void DestroyBasic()
         {
             try
@@ -338,14 +398,14 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
                         dictionary.Add("birthday", newFormat);
                     }
 
-                    var (apiStatus, respond) = await WoWonderClient.Requests.RequestsAsync.Global.UpdateUserDataAsync(dictionary);
+                    var (apiStatus, respond) = await UpdateProfileDirectAsync(dictionary);
                     switch (apiStatus)
                     {
                         case 200:
                             {
                                 switch (respond)
                                 {
-                                    case MessageObject result when result.Message.Contains("updated"):
+                                    case MessageObject result when result.Message.Contains("updated") || result.Message.Contains("ok"):
                                         {
                                             ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_YourDetailsWasUpdated), ToastLength.Short);
 
@@ -393,6 +453,16 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
                             Methods.DisplayAndHudErrorResult(this, respond);
                             break;
                     }
+
+                    // Upload avatar if a new one was selected
+                    if (!string.IsNullOrEmpty(PathYourImage))
+                    {
+                        var (imgStatus, imgRespond) = await UpdateAvatarDirectAsync(PathYourImage);
+                        if (imgStatus == 200)
+                            ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_YourDetailsWasUpdated), ToastLength.Short);
+                        else
+                            Methods.DisplayAndHudErrorResult(this, imgRespond);
+                    }
                 }
                 else
                 {
@@ -405,6 +475,103 @@ namespace Facesofnaija.Activities.SettingsPreferences.General
                 //Show a Error image with a message
                 ProgressDialogHelper.ShowErrorToast(this, e.Message, MaskType.Clear, TimeSpan.FromSeconds(1));
                 //ProgressDialogHelper.Dismiss(this);
+            }
+        }
+
+        private async Task<(long, dynamic)> UpdateProfileDirectAsync(Dictionary<string, string> fields)
+        {
+            try
+            {
+                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=update_user_data";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+
+                var userDataJson = Newtonsoft.Json.JsonConvert.SerializeObject(fields);
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? ""),
+                    new KeyValuePair<string, string>("s", token),
+                    new KeyValuePair<string, string>("type", "general_settings"),
+                    new KeyValuePair<string, string>("user_data", userDataJson),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return (400, "Invalid server response");
+
+                var jObject = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
+                if (apiStatus == 200)
+                    return (200, new MessageObject { Message = "ok" });
+
+                var errText = jObject["errors"]?[0]?.ToString() ?? jObject["errors"]?.ToString() ?? "Update failed";
+                return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+            }
+            catch (Exception ex)
+            {
+                return (400, ex.Message);
+            }
+        }
+
+        private async Task<(long, dynamic)> UpdateAvatarDirectAsync(string filePath)
+        {
+            try
+            {
+                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=update_profile_picture";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+                using var content = new MultipartFormDataContent();
+                content.Add(new StringContent(UserDetails.UserId ?? ""), "user_id");
+                content.Add(new StringContent(token), "s");
+                content.Add(new StringContent("avatar"), "image_type");
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    var fileBytes = System.IO.File.ReadAllBytes(filePath);
+                    var fileContent = new ByteArrayContent(fileBytes);
+                    fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    content.Add(fileContent, "image", "avatar.jpg");
+                }
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return (400, "Invalid server response");
+
+                var jObject = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
+                if (apiStatus == 200)
+                {
+                    var avatarUrl = jObject["avatar"]?.ToString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(avatarUrl))
+                    {
+                        UserDetails.Avatar = avatarUrl;
+                        var dataUser = ListUtils.MyProfileList?.FirstOrDefault();
+                        if (dataUser != null)
+                        {
+                            dataUser.Avatar = avatarUrl;
+                            var sqLiteDatabase = new SqLiteDatabase();
+                            sqLiteDatabase.Insert_Or_Update_To_MyProfileTable(dataUser);
+                        }
+                    }
+                    return (200, new MessageObject { Message = "ok" });
+                }
+
+                var errText = jObject["errors"]?[0]?.ToString() ?? jObject["errors"]?.ToString() ?? "Update failed";
+                return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+            }
+            catch (Exception ex)
+            {
+                return (400, ex.Message);
             }
         }
 
