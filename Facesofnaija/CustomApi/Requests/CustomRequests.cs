@@ -913,6 +913,11 @@ namespace Facesofnaija.CustomApi.Requests
                             return (400, "Session is missing. Please sign in again.");
                         }
 
+                        // Resolve user id from the session token if it's empty (server also validates the token)
+                        if (string.IsNullOrWhiteSpace(userId))
+                            userId = UserDetails.UserId ?? "";
+                        Android.Util.Log.Warn("FON_POST", $"AddNewPostAsync userId=[{userId}] sessionLen={sessionId?.Length ?? 0} hasVideo={hasVideo} attachments={postAttachments?.Count ?? 0}");
+
                         // Try v2 API first (properly resolves user from access_token), then phone API fallback
                         var endpoints = new[]
                         {

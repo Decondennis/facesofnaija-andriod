@@ -1068,6 +1068,19 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
+                // Standard 16:9 video container (like web/Instagram) instead of fixed 250dp
+                if (holder.MediaContainer != null && ActivityContext?.Resources?.DisplayMetrics != null)
+                {
+                    var screenWidthPx = ActivityContext.Resources.DisplayMetrics.WidthPixels;
+                    var heightPx = (int)(screenWidthPx * 9f / 16f);
+                    var lp = holder.MediaContainer.LayoutParameters;
+                    if (lp != null)
+                    {
+                        lp.Height = heightPx;
+                        holder.MediaContainer.LayoutParameters = lp;
+                    }
+                }
+
                 // Do NOT call holder.VideoImage.Layout(0,0,0,0) — that collapses the view
 
                 var imageUrl = "";
