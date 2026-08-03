@@ -676,7 +676,7 @@ namespace Facesofnaija.Activities.MyProfile
         {
             try
             {
-                var url = InitializeWoWonder.WebsiteUrl + "/app_api.php?application=phone&type=update_user_data";
+                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=update_user_data";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
@@ -718,7 +718,7 @@ namespace Facesofnaija.Activities.MyProfile
         {
             try
             {
-                var url = InitializeWoWonder.WebsiteUrl + "/app_api.php?application=phone&type=update_profile_picture";
+                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=update_profile_picture";
                 using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
