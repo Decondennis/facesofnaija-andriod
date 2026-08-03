@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Suggested.User;
@@ -29,6 +30,7 @@ using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.SQLite;
+using WoWonderClient;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Requests;
 using Console = System.Console;
@@ -435,7 +437,7 @@ namespace Facesofnaija.Activities.MyProfile
                     {"relationship", IdRelationShip},
                 };
 
-                var (apiStatus, respond) = await RequestsAsync.Global.UpdateUserDataAsync(dictionary);
+                var (apiStatus, respond) = await UpdateProfileInfoDirectAsync(dictionary);
                 if (apiStatus == 200)
                 {
                     if (respond is MessageObject result)
@@ -640,7 +642,7 @@ namespace Facesofnaija.Activities.MyProfile
                 }
                 else
                 {
-                    var (apiStatus, respond) = await RequestsAsync.Global.UpdateUserAvatarAsync(path);
+                    var (apiStatus, respond) = await UpdateAvatarDirectAsync(path);
                     switch (apiStatus)
                     {
                         case 200:
@@ -667,6 +669,103 @@ namespace Facesofnaija.Activities.MyProfile
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private async Task<(long, dynamic)> UpdateProfileInfoDirectAsync(Dictionary<string, string> fields)
+        {
+            try
+            {
+                var url = InitializeWoWonder.WebsiteUrl + "/app_api.php?application=phone&type=update_user_data";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+
+                var userDataJson = Newtonsoft.Json.JsonConvert.SerializeObject(fields);
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? ""),
+                    new KeyValuePair<string, string>("s", token),
+                    new KeyValuePair<string, string>("type", "profile_settings"),
+                    new KeyValuePair<string, string>("user_data", userDataJson),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return (400, "Invalid server response");
+
+                var jObject = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
+                if (apiStatus == 200)
+                    return (200, new MessageObject { Message = "ok" });
+
+                var errText = jObject["errors"]?[0]?.ToString() ?? jObject["errors"]?.ToString() ?? "Update failed";
+                return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+            }
+            catch (Exception ex)
+            {
+                return (400, ex.Message);
+            }
+        }
+
+        private async Task<(long, dynamic)> UpdateAvatarDirectAsync(string filePath)
+        {
+            try
+            {
+                var url = InitializeWoWonder.WebsiteUrl + "/app_api.php?application=phone&type=update_profile_picture";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+                using var content = new MultipartFormDataContent();
+                content.Add(new StringContent(UserDetails.UserId ?? ""), "user_id");
+                content.Add(new StringContent(token), "s");
+                content.Add(new StringContent("avatar"), "image_type");
+
+                if (System.IO.File.Exists(filePath))
+                {
+                    var fileBytes = System.IO.File.ReadAllBytes(filePath);
+                    var fileContent = new ByteArrayContent(fileBytes);
+                    fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    content.Add(fileContent, "image", "avatar.jpg");
+                }
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return (400, "Invalid server response");
+
+                var jObject = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
+                if (apiStatus == 200)
+                {
+                    var avatarUrl = jObject["avatar"]?.ToString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(avatarUrl))
+                    {
+                        UserDetails.Avatar = avatarUrl;
+                        var dataUser = ListUtils.MyProfileList?.FirstOrDefault();
+                        if (dataUser != null)
+                        {
+                            dataUser.Avatar = avatarUrl;
+                            var sqLiteDatabase = new SqLiteDatabase();
+                            sqLiteDatabase.Insert_Or_Update_To_MyProfileTable(dataUser);
+                        }
+                    }
+                    return (200, new MessageObject { Message = "ok" });
+                }
+
+                var errText = jObject["errors"]?[0]?.ToString() ?? jObject["errors"]?.ToString() ?? "Update failed";
+                return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+            }
+            catch (Exception ex)
+            {
+                return (400, ex.Message);
             }
         }
 

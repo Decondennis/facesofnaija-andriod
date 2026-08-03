@@ -1323,7 +1323,9 @@ namespace Facesofnaija.Activities.Default
 
                     if (apiStatus == 200)
                     {
-                        // Registration response uses session_id (md5 of s) and user_id
+                        // Registration response provides 'session_id' (md5 of s) used by the
+                        // phone API endpoints, and 'cookie' (PHP session). The phone API's
+                        // T_APP_SESSIONS stores session_id, so use that as the access token.
                         var sessionId = jObject["session_id"]?.ToString() ?? sessionToken;
                         var cookie = jObject["cookie"]?.ToString() ?? "";
                         var userId = jObject["user_id"]?.ToString() ?? "";
