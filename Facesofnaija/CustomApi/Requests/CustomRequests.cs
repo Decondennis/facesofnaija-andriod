@@ -901,12 +901,13 @@ namespace Facesofnaija.CustomApi.Requests
                     string privacy, string feelingType, string feeling, string location,
                     ObservableCollection<Attachments> postAttachments,
                     ObservableCollection<PollAnswers> pollAnswersList,
-                    string idColor, string albumName)
+                    string idColor, string albumName,
+                    Action<long, long> progressCallback = null)
                 {
                     try
                     {
                         var hasVideo = postAttachments != null && postAttachments.Any(a => string.Equals(a?.TypeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase));
-                        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(hasVideo ? 300 : 60) };
+                        using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(hasVideo ? 300 : 60) };
                         var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
                         if (string.IsNullOrWhiteSpace(sessionId))
                         {
@@ -916,7 +917,12 @@ namespace Facesofnaija.CustomApi.Requests
                         // Resolve user id from the session token if it's empty (server also validates the token)
                         if (string.IsNullOrWhiteSpace(userId))
                             userId = UserDetails.UserId ?? "";
-                        Android.Util.Log.Warn("FON_POST", $"AddNewPostAsync userId=[{userId}] sessionLen={sessionId?.Length ?? 0} hasVideo={hasVideo} attachments={postAttachments?.Count ?? 0}");
+                        try
+                        {
+                            var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
+                            System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} userId=[{userId}] sessionId=[{sessionId}]\n");
+                        }
+                        catch { }
 
                         // Try v2 API first (properly resolves user from access_token), then phone API fallback
                         var endpoints = new[]
@@ -995,11 +1001,14 @@ namespace Facesofnaija.CustomApi.Requests
                                     if (string.Equals(typeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase) && string.Equals(resolvedMime, "application/octet-stream", StringComparison.OrdinalIgnoreCase))
                                         resolvedMime = "video/mp4";
 
+                                    bool isVideoAtt = string.Equals(typeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase);
                                     if (att.FileStream != null)
                                     {
                                         att.FileStream.Position = 0;
-                                        var fileContent = new StreamContent(att.FileStream);
+                                        HttpContent fileContent = new StreamContent(att.FileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
+                                        if (isVideoAtt && progressCallback != null)
+                                            fileContent = new ProgressableStreamContent(fileContent, progressCallback);
                                         form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
@@ -1014,8 +1023,10 @@ namespace Facesofnaija.CustomApi.Requests
                                     else if (File.Exists(att.FileUrl))
                                     {
                                         var fileStream = File.OpenRead(att.FileUrl);
-                                        var fileContent = new StreamContent(fileStream);
+                                        HttpContent fileContent = new StreamContent(fileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
+                                        if (isVideoAtt && progressCallback != null)
+                                            fileContent = new ProgressableStreamContent(fileContent, progressCallback);
                                         form.Add(fileContent, typeAttachment, fileName);
 
                                         if (att.Thumb?.FileUrl != null && File.Exists(att.Thumb.FileUrl))
@@ -1034,8 +1045,23 @@ namespace Facesofnaija.CustomApi.Requests
                                 }
                             }
 
+                            try
+                            {
+                                var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
+                                var attachInfo = postAttachments == null ? "none" : string.Join(",", postAttachments.Select(a => $"{a?.TypeAttachment}@{a?.FileUrl}"));
+                                System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} ABOUT TO POST {url}\n  attachments: {attachInfo}\n");
+                            }
+                            catch { }
+
                             var response = await client.PostAsync(url, form);
                             var json = await response.Content.ReadAsStringAsync();
+
+                            try
+                            {
+                                var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
+                                System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} URL={url}\n  HTTP={(int)response.StatusCode} body={json?.Substring(0, System.Math.Min(300, json?.Length ?? 0))}\n");
+                            }
+                            catch { }
 
                             if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
                             {
@@ -1069,6 +1095,12 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                     catch (Exception ex)
                     {
+                        try
+                        {
+                            var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
+                            System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} EXCEPTION: {ex}\n");
+                        }
+                        catch { }
                         return (404, ex.Message);
                     }
                 }
@@ -2129,5 +2161,48 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                 }
             }
+        }
+    }
+
+    internal class ProgressableStreamContent : HttpContent
+    {
+        private readonly HttpContent Content;
+        private readonly Action<long, long> Progress;
+        private long Uploaded;
+        private readonly long TotalBytes;
+
+        public ProgressableStreamContent(HttpContent content, Action<long, long> progress)
+        {
+            Content = content;
+            Progress = progress;
+            foreach (var h in content.Headers)
+                Headers.TryAddWithoutValidation(h.Key, string.Join(", ", h.Value));
+            TotalBytes = content.Headers.ContentLength ?? 0;
+        }
+
+        protected override async Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext context)
+        {
+            var buffer = new byte[81920];
+            using var input = await Content.ReadAsStreamAsync();
+            int read;
+            while ((read = await input.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await stream.WriteAsync(buffer, 0, read);
+                Uploaded += read;
+                Progress?.Invoke(Uploaded, TotalBytes);
+            }
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = TotalBytes;
+            return true;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                Content?.Dispose();
+            base.Dispose(disposing);
         }
     }

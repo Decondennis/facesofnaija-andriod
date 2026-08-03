@@ -111,6 +111,7 @@ namespace Facesofnaija.Activities.AddPost
         private bool IsPosting;
         private string DefaultPostButtonText = "";
         private string PendingAttachmentTypeHint = "";
+        private ProgressBar UploadProgress;
 
         #endregion
 
@@ -298,6 +299,10 @@ namespace Facesofnaija.Activities.AddPost
 
                 ActivityRootView = FindViewById<LinearLayout>(Resource.Id.activityRoot);
                 ActivityRootView.ViewTreeObserver.AddOnGlobalLayoutListener(new MyOGlobalLayoutListener(this));
+
+                UploadProgress = FindViewById<ProgressBar>(Resource.Id.uploadProgress);
+                if (UploadProgress != null)
+                    UploadProgress.Visibility = ViewStates.Gone;
             }
             catch (Exception e)
             {
@@ -602,7 +607,32 @@ namespace Facesofnaija.Activities.AddPost
                     var name = global::System.IO.Path.GetFileName(attachment?.FileUrl ?? string.Empty);
                 }
 
-                (int apiStatus, dynamic respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName);
+                (int apiStatus, dynamic respond) = await CustomRequests.Posts.AddNewPostAsync(UserDetails.UserId, IdPost, PagePost, content, PostPrivacy, PostFeelingType, PostFeelingText, PlaceText, AttachmentsAdapter.AttachmentList, AddPollAnswerAdapter?.AnswersList, IdColor, AlbumName, (uploaded, total) =>
+                {
+                    RunOnUiThread(() =>
+                    {
+                        try
+                        {
+                            if (UploadProgress == null) return;
+                            if (total <= 0)
+                            {
+                                UploadProgress.Visibility = ViewStates.Visible;
+                                UploadProgress.Progress = 0;
+                                return;
+                            }
+                            UploadProgress.Visibility = ViewStates.Visible;
+                            var pct = (int)(uploaded * 100L / total);
+                            pct = System.Math.Max(0, System.Math.Min(100, pct));
+                            UploadProgress.Progress = pct;
+                            if (pct >= 100)
+                            {
+                                UploadProgress.Progress = 100;
+                                UploadProgress.Visibility = ViewStates.Gone;
+                            }
+                        }
+                        catch (Exception) { }
+                    });
+                });
 
                 if (apiStatus == 200 && respond is AddPostObject postObject)
                 {
@@ -661,6 +691,9 @@ namespace Facesofnaija.Activities.AddPost
                 TxtAddPost.Clickable = !isPosting;
                 TxtAddPost.Alpha = isPosting ? 0.65f : 1f;
                 TxtAddPost.Text = isPosting ? GetString(Resource.String.Lbl_Please_wait) : (string.IsNullOrWhiteSpace(DefaultPostButtonText) ? GetString(Resource.String.Lbl_Post) : DefaultPostButtonText);
+
+                if (!isPosting && UploadProgress != null)
+                    UploadProgress.Visibility = ViewStates.Gone;
             }
             catch (Exception e)
             {
