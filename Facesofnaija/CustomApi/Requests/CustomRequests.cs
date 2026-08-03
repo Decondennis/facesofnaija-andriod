@@ -1002,10 +1002,12 @@ namespace Facesofnaija.CustomApi.Requests
                                         resolvedMime = "video/mp4";
 
                                     bool isVideoAtt = string.Equals(typeAttachment, "postVideo", StringComparison.OrdinalIgnoreCase);
-                                    if (att.FileStream != null)
+                                    // Open a fresh stream for each endpoint attempt so the second request
+                                    // doesn't reuse a consumed stream (avoids malformed multipart form).
+                                    if (att.FileUrl != null && File.Exists(att.FileUrl))
                                     {
-                                        att.FileStream.Position = 0;
-                                        HttpContent fileContent = new StreamContent(att.FileStream);
+                                        var fileStream = File.OpenRead(att.FileUrl);
+                                        HttpContent fileContent = new StreamContent(fileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
                                         if (isVideoAtt && progressCallback != null)
                                             fileContent = new ProgressableStreamContent(fileContent, progressCallback);
@@ -1020,10 +1022,10 @@ namespace Facesofnaija.CustomApi.Requests
                                             form.Add(thumbContent, att.Thumb.TypeAttachment, thumbName);
                                         }
                                     }
-                                    else if (File.Exists(att.FileUrl))
+                                    else if (att.FileStream != null)
                                     {
-                                        var fileStream = File.OpenRead(att.FileUrl);
-                                        HttpContent fileContent = new StreamContent(fileStream);
+                                        att.FileStream.Position = 0;
+                                        HttpContent fileContent = new StreamContent(att.FileStream);
                                         fileContent.Headers.ContentType = new MediaTypeHeaderValue(resolvedMime);
                                         if (isVideoAtt && progressCallback != null)
                                             fileContent = new ProgressableStreamContent(fileContent, progressCallback);
