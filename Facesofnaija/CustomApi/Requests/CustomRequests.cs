@@ -917,12 +917,6 @@ namespace Facesofnaija.CustomApi.Requests
                         // Resolve user id from the session token if it's empty (server also validates the token)
                         if (string.IsNullOrWhiteSpace(userId))
                             userId = UserDetails.UserId ?? "";
-                        try
-                        {
-                            var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
-                            System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} userId=[{userId}] sessionId=[{sessionId}]\n");
-                        }
-                        catch { }
 
                         // Try v2 API first (properly resolves user from access_token), then phone API fallback
                         var endpoints = new[]
@@ -1047,23 +1041,8 @@ namespace Facesofnaija.CustomApi.Requests
                                 }
                             }
 
-                            try
-                            {
-                                var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
-                                var attachInfo = postAttachments == null ? "none" : string.Join(",", postAttachments.Select(a => $"{a?.TypeAttachment}@{a?.FileUrl}"));
-                                System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} ABOUT TO POST {url}\n  attachments: {attachInfo}\n");
-                            }
-                            catch { }
-
                             var response = await client.PostAsync(url, form);
                             var json = await response.Content.ReadAsStringAsync();
-
-                            try
-                            {
-                                var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
-                                System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} URL={url}\n  HTTP={(int)response.StatusCode} body={json?.Substring(0, System.Math.Min(300, json?.Length ?? 0))}\n");
-                            }
-                            catch { }
 
                             if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
                             {
@@ -1097,12 +1076,6 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                     catch (Exception ex)
                     {
-                        try
-                        {
-                            var logPath = System.IO.Path.Combine(Android.App.Application.Context.FilesDir?.AbsolutePath ?? "/sdcard", "fon_post_debug.txt");
-                            System.IO.File.AppendAllText(logPath, $"{System.DateTime.Now:HH:mm:ss} EXCEPTION: {ex}\n");
-                        }
-                        catch { }
                         return (404, ex.Message);
                     }
                 }
