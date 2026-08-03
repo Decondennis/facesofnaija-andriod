@@ -70,7 +70,8 @@ namespace Facesofnaija.Helpers.Controller
                 ListUtils.SettingsSiteList = result.Config;
 
                 UserDetails.VisionApiKey = result.Config.VisionApiKey;
-                AppSettings.OneSignalAppId = result.Config.AndroidNPushId;
+                if (!string.IsNullOrWhiteSpace(result.Config.AndroidNPushId))
+                    AppSettings.OneSignalAppId = result.Config.AndroidNPushId;
 
                 OneSignalNotification.Instance.RegisterNotificationDevice(context);
 

@@ -397,6 +397,7 @@
 		<PackageReference Include="Xamarin.Android.ReactiveX.RxAndroid" Version="2.1.1.2" />
 		<PackageReference Include="Xamarin.Android.ReactiveX.RxJava" Version="2.2.21.9" />
 		<PackageReference Include="Xamarin.Android.RoundedImageView" Version="2.3.0" />
+		<PackageReference Include="Xamarin.Android.ShortcutBadger" Version="1.2.0" />
 		<PackageReference Include="Xamarin.AndroidX.Activity" Version="1.9.3.1" />
 		<PackageReference Include="Xamarin.AndroidX.Activity.Ktx" Version="1.9.3.1" />
 		<PackageReference Include="Xamarin.AndroidX.Annotation" Version="1.9.1.1" />

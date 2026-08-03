@@ -22,6 +22,7 @@ using Com.Google.Android.Play.Core.Install.Model;
 using Google.Android.Material.FloatingActionButton;
 using Google.Android.Material.Tabs;
 using Google.Android.Material.Dialog; 
+using Q.Rorbin.Badgeview;
 using Newtonsoft.Json;
 using Plugin.Geolocator;
 using System;
@@ -89,6 +90,8 @@ namespace Facesofnaija.Activities.Tabbes
         private PowerManager.WakeLock Wl;
 
         private ImageView RlSearch, RlMessage, RlReels, RlAdd;
+        private FrameLayout RlNotification, RlFriendRequests;
+        private QBadgeView BadgeNotificationHeader, BadgeFriendRequestsHeader;
 
         public TabLayout Tabs;
 
@@ -278,6 +281,8 @@ namespace Facesofnaija.Activities.Tabbes
                 RlMessage = FindViewById<ImageView>(Resource.Id.rl_message);
                 RlReels = FindViewById<ImageView>(Resource.Id.rlReels);
                 RlAdd = FindViewById<ImageView>(Resource.Id.rlAdd);
+                RlNotification = FindViewById<FrameLayout>(Resource.Id.rl_notification);
+                RlFriendRequests = FindViewById<FrameLayout>(Resource.Id.rl_friend_requests);
 
                 FloatingActionButton = FindViewById<FloatingActionButton>(Resource.Id.floatingActionButtonView);
                 if (WoWonderTools.CanAddPost())
@@ -309,6 +314,8 @@ namespace Facesofnaija.Activities.Tabbes
                         RlMessage.Click += RlMessageOnClick;
                         RlAdd.Click += BtnAddOnClick;
                         RlReels.Click += RlReelsOnClick;
+                        if (RlNotification != null) RlNotification.Click += RlNotificationOnClick;
+                        if (RlFriendRequests != null) RlFriendRequests.Click += RlFriendRequestsOnClick;
                         break;
                     default:
                         FloatingActionButton.Click -= Btn_AddPost_OnClick;
@@ -316,6 +323,8 @@ namespace Facesofnaija.Activities.Tabbes
                         RlMessage.Click -= RlMessageOnClick;
                         RlAdd.Click -= BtnAddOnClick;
                         RlReels.Click -= RlReelsOnClick;
+                        if (RlNotification != null) RlNotification.Click -= RlNotificationOnClick;
+                        if (RlFriendRequests != null) RlFriendRequests.Click -= RlFriendRequestsOnClick;
                         break;
                 }
             }
@@ -395,6 +404,106 @@ namespace Facesofnaija.Activities.Tabbes
             catch (Exception exception)
             {
                 Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private void RlNotificationOnClick(object sender, EventArgs e)
+        {
+            try
+            {
+                BottomNavigationTab?.SelectItem(1);
+                UpdateHeaderNotificationBadge(0);
+                UpdateAppIconBadge(0);
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private void RlFriendRequestsOnClick(object sender, EventArgs e)
+        {
+            try
+            {
+                var intent = new Intent(this, typeof(Facesofnaija.Activities.FriendRequest.FriendRequestActivity));
+                StartActivity(intent);
+                UpdateHeaderFriendRequestBadge(0);
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        public void UpdateHeaderNotificationBadge(int count)
+        {
+            try
+            {
+                if (RlNotification == null) return;
+                RunOnUiThread(() =>
+                {
+                    try
+                    {
+                        if (count > 0)
+                        {
+                            BadgeNotificationHeader?.BindTarget(RlNotification).Hide(true);
+                            BadgeNotificationHeader = new QBadgeView(this);
+                            BadgeNotificationHeader.BindTarget(RlNotification);
+                            BadgeNotificationHeader.SetBadgeNumber(count);
+                            BadgeNotificationHeader.SetBadgeGravity((int)(GravityFlags.End | GravityFlags.Top));
+                            BadgeNotificationHeader.SetBadgeBackgroundColor(Color.ParseColor(AppSettings.MainColor));
+                            BadgeNotificationHeader.SetGravityOffset(4, true);
+                        }
+                        else
+                        {
+                            BadgeNotificationHeader?.BindTarget(RlNotification).Hide(true);
+                        }
+                    }
+                    catch (Exception e) { Methods.DisplayReportResultTrack(e); }
+                });
+            }
+            catch (Exception e) { Methods.DisplayReportResultTrack(e); }
+        }
+
+        public void UpdateHeaderFriendRequestBadge(int count)
+        {
+            try
+            {
+                if (RlFriendRequests == null) return;
+                RunOnUiThread(() =>
+                {
+                    try
+                    {
+                        if (count > 0)
+                        {
+                            BadgeFriendRequestsHeader?.BindTarget(RlFriendRequests).Hide(true);
+                            BadgeFriendRequestsHeader = new QBadgeView(this);
+                            BadgeFriendRequestsHeader.BindTarget(RlFriendRequests);
+                            BadgeFriendRequestsHeader.SetBadgeNumber(count);
+                            BadgeFriendRequestsHeader.SetBadgeGravity((int)(GravityFlags.End | GravityFlags.Top));
+                            BadgeFriendRequestsHeader.SetBadgeBackgroundColor(Color.ParseColor("#E53935"));
+                            BadgeFriendRequestsHeader.SetGravityOffset(4, true);
+                        }
+                        else
+                        {
+                            BadgeFriendRequestsHeader?.BindTarget(RlFriendRequests).Hide(true);
+                        }
+                    }
+                    catch (Exception e) { Methods.DisplayReportResultTrack(e); }
+                });
+            }
+            catch (Exception e) { Methods.DisplayReportResultTrack(e); }
+        }
+
+        public void UpdateAppIconBadge(int count)
+        {
+            try
+            {
+                Xamarin.Android.ShortcutBadger.Badger.ApplyCount(this, count);
+            }
+            catch (Exception)
+            {
+                // Some launchers don't support icon badges
             }
         }
 
@@ -1817,24 +1926,27 @@ namespace Facesofnaija.Activities.Tabbes
                     {
                         try
                         {
+                            int notifCount = 0;
                             if (string.IsNullOrEmpty(countNotifications) == false && (countNotifications != "0" && countNotifications != CountNotificationsStatic))
                             {
-                                BottomNavigationTab.ShowBadge(1, Convert.ToInt32(countNotifications), true);
+                                notifCount = Convert.ToInt32(countNotifications);
+                                BottomNavigationTab.ShowBadge(1, notifCount, true);
 
                                 CountNotificationsStatic = countNotifications;
                             }
+                            else if (!string.IsNullOrEmpty(countNotifications) && countNotifications != "0")
+                            {
+                                notifCount = Convert.ToInt32(countNotifications);
+                            }
+                            UpdateHeaderNotificationBadge(notifCount);
+                            UpdateAppIconBadge(notifCount);
 
-                            //if (string.IsNullOrEmpty(countFriend) == false && (countFriend != "0" && countFriend != CountFriendStatic))
-                            //{
-                            //    switch (AppSettings.ShowTrendingPage)
-                            //    {
-                            //        case true:
-                            //            BottomNavigationTab.ShowBadge(2, Convert.ToInt32(countFriend), true);
-
-                            //            CountFriendStatic = countFriend;
-                            //            break;
-                            //    }
-                            //}
+                            int friendCount = 0;
+                            if (string.IsNullOrEmpty(countFriend) == false && countFriend != "0")
+                            {
+                                int.TryParse(countFriend, out friendCount);
+                            }
+                            UpdateHeaderFriendRequestBadge(friendCount);
 
                             if (AppSettings.MessengerIntegration && (!string.IsNullOrEmpty(countMessages) && countMessages != "0" && countMessages != CountMessagesStatic))
                             {
