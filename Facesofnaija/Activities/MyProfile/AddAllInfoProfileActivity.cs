@@ -683,6 +683,7 @@ namespace Facesofnaija.Activities.MyProfile
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
                 var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+                Console.WriteLine($"FON_PROFILE: UpdateProfileInfo url={url} userId={UserDetails.UserId} tokenLen={token.Length}");
 
                 var userDataJson = Newtonsoft.Json.JsonConvert.SerializeObject(fields);
                 using var content = new FormUrlEncodedContent(new[]
@@ -695,6 +696,7 @@ namespace Facesofnaija.Activities.MyProfile
 
                 var response = await client.PostAsync(url, content).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_PROFILE: UpdateProfileInfo response status={response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
                 if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
                     return (400, "Invalid server response");
 
@@ -723,6 +725,7 @@ namespace Facesofnaija.Activities.MyProfile
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
                 var token = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+                Console.WriteLine($"FON_PROFILE: UpdateAvatar url={url} userId={UserDetails.UserId} tokenLen={token.Length} fileExists={System.IO.File.Exists(filePath)}");
                 using var content = new MultipartFormDataContent();
                 content.Add(new StringContent(UserDetails.UserId ?? ""), "user_id");
                 content.Add(new StringContent(token), "s");
@@ -738,6 +741,7 @@ namespace Facesofnaija.Activities.MyProfile
 
                 var response = await client.PostAsync(url, content).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_PROFILE: UpdateAvatar response status={response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
                 if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
                     return (400, "Invalid server response");
 
