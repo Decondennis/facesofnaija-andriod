@@ -53,30 +53,6 @@
 						android:layout_height="24dp"
 						android:layout_marginEnd="20dp"
 						android:src="@drawable/icon_messenger_vector"  />
-					<FrameLayout
-						android:id="@+id/rl_friend_requests"
-						android:layout_width="28dp"
-						android:layout_height="28dp"
-						android:layout_marginEnd="16dp"
-						android:gravity="center">
-						<ImageView
-							android:layout_width="24dp"
-							android:layout_height="24dp"
-							android:src="@drawable/ic_add_friend"
-							android:tint="?attr/colorHint" />
-					</FrameLayout>
-					<FrameLayout
-						android:id="@+id/rl_notification"
-						android:layout_width="28dp"
-						android:layout_height="28dp"
-						android:layout_marginEnd="16dp"
-						android:gravity="center">
-						<ImageView
-							android:layout_width="24dp"
-							android:layout_height="24dp"
-							android:src="@drawable/icon_notification_vector"
-							android:tint="?attr/colorHint" />
-					</FrameLayout>
 					<ImageView 
 						android:id="@+id/rlReels" 
 						android:layout_width="24dp"
