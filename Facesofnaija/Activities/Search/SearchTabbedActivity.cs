@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.NativePost.Pages;
@@ -696,7 +697,7 @@ namespace Facesofnaija.Activities.Search
                 {"image", UserDetails.SearchProfilePicture},
             };
 
-            var (apiStatus, respond) = await RequestsAsync.Global.SearchAsync(dictionary);
+            var (apiStatus, respond) = await SearchDirectAsync(dictionary);
             if (apiStatus == 200)
             {
                 if (respond is GetSearchObject result)
@@ -787,6 +788,44 @@ namespace Facesofnaija.Activities.Search
             UserTab.MainScrollEvent.IsLoading = false;
             if (AppSettings.ShowCommunitiesPages) PagesTab.MainScrollEvent.IsLoading = false;
             if (AppSettings.ShowCommunitiesGroups) GroupsTab.MainScrollEvent.IsLoading = false;
+        }
+
+        private async Task<(int, dynamic)> SearchDirectAsync(Dictionary<string, string> dictionary)
+        {
+            try
+            {
+                var sessionId = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : "";
+                if (string.IsNullOrWhiteSpace(sessionId))
+                    return (400, "Session is missing. Please sign in again.");
+
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var url = AppSettings.SiteUrl + "/api-v2.php?type=search&access_token=" + Uri.EscapeDataString(sessionId);
+                var form = new FormUrlEncodedContent(dictionary);
+
+                var response = await client.PostAsync(url, form).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                    return (400, "Invalid server response");
+
+                var jObj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                var status = jObj["api_status"]?.ToString();
+                if (string.Equals(status, "200", StringComparison.OrdinalIgnoreCase))
+                {
+                    var result = jObj.ToObject<GetSearchObject>();
+                    return result != null ? (200, result) : (200, json);
+                }
+
+                var errText = jObj["errors"]?[0]?.ToString() ?? jObj["errors"]?.ToString() ?? "Search failed";
+                return (400, new WoWonderClient.Classes.Global.ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+            }
+            catch (Exception ex)
+            {
+                return (404, ex.Message);
+            }
         }
 
         private void ShowEmptyPage()
