@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Hashtag.Adapters;
 using Facesofnaija.Activities.NativePost.Pages;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
@@ -337,7 +338,7 @@ namespace Facesofnaija.Activities.Hashtag
             if (Methods.CheckConnectivity())
             {
                 var countList = MAdapter.HashTagList.Count;
-                var (apiStatus, respond) = await RequestsAsync.Global.GetGeneralDataAsync(false, UserDetails.OnlineUsers, UserDetails.DeviceId, "", "trending_hashtag");
+                var (apiStatus, respond) = await CustomRequests.GetGeneralDataDirectAsync(false, UserDetails.OnlineUsers, UserDetails.DeviceId, "", "trending_hashtag");
                 if (apiStatus != 200 || respond is not GetGeneralDataObject result || result.TrendingHashtag == null)
                 {
                     Methods.DisplayReportResult(this, respond);

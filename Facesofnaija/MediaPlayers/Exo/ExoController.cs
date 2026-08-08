@@ -17,6 +17,7 @@ namespace Facesofnaija.MediaPlayers.Exo
         public bool IsPlaying => VideoController?.IsPlaying ?? false;
         public int CurrentPosition => VideoController?.CurrentPosition ?? 0;
         public int Duration => VideoController?.Duration ?? 0;
+        public bool IsReady => VideoController != null;
 
         public ExoController(Context context)
         {

@@ -49,7 +49,7 @@
 		<Debugger>Xamarin</Debugger>
 		<AndroidUseAapt2>True</AndroidUseAapt2>
 		<AndroidCreatePackagePerAbi>False</AndroidCreatePackagePerAbi>
-		<AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
+		<AndroidStoreUncompressedFileExtensions></AndroidStoreUncompressedFileExtensions>
 		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
 	</PropertyGroup>
 	<!--android-arm - android-arm64 - android-x86 - android-x64 -->

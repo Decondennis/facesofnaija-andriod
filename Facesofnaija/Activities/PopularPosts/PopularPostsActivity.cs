@@ -208,7 +208,9 @@ namespace Facesofnaija.Activities.PopularPosts
 
                 ShimmerInflater = new TemplateShimmerInflater();
                 ShimmerInflater.InflateLayout(this, InflatedShimmer, ShimmerTemplateStyle.PostTemplate);
-                ShimmerInflater.Show();
+                ShimmerInflater.Hide();
+                if (InflatedShimmer != null)
+                    InflatedShimmer.Visibility = ViewStates.Gone;
             }
             catch (Exception e)
             {
@@ -231,6 +233,8 @@ namespace Facesofnaija.Activities.PopularPosts
 
                 MainRecyclerView.SetXAdapter(PostFeedAdapter, SwipeRefreshLayout);
                 MainRecyclerView.SetXTemplateShimmer(ShimmerInflater);
+                MainRecyclerView.ApiPostAsync = new ApiPostAsync(MainRecyclerView, PostFeedAdapter);
+                MainRecyclerView.Visibility = ViewStates.Visible;
 
                 MainRecyclerView.MainScrollEvent = new RecyclerScrollListener(MainRecyclerView);
                 MainRecyclerView.AddOnScrollListener(MainRecyclerView.MainScrollEvent);

@@ -743,7 +743,7 @@ namespace Facesofnaija.CustomApi.Requests
             try
             {
                 // Try SDK path first.
-                var (apiStatus, respond) = await RequestsAsync.Global.GetGeneralDataAsync(true, UserDetails.OnlineUsers, UserDetails.DeviceId, "0", "announcement");
+                var (apiStatus, respond) = await GetGeneralDataDirectAsync(true, UserDetails.OnlineUsers, UserDetails.DeviceId, "0", "announcement");
                 if (apiStatus == 200)
                 {
                     if (respond is GetGeneralDataObject result)
@@ -888,6 +888,66 @@ namespace Facesofnaija.CustomApi.Requests
         // wrong domain (facesofnaija.com) and instead uses InitializeWoWonder.WebsiteUrl
         // (the working IP from analytic.xml).
         // ---------------------------------------------------------------------------
+
+        public static async Task<(int, dynamic)> GetGeneralDataDirectAsync(bool seen, bool onlineEnabled, string deviceId, string offset, string fetch)
+        {
+            try
+            {
+                var accessToken = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                if (string.IsNullOrWhiteSpace(accessToken))
+                    return (400, "Missing access token");
+
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler { AllowAutoRedirect = false };
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(45) };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var url = AppSettings.SiteUrl + "/api-v2.php?type=get-general-data&access_token=" + Uri.EscapeDataString(accessToken);
+                if (seen)
+                    url += "&seen=1";
+
+                var postData = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("fetch", fetch ?? string.Empty),
+                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                };
+                if (!string.IsNullOrWhiteSpace(deviceId))
+                    postData.Add(new KeyValuePair<string, string>("android_n_device_id", deviceId));
+                if (onlineEnabled)
+                    postData.Add(new KeyValuePair<string, string>("SetOnline", "1"));
+
+                using var content = new FormUrlEncodedContent(postData);
+                using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+                var response = await client.SendAsync(request).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                {
+                    Log.Warn("FON_NOTIF", $"GetGeneralDataDirectAsync non-JSON response status={response.StatusCode}");
+                    return (400, "Invalid response");
+                }
+
+                var jObject = JObject.Parse(json);
+                var statusText = jObject["api_status"]?.ToString();
+                int.TryParse(statusText, out int status);
+                if (status == 200)
+                {
+                    var result = JsonConvert.DeserializeObject<GetGeneralDataObject>(json);
+                    if (result != null)
+                        return (200, (dynamic)result);
+                }
+
+                Log.Warn("FON_NOTIF", $"GetGeneralDataDirectAsync api_status={status}");
+                return (400, "Invalid response");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("FON_NOTIF", $"GetGeneralDataDirectAsync exception: {ex.Message}");
+                return (400, ex.Message);
+            }
+        }
+
         public static class Posts
             {
                 private static string GetApiBase()
@@ -1116,6 +1176,18 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     var requestCandidates = new[]
                     {
+                        // Correct v2 endpoint: api-v2.php?type=post-actions (hyphen) handles action=delete via Wo_DeletePost.
+                        (Type: "post-actions", Payload: new Dictionary<string, string>
+                        {
+                            { "access_token", sessionId },
+                            { "s", sessionId },
+                            { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
+                            { "user_id", UserDetails.UserId ?? string.Empty },
+                            { "post_id", postId },
+                            { "postId", postId },
+                            { "id", postId },
+                            { "action", "delete" }
+                        }),
                         (Type: "delete_post", Payload: new Dictionary<string, string>
                         {
                             { "server_key", InitializeWoWonder.ServerKey ?? string.Empty },
@@ -1240,10 +1312,10 @@ namespace Facesofnaija.CustomApi.Requests
                     string lastError = "Delete fallback failed";
                     foreach (var payload in requestCandidates.Select(r => r.Payload))
                     {
-                        if (!payload.ContainsKey("access_token"))
-                            payload["access_token"] = sessionId;
-                        if (!payload.ContainsKey("accessToken"))
-                            payload["accessToken"] = sessionId;
+                        payload["access_token"] = sessionId;
+                        payload["accessToken"] = sessionId;
+                        if (!payload.ContainsKey("s"))
+                            payload["s"] = sessionId;
                     }
 
                     foreach (var request in requestCandidates)

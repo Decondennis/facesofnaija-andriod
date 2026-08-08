@@ -735,7 +735,7 @@ namespace Facesofnaija.Helpers.Controller
                     {
                         using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
                         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(15) };
-                        var url = "http://172.236.19.52/app_api.php?application=phone&type=get_user_data";
+                        var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=get_user_data";
                         var uidStr = UserDetails.UserId?.ToString() ?? "0";
                         var form = new FormUrlEncodedContent(new[]
                         {

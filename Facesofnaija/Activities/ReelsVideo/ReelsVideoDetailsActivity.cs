@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Facesofnaija.Activities.NativePost.Post;
 using Facesofnaija.Activities.ReelsVideo.Adapters;
 using Facesofnaija.Activities.Tabbes;
 using Facesofnaija.Helpers.Controller;
@@ -333,7 +334,7 @@ namespace Facesofnaija.Activities.ReelsVideo
                 ApiRun = true;
                 var postId = ListUtils.VideoReelsList.LastOrDefault()?.PostId ?? "0";
 
-                var (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, postId, "get_news_feed", "", "", "0", "0", "video");
+                var (apiStatus, respond) = await ApiPostAsync.FetchReelsDirectAsync(postId, AppSettings.PostApiLimitOnScroll);
                 if (apiStatus != 200 || respond is not PostObject result || result.Data == null)
                 {
                     Methods.DisplayReportResult(this, respond);

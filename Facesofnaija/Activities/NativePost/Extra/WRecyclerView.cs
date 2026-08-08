@@ -345,6 +345,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
             NativeFeedAdapter = adapter;
             SwipeRefreshLayoutView = swipeRefresh;
             SetAdapter(adapter);
+            ApiPostAsync ??= new ApiPostAsync(this, adapter);
         }
 
         public void SetXTemplateShimmer(TemplateShimmerInflater inflater)

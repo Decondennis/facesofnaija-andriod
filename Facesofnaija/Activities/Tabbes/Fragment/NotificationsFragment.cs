@@ -25,6 +25,7 @@ using Facesofnaija.Activities.NativePost.Pages;
 using Facesofnaija.Activities.Story;
 using Facesofnaija.Activities.Tabbes.Adapters;
 using Facesofnaija.Activities.UserProfile;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
@@ -419,7 +420,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                 if (AppSettings.MessengerIntegration)
                     fetch += ",count_new_messages";
 
-                var (apiStatus, respond) = await RequestsAsync.Global.GetGeneralDataAsync(seenNotifications, UserDetails.OnlineUsers, UserDetails.DeviceId, offset, fetch);
+                var (apiStatus, respond) = await CustomRequests.GetGeneralDataDirectAsync(seenNotifications, UserDetails.OnlineUsers, UserDetails.DeviceId, offset, fetch);
                 if (apiStatus == 200)
                 {
                     if (respond is GetGeneralDataObject result)
