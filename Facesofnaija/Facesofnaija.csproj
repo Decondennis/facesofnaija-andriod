@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>net9.0-android36.0</TargetFramework>
 		<SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
@@ -349,7 +349,6 @@
 		<PackageReference Include="Anjo.Android.ImageCropper" Version="4.5.0.1" />
 		<PackageReference Include="Anjo.Android.OneSignal" Version="4.8.4.1" />
 		<PackageReference Include="Anjo.Android.Razorpay" Version="1.6.26" />
-		<PackageReference Include="Anjoxam.BillingClient.Droid" Version="5.1.0" />
 		<PackageReference Include="AutoMapper" Version="13.0.1" />
 		<PackageReference Include="Com.Airbnb.Android.Lottie" Version="4.2.2" />
 		<PackageReference Include="Crc32.NET" Version="1.2.0" />
@@ -579,9 +578,6 @@
 	  </Reference>
 	  <Reference Include="FacebookShare">
 	    <HintPath>..\API\Facebook\FacebookShare.dll</HintPath>
-	  </Reference>
-	  <Reference Include="InAppBilling">
-	    <HintPath>..\API\InAppBilling.dll</HintPath>
 	  </Reference>
 	  <Reference Include="LeonidsLib">
 	    <HintPath>..\API\LeonidsLib.dll</HintPath>
