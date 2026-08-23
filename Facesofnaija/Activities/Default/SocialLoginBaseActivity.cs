@@ -916,17 +916,6 @@ namespace Facesofnaija.Activities.Default
                     token = jobj["access_token"]?.ToString() ?? jobj["session_id"]?.ToString() ?? jobj["cookie"]?.ToString() ?? jobj["AccessToken"]?.ToString() ?? jobj["accessToken"]?.ToString() ?? "";
                 }
 
-                if (!string.IsNullOrEmpty(userId))
-                {
-                    var isActive = await CheckIsActiveUser(userId);
-                    if (!isActive)
-                    {
-                        ToggleVisibility(false);
-                        SweetAlertSuccessDialog.Show(this, "Account Inactive", "Your account is not activated yet. Please check your email inbox or spam folder to activate your account.", "OK, Got It", null);
-                        return;
-                    }
-                }
-
                 if (respond is AuthObject authObj)
                 {
                     SetDataLogin(authObj, email, password, chkRemember);
