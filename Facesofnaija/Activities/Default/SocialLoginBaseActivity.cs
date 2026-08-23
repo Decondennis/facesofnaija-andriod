@@ -248,14 +248,12 @@ namespace Facesofnaija.Activities.Default
                 //#Google
                 if (AppSettings.ShowGoogleLogin)
                 {
-                    // Configure sign-in to request the user's ID, email address, and basic profile. ID and basic profile are included in DEFAULT_SIGN_IN.
+                    // Configure sign-in to request the user's ID, email address, and basic profile.
                     var gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DefaultSignIn)
                         .RequestIdToken(AppSettings.ClientId)
-                        .RequestScopes(new Scope(Scopes.Profile))
-                        .RequestScopes(new Scope(Scopes.PlusMe))
-                        .RequestScopes(new Scope(Scopes.DriveAppfolder))
-                        .RequestServerAuthCode(AppSettings.ClientId)
-                        .RequestProfile().RequestEmail().Build();
+                        .RequestEmail()
+                        .RequestProfile()
+                        .Build();
 
                     MGoogleSignInClient = GoogleSignIn.GetClient(this, gso);
 
@@ -529,74 +527,47 @@ namespace Facesofnaija.Activities.Default
         {
             try
             {
-                //var loginResult = result as LoginResult;
-                //var id = AccessToken.CurrentAccessToken.UserId;
-
-                ToggleVisibility(false);
-
-                //SetResult(Result.Ok);
-            }
-            catch (Exception exception)
-            {
-                Methods.DisplayReportResultTrack(exception);
-            }
-        }
-
-        public async void OnCompleted(JSONObject json, GraphResponse response)
-        {
-            try
-            {
-                ToggleVisibility(true);
-
-                var accessToken = AccessToken.CurrentAccessToken;
-                if (accessToken != null)
+                var loginResult = result as LoginResult;
+                if (loginResult?.AccessToken != null)
                 {
-                    FbAccessToken = accessToken.Token;
-
-                    //Login Api 
-                    var (apiStatus, respond) = await RequestsAsync.Auth.SocialLoginAsync(FbAccessToken, "facebook", UserDetails.DeviceId);
-                    if (apiStatus == 200)
-                    {
-                        if (respond is AuthObject auth)
-                        {
-                            //if (!string.IsNullOrEmpty(json?.ToString()))
-                            //{
-                            //    var data = json.ToString();
-                            //    var result = JsonConvert.DeserializeObject<FacebookResult>(data);
-                            //    //FbEmail = result.Email;
-                            //}
-
-                            SetDataLogin(auth, "", "");
-
-                            ToggleVisibility(false);
-                            Finish();
-                        }
-                    }
-                    else if (apiStatus == 400)
-                    {
-                        if (respond is ErrorObject error)
-                        {
-                            ToggleVisibility(false);
-                            var errorText = error.Error.ErrorText;
-                            Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
-                        }
-                    }
-                    else
-                    {
-                        ToggleVisibility(false);
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond.ToString(), GetText(Resource.String.Lbl_Ok));
-                    }
+                    FbAccessToken = loginResult.AccessToken.Token;
+                    ExecuteSocialLogin("facebook", FbAccessToken);
+                }
+                else if (AccessToken.CurrentAccessToken != null)
+                {
+                    FbAccessToken = AccessToken.CurrentAccessToken.Token;
+                    ExecuteSocialLogin("facebook", FbAccessToken);
                 }
                 else
                 {
                     ToggleVisibility(false);
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_Please_enter_your_data), GetText(Resource.String.Lbl_Ok));
                 }
             }
             catch (Exception exception)
             {
                 ToggleVisibility(false);
-                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), exception.Message, GetText(Resource.String.Lbl_Ok));
+                Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        public void OnCompleted(JSONObject json, GraphResponse response)
+        {
+            try
+            {
+                var accessToken = AccessToken.CurrentAccessToken;
+                if (accessToken != null && !string.IsNullOrEmpty(accessToken.Token))
+                {
+                    FbAccessToken = accessToken.Token;
+                    ExecuteSocialLogin("facebook", FbAccessToken);
+                }
+                else
+                {
+                    ToggleVisibility(false);
+                }
+            }
+            catch (Exception exception)
+            {
+                ToggleVisibility(false);
                 Methods.DisplayReportResultTrack(exception);
             }
         }
@@ -614,16 +585,13 @@ namespace Facesofnaija.Activities.Default
             {
                 if (MGoogleSignInClient == null)
                 {
-                    // Configure sign-in to request the user's ID, email address, and basic profile. ID and basic profile are included in DEFAULT_SIGN_IN.
                     var gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DefaultSignIn)
                         .RequestIdToken(AppSettings.ClientId)
-                        .RequestScopes(new Scope(Scopes.Profile))
-                        .RequestScopes(new Scope(Scopes.PlusMe))
-                        .RequestScopes(new Scope(Scopes.DriveAppfolder))
-                        .RequestServerAuthCode(AppSettings.ClientId)
-                        .RequestProfile().RequestEmail().Build();
+                        .RequestEmail()
+                        .RequestProfile()
+                        .Build();
 
-                    MGoogleSignInClient ??= GoogleSignIn.GetClient(this, gso);
+                    MGoogleSignInClient = GoogleSignIn.GetClient(this, gso);
                 }
 
                 var signInIntent = MGoogleSignInClient.SignInIntent;
@@ -635,54 +603,16 @@ namespace Facesofnaija.Activities.Default
             }
         }
 
-        private async void SetContentGoogle(GoogleSignInAccount acct)
+        private void SetContentGoogle(GoogleSignInAccount acct)
         {
             try
             {
-                //Successful log in hooray!!
                 if (acct != null)
                 {
-                    ToggleVisibility(true);
-
-                    //var GAccountName = acct.Account.Name;
-                    //var GAccountType = acct.Account.Type;
-                    //var GDisplayName = acct.DisplayName;
-                    //var GFirstName = acct.GivenName;
-                    //var GLastName = acct.FamilyName;
-                    //var GProfileId = acct.Id;
-                    //var GEmail = acct.Email;
-                    //var GImg = acct.PhotoUrl.Path;
                     GAccessToken = acct.IdToken;
-                    //GServerCode = acct.ServerAuthCode;
-                    //Console.WriteLine(GServerCode);
-
                     if (!string.IsNullOrEmpty(GAccessToken))
                     {
-                        var (apiStatus, respond) = await RequestsAsync.Auth.SocialLoginAsync(GAccessToken, "google", UserDetails.DeviceId);
-                        if (apiStatus == 200)
-                        {
-                            if (respond is AuthObject auth)
-                            {
-                                SetDataLogin(auth, "", "");
-
-                                ToggleVisibility(false);
-                                Finish();
-                            }
-                        }
-                        else if (apiStatus == 400)
-                        {
-                            if (respond is ErrorObject error)
-                            {
-                                ToggleVisibility(false);
-                                var errorText = error.Error.ErrorText;
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
-                            }
-                        }
-                        else
-                        {
-                            ToggleVisibility(false);
-                            Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond.ToString(), GetText(Resource.String.Lbl_Ok));
-                        }
+                        ExecuteSocialLogin("google", GAccessToken);
                     }
                     else
                     {
@@ -696,6 +626,119 @@ namespace Facesofnaija.Activities.Default
                 ToggleVisibility(false);
                 Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), exception.Message, GetText(Resource.String.Lbl_Ok));
                 Methods.DisplayReportResultTrack(exception);
+            }
+        }
+
+        private async void ExecuteSocialLogin(string provider, string token)
+        {
+            try
+            {
+                ToggleVisibility(true);
+                var (apiStatus, respond) = await TrySocialLoginDirectAsync(token, provider, UserDetails.DeviceId);
+                if (apiStatus == 200)
+                {
+                    if (respond is AuthObject auth)
+                    {
+                        SetDataLogin(auth, "", "");
+                        ToggleVisibility(false);
+                        Finish();
+                    }
+                    else if (respond is JObject jobj)
+                    {
+                        var rawUserId = jobj["user_id"]?.ToString() ?? "";
+                        var rawToken = jobj["access_token"]?.ToString() ?? "";
+                        if (!string.IsNullOrEmpty(rawUserId) && !string.IsNullOrEmpty(rawToken))
+                        {
+                            UserDetails.UserId = rawUserId;
+                            UserDetails.AccessToken = rawToken;
+                            Current.AccessToken = rawToken;
+                            var user = new DataTables.LoginTb { UserId = rawUserId, AccessToken = rawToken, Username = provider + "_" + rawUserId, Password = "", Status = "Active", Email = "", DeviceId = UserDetails.DeviceId };
+                            ListUtils.DataUserLoginList.Clear();
+                            ListUtils.DataUserLoginList.Add(user);
+                            var dbDatabase = new SqLiteDatabase();
+                            dbDatabase.InsertOrUpdateLogin_Credentials(user);
+                            PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => ApiRequest.Get_MyProfileData_Api(this) });
+                            StartActivity(new Intent(this, typeof(TabbedMainActivity)));
+                            ToggleVisibility(false);
+                            FinishAffinity();
+                        }
+                        else
+                        {
+                            ToggleVisibility(false);
+                            Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), "Login successful but session could not be established", GetText(Resource.String.Lbl_Ok));
+                        }
+                    }
+                }
+                else if (apiStatus == 400 && respond is ErrorObject error)
+                {
+                    ToggleVisibility(false);
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), error.Error?.ErrorText ?? "Social login failed", GetText(Resource.String.Lbl_Ok));
+                }
+                else
+                {
+                    ToggleVisibility(false);
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Social login failed", GetText(Resource.String.Lbl_Ok));
+                }
+            }
+            catch (Exception ex)
+            {
+                ToggleVisibility(false);
+                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), ex.Message, GetText(Resource.String.Lbl_Ok));
+                Methods.DisplayReportResultTrack(ex);
+            }
+        }
+
+        public async Task<(long, dynamic)> TrySocialLoginDirectAsync(string token, string provider, string deviceId = "")
+        {
+            try
+            {
+                var url = AppSettings.SiteUrl + "/api/v2/endpoints/social-login";
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                using var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? ""),
+                    new KeyValuePair<string, string>("provider", provider),
+                    new KeyValuePair<string, string>("access_token", token),
+                    new KeyValuePair<string, string>("android_m_device_id", deviceId ?? UserDetails.DeviceId ?? ""),
+                    new KeyValuePair<string, string>("device_type", "phone"),
+                });
+
+                var response = await client.PostAsync(url, content).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Console.WriteLine($"FON_AUTH: social login -> Status: {response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
+
+                if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
+                {
+                    var jObject = JObject.Parse(json);
+                    var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
+
+                    if (apiStatus == 200)
+                    {
+                        var auth = jObject.ToObject<AuthObject>();
+                        return auth != null ? (200, (dynamic)auth) : (200, (dynamic)jObject);
+                    }
+
+                    if (jObject["errors"] != null)
+                    {
+                        var errObj = jObject["errors"];
+                        var errText = errObj?.SelectToken("error_text")?.ToString() ?? errObj?.First?.ToString() ?? "Social login failed";
+                        return (400, new ErrorObject { Error = new ErrorObject.Errors { ErrorText = errText } });
+                    }
+
+                    var error = jObject.ToObject<ErrorObject>();
+                    return (apiStatus == 0 ? 400 : apiStatus, (dynamic)(error != null ? error : json));
+                }
+
+                return (404, "Server returned empty or invalid response");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"FON_AUTH: TrySocialLoginDirectAsync exception: {ex.Message}");
+                return (404, ex.Message);
             }
         }
 
@@ -1312,24 +1355,36 @@ namespace Facesofnaija.Activities.Default
                     new KeyValuePair<string, string>("timezone", TimeZone ?? "UTC"),
                 });
 
-                var response = await client.PostAsync(url, content).ConfigureAwait(false);
-                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var response = await client.PostAsync(url, content);
+                var json = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"FON_AUTH: register direct -> Status: {response.StatusCode} body={json?.Substring(0, System.Math.Min(200, json?.Length ?? 0))}");
 
                 if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                 {
                     var jObject = JObject.Parse(json);
-                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+                    var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
 
-                    if (apiStatus == 200)
+                    if (apiStatus == 200 || apiStatus == 220)
                     {
-                        // Registration response provides 'session_id' (md5 of s) used by the
-                        // phone API endpoints, and 'cookie' (PHP session). The phone API's
-                        // T_APP_SESSIONS stores session_id, so use that as the access token.
+                        var successType = jObject["success_type"]?.ToString() ?? "";
                         var sessionId = jObject["session_id"]?.ToString() ?? sessionToken;
                         var cookie = jObject["cookie"]?.ToString() ?? "";
                         var userId = jObject["user_id"]?.ToString() ?? "";
 
+                        if (apiStatus == 220 || successType == "verification" || sessionId == "0")
+                        {
+                            var messageObj = new AuthMessageObject
+                            {
+                                Status = "220",
+                                UserId = userId,
+                                Message = jObject["message"]?.ToString() ?? "Registration successful! We have sent you an email, Please check your inbox/spam to verify your email."
+                            };
+                            return (220, (dynamic)messageObj);
+                        }
+
+                        // Registration response provides 'session_id' (md5 of s) used by the
+                        // phone API endpoints, and 'cookie' (PHP session). The phone API's
+                        // T_APP_SESSIONS stores session_id, so use that as the access token.
                         dynamic fakeAuth = new JObject();
                         fakeAuth["api_status"] = 200;
                         fakeAuth["access_token"] = !string.IsNullOrEmpty(sessionId) ? sessionId : cookie;
@@ -1377,14 +1432,14 @@ namespace Facesofnaija.Activities.Default
                     new KeyValuePair<string, string>("email", email),
                 });
 
-                var response = await client.PostAsync(url, content).ConfigureAwait(false);
-                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                var response = await client.PostAsync(url, content);
+                var json = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"FON_AUTH: forgot pass direct -> Status: {response.StatusCode}");
 
                 if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                 {
                     var jObject = JObject.Parse(json);
-                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+                    var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
 
                     if (apiStatus == 200)
                     {

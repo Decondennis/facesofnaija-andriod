@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
@@ -463,125 +463,133 @@ namespace Facesofnaija.Activities.Default
                 ToggleVisibility(true);
 
                 var (apiStatus, respond) = await TryRegisterDirectAsync(TxtUsername.Text.Replace(" ", ""), TxtPassword.Text, TxtConfirmPassword.Text, TxtEmail.Text.Replace(" ", ""), GenderStatus, TxtPhoneNum.Text, Referral, UserDetails.DeviceId);
-                if (apiStatus == 200 && respond is CreatAccountObject result)
+                
+                RunOnUiThread(() =>
                 {
-                    if (AppSettings.ShowBirthdayInRegister)
+                    try
                     {
-                        var dataPrivacy = new Dictionary<string, string> { { "birthday", TxtBirthday.Text } };
-                        PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.UpdateUserDataAsync(dataPrivacy) });
-                    }
+                        ToggleVisibility(false);
 
-                    SetDataLogin(result, TxtUsername.Text.Replace(" ", ""), TxtPassword.Text, TxtEmail.Text.Replace(" ", ""));
-
-                    ToggleVisibility(false);
-                    FinishAffinity();
-                }
-                else if (apiStatus == 220)
-                {
-                    if (respond is AuthMessageObject message)
-                    {
-                        if (smsOrEmail == "sms")
+                        if (apiStatus == 200 && respond is CreatAccountObject result)
                         {
-                            UserDetails.Username = TxtUsername.Text;
-                            UserDetails.FullName = TxtUsername.Text;
-                            UserDetails.Password = TxtPassword.Text;
-                            UserDetails.UserId = message.UserId;
-                            UserDetails.Status = "Pending";
-                            UserDetails.Email = TxtEmail.Text;
-
-                            //Insert user data to database
-                            var user = new DataTables.LoginTb
+                            if (AppSettings.ShowBirthdayInRegister)
                             {
-                                UserId = UserDetails.UserId,
-                                AccessToken = UserDetails.AccessToken,
-                                Cookie = UserDetails.Cookie,
-                                Username = UserDetails.Username,
-                                Password = UserDetails.Password,
-                                Status = "Pending",
-                                Lang = "",
-                                DeviceId = UserDetails.DeviceId,
-                                Email = UserDetails.Email,
-                            };
+                                var dataPrivacy = new Dictionary<string, string> { { "birthday", TxtBirthday.Text } };
+                                PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.UpdateUserDataAsync(dataPrivacy) });
+                            }
 
-                            ListUtils.DataUserLoginList.Clear();
-                            ListUtils.DataUserLoginList.Add(user);
-
-                            var dbDatabase = new SqLiteDatabase();
-                            dbDatabase.InsertOrUpdateLogin_Credentials(user);
-
-                            Intent newIntent = new Intent(this, typeof(VerificationCodeActivity));
-                            newIntent?.PutExtra("TypeCode", "AccountSms");
-                            StartActivity(newIntent);
+                            SetDataLogin(result, TxtUsername.Text.Replace(" ", ""), TxtPassword.Text, TxtEmail.Text.Replace(" ", ""));
+                            FinishAffinity();
                         }
-                        else if (smsOrEmail == "mail")
+                        else if (apiStatus == 220)
                         {
-                            var dialog = new MaterialAlertDialogBuilder(this);
-                            dialog.SetTitle(GetText(Resource.String.Lbl_ActivationSent));
-                            dialog.SetMessage(GetText(Resource.String.Lbl_ActivationDetails).Replace("@", TxtEmail.Text));
-                            dialog.SetPositiveButton(GetText(Resource.String.Lbl_Ok), new MaterialDialogUtils());
+                            if (smsOrEmail == "sms" && respond is AuthMessageObject message)
+                            {
+                                UserDetails.Username = TxtUsername.Text;
+                                UserDetails.FullName = TxtUsername.Text;
+                                UserDetails.Password = TxtPassword.Text;
+                                UserDetails.UserId = message.UserId;
+                                UserDetails.Status = "Pending";
+                                UserDetails.Email = TxtEmail.Text;
 
-                            dialog.Show();
+                                var user = new DataTables.LoginTb
+                                {
+                                    UserId = UserDetails.UserId,
+                                    AccessToken = UserDetails.AccessToken,
+                                    Cookie = UserDetails.Cookie,
+                                    Username = UserDetails.Username,
+                                    Password = UserDetails.Password,
+                                    Status = "Pending",
+                                    Lang = "",
+                                    DeviceId = UserDetails.DeviceId,
+                                    Email = UserDetails.Email,
+                                };
+
+                                ListUtils.DataUserLoginList.Clear();
+                                ListUtils.DataUserLoginList.Add(user);
+
+                                var dbDatabase = new SqLiteDatabase();
+                                dbDatabase.InsertOrUpdateLogin_Credentials(user);
+
+                                Intent newIntent = new Intent(this, typeof(VerificationCodeActivity));
+                                newIntent?.PutExtra("TypeCode", "AccountSms");
+                                StartActivity(newIntent);
+                            }
+                            else
+                            {
+                                var activationMessage = (respond is AuthMessageObject authMsg && !string.IsNullOrWhiteSpace(authMsg.Message))
+                                    ? authMsg.Message
+                                    : "Registration successful! We have sent a verification link to your email. Please check your inbox or spam folder to activate your account.";
+
+                                SweetAlertSuccessDialog.Show(this, "Verification Email Sent!", activationMessage, "OK, Got It", () =>
+                                {
+                                    Finish();
+                                });
+                            }
+                        }
+                        else if (apiStatus == 400)
+                        {
+                            if (respond is ErrorObject error)
+                            {
+                                var errorText = error.Error?.ErrorText ?? "Registration failed";
+                                var errorId = error.Error?.ErrorId;
+                                switch (errorId)
+                                {
+                                    case "3":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_3), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "4":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_4), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "5":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_something_went_wrong), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "6":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_6), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "7":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_7), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "8":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_8), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "9":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_9), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "10":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_10), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    case "11":
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_11), GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                    default:
+                                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Registration failed", GetText(Resource.String.Lbl_Ok));
+                            }
                         }
                         else
                         {
-                            ProgressBar.Visibility = ViewStates.Invisible;
-                            Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), message.Message, GetText(Resource.String.Lbl_Ok));
+                            Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "An unexpected error occurred", GetText(Resource.String.Lbl_Ok));
                         }
-
-                        ToggleVisibility(false);
                     }
-                }
-                else if (apiStatus == 400)
-                {
-                    if (respond is ErrorObject error)
+                    catch (Exception ex)
                     {
-                        ToggleVisibility(false);
-                        var errorText = error.Error.ErrorText;
-                        var errorId = error.Error.ErrorId;
-                        switch (errorId)
-                        {
-                            case "3":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_3), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "4":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_4), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "5":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_something_went_wrong), GetText(Resource.String.Lbl_Ok)); break;
-                            case "6":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_6), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "7":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_7), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "8":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_8), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "9":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_9), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "10":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_10), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            case "11":
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ErrorRegister_11), GetText(Resource.String.Lbl_Ok));
-                                break;
-                            default:
-                                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
-                                break;
-                        }
+                        Methods.DisplayReportResultTrack(ex);
                     }
-                }
-                else
-                {
-                    ToggleVisibility(false);
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond.ToString(), GetText(Resource.String.Lbl_Ok));
-                }
+                });
             }
             catch (Exception exception)
             {
-                ToggleVisibility(false);
-                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), exception.Message, GetText(Resource.String.Lbl_Ok));
+                RunOnUiThread(() =>
+                {
+                    ToggleVisibility(false);
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), exception.Message, GetText(Resource.String.Lbl_Ok));
+                });
                 Methods.DisplayReportResultTrack(exception);
             }
         }

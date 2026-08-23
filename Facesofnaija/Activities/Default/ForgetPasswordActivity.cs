@@ -204,10 +204,13 @@ namespace Facesofnaija.Activities.Default
                 ToggleVisibility(true);
 
                 var (apiStatus, respond) = await TryResetPasswordDirectAsync(TxtEmail.Text.Replace(" ", ""));
-                if (apiStatus == 200 && respond is MessageObject auth)
+                if (apiStatus == 200)
                 {
                     ToggleVisibility(false);
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_Email_Has_Been_Send), GetText(Resource.String.Lbl_Ok));
+                    SweetAlertSuccessDialog.Show(this, "Reset Link Sent!", GetText(Resource.String.Lbl_Email_Has_Been_Send), "OK, Got It", () =>
+                    {
+                        Finish();
+                    });
                 }
                 else if (apiStatus == 400)
                 {
@@ -256,7 +259,7 @@ namespace Facesofnaija.Activities.Default
                 if (!string.IsNullOrWhiteSpace(json) && !json.TrimStart().StartsWith("<"))
                 {
                     var jObject = JObject.Parse(json);
-                    var apiStatus = jObject["api_status"]?.Value<int>() ?? 0;
+                    var apiStatus = int.TryParse(jObject["api_status"]?.ToString(), out var st) ? st : 0;
 
                     if (apiStatus == 200)
                     {

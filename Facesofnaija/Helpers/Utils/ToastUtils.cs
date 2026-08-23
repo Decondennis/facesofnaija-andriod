@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.Graphics;
 using Android.OS;
 using Android.Views;
@@ -18,40 +18,39 @@ namespace Facesofnaija.Helpers.Utils
         {
             try
             {
-                if (AppSettings.ToastTheme == ToastTheme.Custom)
-                {
-                    LayoutInflater layoutInflater = (LayoutInflater)context?.GetSystemService(Context.LayoutInflaterService);
+                if (context == null || string.IsNullOrWhiteSpace(content))
+                    return;
 
-                    View toastLayout = layoutInflater?.Inflate(Resource.Layout.toast_row, null);
-                    CardView cardToastRoot = toastLayout?.FindViewById<CardView>(Resource.Id.ll_toast_root);
-                    cardToastRoot?.SetCardBackgroundColor(WoWonderTools.IsTabDark() ? Color.ParseColor("#282828") : Color.ParseColor("#FFFEFE"));
-
-                    ToastText = toastLayout?.FindViewById<TextView>(Resource.Id.tv_toast);
-
-                    PostToast = new Toast(context) { Duration = length };
-
-                    if (Build.VERSION.SdkInt < BuildVersionCodes.R)
-                    {
-#pragma warning disable 618
-                        PostToast.View = toastLayout;
-#pragma warning restore 618
-                        ToastText.Text = content;
-                    }
-                    else
-                    {
-                        PostToast.SetText(content);
-                    }
-
-                    PostToast.Show();
-                }
-                else
+                if (Build.VERSION.SdkInt >= BuildVersionCodes.R || AppSettings.ToastTheme != ToastTheme.Custom)
                 {
                     Toast.MakeText(context, content, length)?.Show();
+                    return;
                 }
+
+                LayoutInflater layoutInflater = (LayoutInflater)context.GetSystemService(Context.LayoutInflaterService);
+                View toastLayout = layoutInflater?.Inflate(Resource.Layout.toast_row, null);
+                CardView cardToastRoot = toastLayout?.FindViewById<CardView>(Resource.Id.ll_toast_root);
+                cardToastRoot?.SetCardBackgroundColor(WoWonderTools.IsTabDark() ? Color.ParseColor("#282828") : Color.ParseColor("#FFFEFE"));
+
+                ToastText = toastLayout?.FindViewById<TextView>(Resource.Id.tv_toast);
+                if (ToastText != null)
+                    ToastText.Text = content;
+
+                PostToast = new Toast(context) { Duration = length };
+#pragma warning disable 618
+                PostToast.View = toastLayout;
+#pragma warning restore 618
+                PostToast.Show();
             }
             catch (Exception exception)
             {
-                Toast.MakeText(context, content, length)?.Show();
+                try
+                {
+                    Toast.MakeText(context, content, length)?.Show();
+                }
+                catch
+                {
+                }
                 Methods.DisplayReportResultTrack(exception);
             }
         }
