@@ -884,26 +884,55 @@ namespace Facesofnaija.Activities.Default
         {
             var (apiStatus, respond) = await TryAuthDirectAsync(email, password);
             Console.WriteLine("FON_AUTH: " + apiStatus + " " + (respond?.GetType()?.FullName ?? "null"));
+
+            if (apiStatus == 220)
+            {
+                ToggleVisibility(false);
+                var inactiveMessage = "Your account is not activated yet. Please check your email inbox or spam folder to activate your account.";
+                if (respond is ErrorObject errObj && !string.IsNullOrWhiteSpace(errObj.Error?.ErrorText))
+                    inactiveMessage = errObj.Error.ErrorText;
+                else if (respond is AuthMessageObject authMsg && !string.IsNullOrWhiteSpace(authMsg.Message))
+                    inactiveMessage = authMsg.Message;
+                else if (respond is JObject errJobj)
+                    inactiveMessage = errJobj["errors"]?["error_text"]?.ToString() ?? errJobj["error"]?.ToString() ?? errJobj["message"]?.ToString() ?? inactiveMessage;
+
+                SweetAlertSuccessDialog.Show(this, "Account Inactive", inactiveMessage, "OK, Got It", null);
+                return;
+            }
+
             if (apiStatus == 200)
             {
+                var userId = "";
+                var token = "";
+
                 if (respond is AuthObject auth)
                 {
-                    var emailValidation = ListUtils.SettingsSiteList?.EmailValidation ?? "0";
-                    if (emailValidation == "1")
-                        IsActiveUser = await CheckIsActiveUser(auth.UserId);
+                    userId = auth.UserId;
+                    token = auth.AccessToken;
+                }
+                else if (respond is JObject jobj)
+                {
+                    userId = jobj["user_id"]?.ToString() ?? jobj["userid"]?.ToString() ?? jobj["UserId"]?.ToString() ?? jobj["UserID"]?.ToString() ?? "";
+                    token = jobj["access_token"]?.ToString() ?? jobj["session_id"]?.ToString() ?? jobj["cookie"]?.ToString() ?? jobj["AccessToken"]?.ToString() ?? jobj["accessToken"]?.ToString() ?? "";
+                }
 
-                    if (IsActiveUser)
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    var isActive = await CheckIsActiveUser(userId);
+                    if (!isActive)
                     {
-                        SetDataLogin(auth, email, password, chkRemember);
+                        ToggleVisibility(false);
+                        SweetAlertSuccessDialog.Show(this, "Account Inactive", "Your account is not activated yet. Please check your email inbox or spam folder to activate your account.", "OK, Got It", null);
+                        return;
+                    }
+                }
 
-                        ToggleVisibility(false);
-                        FinishAffinity();
-                    }
-                    else
-                    {
-                        ToggleVisibility(false);
-                        Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), GetText(Resource.String.Lbl_ThisUserNotActive), GetText(Resource.String.Lbl_Ok));
-                    }
+                if (respond is AuthObject authObj)
+                {
+                    SetDataLogin(authObj, email, password, chkRemember);
+                    ToggleVisibility(false);
+                    FinishAffinity();
+                    return;
                 }
                 else if (respond is AuthMessageObject messageObject)
                 {
@@ -936,63 +965,63 @@ namespace Facesofnaija.Activities.Default
                     Intent newIntent = new Intent(this, typeof(VerificationCodeActivity));
                     newIntent?.PutExtra("TypeCode", "TwoFactor");
                     StartActivity(newIntent);
+                    return;
                 }
-                else
+                else if (respond is JObject jobj && !string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(token))
                 {
-                    // Fallback: try to extract UserId and AccessToken from raw JSON
-                    if (respond is JObject jobj)
-                    {
-                        var rawUserId = jobj["user_id"]?.ToString() ?? jobj["userid"]?.ToString() ?? jobj["UserId"]?.ToString() ?? jobj["UserID"]?.ToString() ?? "";
-                        var rawToken = jobj["access_token"]?.ToString() ?? jobj["session_id"]?.ToString() ?? jobj["cookie"]?.ToString() ?? jobj["AccessToken"]?.ToString() ?? jobj["accessToken"]?.ToString() ?? "";
-                        if (!string.IsNullOrEmpty(rawUserId) && !string.IsNullOrEmpty(rawToken))
-                        {
-                            UserDetails.UserId = rawUserId;
-                            UserDetails.AccessToken = rawToken;
-                            if (rawToken.Length > 20) { Current.AccessToken = rawToken; Console.WriteLine($"FON_AUTH_TOKEN: Set Current.AccessToken (len={rawToken.Length})"); }
-                            else Console.WriteLine($"FON_AUTH_TOKEN: Skipped Current.AccessToken (len={rawToken.Length} too short)");
-                            UserDetails.Username = email;
-                            UserDetails.FullName = email;
-                            UserDetails.Password = password;
-                            UserDetails.Status = "Pending";
-                            UserDetails.Email = email;
-                            var user = new DataTables.LoginTb { UserId = rawUserId, AccessToken = rawToken, Username = email, Password = password, Status = "Pending", Email = email, DeviceId = UserDetails.DeviceId };
-                            ListUtils.DataUserLoginList.Clear();
-                            ListUtils.DataUserLoginList.Add(user);
-                            var dbDatabase = new SqLiteDatabase();
-                            dbDatabase.InsertOrUpdateLogin_Credentials(user);
-                            ToggleVisibility(false);
-                            StartActivity(new Intent(this, typeof(TabbedMainActivity)));
-                            FinishAffinity();
-                            Task.Run(async () =>
-                            {
-                                try { await Task.Delay(3000); await ApiRequest.Get_MyProfileData_Api(null); }
-                                catch { }
-                            });
-                            return;
-                        }
-                    }
+                    UserDetails.UserId = userId;
+                    UserDetails.AccessToken = token;
+                    if (token.Length > 20) { Current.AccessToken = token; Console.WriteLine($"FON_AUTH_TOKEN: Set Current.AccessToken (len={token.Length})"); }
+                    else Console.WriteLine($"FON_AUTH_TOKEN: Skipped Current.AccessToken (len={token.Length} too short)");
+                    UserDetails.Username = email;
+                    UserDetails.FullName = email;
+                    UserDetails.Password = password;
+                    UserDetails.Status = "Active";
+                    UserDetails.Email = email;
+                    var user = new DataTables.LoginTb { UserId = userId, AccessToken = token, Username = email, Password = password, Status = "Active", Email = email, DeviceId = UserDetails.DeviceId };
+                    ListUtils.DataUserLoginList.Clear();
+                    ListUtils.DataUserLoginList.Add(user);
+                    var dbDatabase = new SqLiteDatabase();
+                    dbDatabase.InsertOrUpdateLogin_Credentials(user);
                     ToggleVisibility(false);
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Login failed", GetText(Resource.String.Lbl_Ok));
+                    StartActivity(new Intent(this, typeof(TabbedMainActivity)));
+                    FinishAffinity();
+                    Task.Run(async () =>
+                    {
+                        try { await Task.Delay(3000); await ApiRequest.Get_MyProfileData_Api(null); }
+                        catch { }
+                    });
+                    return;
                 }
+
+                ToggleVisibility(false);
+                Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Login failed", GetText(Resource.String.Lbl_Ok));
             }
             else if (apiStatus == 400)
             {
                 ToggleVisibility(false);
+                var errorText = "Login failed";
 
                 if (respond is ErrorObject error)
                 {
-                    var errorText = error.Error.ErrorText ?? "Login failed";
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
+                    errorText = error.Error.ErrorText ?? "Login failed";
                 }
                 else if (respond is JObject jobj)
                 {
-                    // Handle raw JSON response for error details
-                    var errorMessage = jobj["message"]?.ToString() ?? jobj["error"]?.ToString() ?? "Login failed";
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorMessage, GetText(Resource.String.Lbl_Ok));
+                    errorText = jobj["errors"]?["error_text"]?.ToString() ?? jobj["message"]?.ToString() ?? jobj["error"]?.ToString() ?? "Login failed";
                 }
                 else
                 {
-                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), respond?.ToString() ?? "Login failed", GetText(Resource.String.Lbl_Ok));
+                    errorText = respond?.ToString() ?? "Login failed";
+                }
+
+                if (errorText.ToLower().Contains("not active") || errorText.ToLower().Contains("not activated") || errorText.ToLower().Contains("activate your account") || errorText.ToLower().Contains("verify your email"))
+                {
+                    SweetAlertSuccessDialog.Show(this, "Account Inactive", errorText, "OK, Got It", null);
+                }
+                else
+                {
+                    Methods.DialogPopup.InvokeAndShowDialog(this, GetText(Resource.String.Lbl_Security), errorText, GetText(Resource.String.Lbl_Ok));
                 }
             }
             else
@@ -1044,6 +1073,13 @@ namespace Facesofnaija.Activities.Default
                         var statusText = jObject["api_status"]?.ToString();
                         long.TryParse(statusText, out long status);
 
+                        var errText = jObject["errors"]?["error_text"]?.ToString() ?? jObject["error"]?.ToString() ?? "";
+                        var errId = jObject["errors"]?["error_id"]?.ToString() ?? "";
+                        if (status == 220 || errId == "8" || errText.ToLower().Contains("not active") || errText.ToLower().Contains("not activated"))
+                        {
+                            return (220, (dynamic)jObject);
+                        }
+
                         if (status == 200)
                         {
                             var uid = jObject["user_id"]?.ToString() ?? "";
@@ -1087,6 +1123,13 @@ namespace Facesofnaija.Activities.Default
                         var statusText = jObject["api_status"]?.ToString();
                         long.TryParse(statusText, out long status);
 
+                        var errText = jObject["errors"]?["error_text"]?.ToString() ?? jObject["error"]?.ToString() ?? "";
+                        var errId = jObject["errors"]?["error_id"]?.ToString() ?? "";
+                        if (status == 220 || errId == "8" || errText.ToLower().Contains("not active") || errText.ToLower().Contains("not activated"))
+                        {
+                            return (220, (dynamic)jObject);
+                        }
+
                         if (status == 200)
                         {
                             var uid = jObject["user_id"]?.ToString() ?? "0";
@@ -1128,6 +1171,14 @@ namespace Facesofnaija.Activities.Default
                     var loginBody = await loginResp.Content.ReadAsStringAsync().ConfigureAwait(false);
                     Console.WriteLine($"FON_AUTH: requests.php -> {loginResp.StatusCode}");
                     
+                    if (loginBody.Contains("user-activation") || loginBody.Contains("\"status\":600") || loginBody.ToLower().Contains("not active") || loginBody.ToLower().Contains("not activated"))
+                    {
+                        dynamic errObj = new JObject();
+                        errObj["api_status"] = 220;
+                        errObj["message"] = "Your account is not activated yet. Please check your email inbox or spam folder to activate your account.";
+                        return (220, (dynamic)errObj);
+                    }
+
                     // If login succeeded (status=200), session cookie is now in handler
                     var cookies = cookieHandler.CookieContainer?.GetCookies(new Uri(AppSettings.SiteUrl));
                     var sessionValue = "";
@@ -1191,6 +1242,13 @@ namespace Facesofnaija.Activities.Default
                         var jObject = JObject.Parse(json);
                         var statusText = jObject["api_status"]?.ToString();
                         long.TryParse(statusText, out long status);
+
+                        var errText = jObject["errors"]?["error_text"]?.ToString() ?? jObject["error"]?.ToString() ?? "";
+                        var errId = jObject["errors"]?["error_id"]?.ToString() ?? "";
+                        if (status == 220 || errId == "8" || errText.ToLower().Contains("not active") || errText.ToLower().Contains("not activated"))
+                        {
+                            return (220, (dynamic)jObject);
+                        }
 
                         if (status == 200)
                         {
