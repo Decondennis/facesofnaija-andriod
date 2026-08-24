@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.amazon.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.facesofnaija.tlapp" android:versionCode="16" android:versionName="2.0.5" android:installLocation="auto">
-	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.amazon.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.facesofnaija.tlapp" android:versionCode="17" android:versionName="2.0.6" android:installLocation="auto">
+	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="35" />
 	<uses-feature android:name="android.hardware.camera" android:required="true" />
 	<uses-feature android:name="android.hardware.camera.autofocus" />
 	<uses-feature android:name="android.hardware.location.gps" />
