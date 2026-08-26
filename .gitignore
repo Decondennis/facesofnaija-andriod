@@ -4,6 +4,9 @@
 # Sensitive configuration files (never commit these)
 google-services.json
 GoogleService-Info.plist
+*.aab
+*.apk
+PlayStore_Release/
 
 # User-specific files
 *.suo

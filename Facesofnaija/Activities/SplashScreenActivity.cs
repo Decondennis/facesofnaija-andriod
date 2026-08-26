@@ -30,8 +30,15 @@ namespace Facesofnaija.Activities
         {
             try
             {
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.S)
-                    Androidx.Core.Splashscreen.SplashScreen.InstallSplashScreen(this);
+                try
+                {
+                    if (Build.VERSION.SdkInt >= BuildVersionCodes.S)
+                        Androidx.Core.Splashscreen.SplashScreen.InstallSplashScreen(this);
+                }
+                catch (Exception splashEx)
+                {
+                    Methods.DisplayReportResultTrack(splashEx);
+                }
 
                 base.OnCreate(savedInstanceState);
 
@@ -48,6 +55,16 @@ namespace Facesofnaija.Activities
         {
             try
             {
+                try
+                {
+                    var sqLiteDatabase = new Facesofnaija.SQLite.SqLiteDatabase();
+                    sqLiteDatabase.CheckTablesStatus();
+                    sqLiteDatabase.Get_data_Login_Credentials();
+                }
+                catch (Exception dbEx)
+                {
+                    Methods.DisplayReportResultTrack(dbEx);
+                }
                 switch (string.IsNullOrEmpty(AppSettings.Lang))
                 {
                     case false:

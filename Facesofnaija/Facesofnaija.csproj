@@ -45,7 +45,7 @@
 		<AndroidPackageFormat>aab</AndroidPackageFormat>
 		<NoWarn>1701;1702;CA1416;CA1422</NoWarn>
 		<PublishTrimmed>True</PublishTrimmed>
-		<RunAOTCompilation>True</RunAOTCompilation>
+		<RunAOTCompilation>False</RunAOTCompilation>
 		<Debugger>Xamarin</Debugger>
 		<AndroidUseAapt2>True</AndroidUseAapt2>
 		<AndroidCreatePackagePerAbi>False</AndroidCreatePackagePerAbi>

@@ -298,26 +298,27 @@ namespace Facesofnaija
         {
             try
             {
-                AdsGoogle.InitializeAdsGoogle.Initialize(this);
+                try { AdsGoogle.InitializeAdsGoogle.Initialize(this); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
 
                 if (AppSettings.ShowFbBannerAds || AppSettings.ShowFbInterstitialAds || AppSettings.ShowFbRewardVideoAds)
-                    InitializeFacebook.Initialize(this);
+                {
+                    try { InitializeFacebook.Initialize(this); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
+                }
 
                 //OneSignal Notification  
                 //======================================
-                OneSignalNotification.Instance.RegisterNotificationDevice(this);
+                try { OneSignalNotification.Instance.RegisterNotificationDevice(this); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
 
-                ClassMapper.SetMappers();
+                try { ClassMapper.SetMappers(); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
 
                 //App restarted after crash
                 AndroidEnvironment.UnhandledExceptionRaiser += AndroidEnvironmentOnUnhandledExceptionRaiser;
                 AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
                 TaskScheduler.UnobservedTaskException += TaskSchedulerOnUnobservedTaskException;
 
-                AppCompatDelegate.CompatVectorFromResourcesEnabled = true;
-                FirebaseApp.InitializeApp(this);
-
-                AXEmojiManager.Install(this, new AXIOSEmojiProvider(this));
+                try { AppCompatDelegate.CompatVectorFromResourcesEnabled = true; } catch { }
+                try { FirebaseApp.InitializeApp(this); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
+                try { AXEmojiManager.Install(this, new AXIOSEmojiProvider(this)); } catch (Exception ex) { Methods.DisplayReportResultTrack(ex); }
 
                 //CrossCurrentActivity.Current.Init(this);
             }
@@ -331,17 +332,18 @@ namespace Facesofnaija
         {
             try
             {
-                Intent intent = new Intent(Activity, typeof(SplashScreenActivity));
+                var context = Activity ?? (Context)GetInstance()?.BaseContext ?? this;
+                Intent intent = new Intent(context, typeof(SplashScreenActivity));
                 intent.AddCategory(Intent.CategoryHome);
                 intent.PutExtra("crash", true);
                 intent.SetAction(Intent.ActionMain);
                 intent.AddFlags(ActivityFlags.ClearTop | ActivityFlags.NewTask | ActivityFlags.ClearTask);
 
-                PendingIntent pendingIntent = PendingIntent.GetActivity(GetInstance()?.BaseContext, 0, intent, Build.VERSION.SdkInt >= BuildVersionCodes.M ? PendingIntentFlags.OneShot | PendingIntentFlags.Immutable : PendingIntentFlags.OneShot);
-                AlarmManager mgr = (AlarmManager)GetInstance()?.BaseContext?.GetSystemService(AlarmService);
+                PendingIntent pendingIntent = PendingIntent.GetActivity(context, 0, intent, Build.VERSION.SdkInt >= BuildVersionCodes.M ? PendingIntentFlags.OneShot | PendingIntentFlags.Immutable : PendingIntentFlags.OneShot);
+                AlarmManager mgr = (AlarmManager)context.GetSystemService(AlarmService);
                 mgr?.Set(AlarmType.Rtc, JavaSystem.CurrentTimeMillis() + 100, pendingIntent);
 
-                Activity.Finish();
+                Activity?.Finish();
                 JavaSystem.Exit(2);
             }
             catch (Exception exception)
