@@ -55,20 +55,27 @@ namespace Facesofnaija.Activities
                 {
                     Methods.DisplayReportResultTrack(dbEx);
                 }
-                switch (string.IsNullOrEmpty(AppSettings.Lang))
+                try
                 {
-                    case false:
-                        LangController.SetApplicationLang(this, AppSettings.Lang);
-                        break;
-                    default:
+                    switch (string.IsNullOrEmpty(AppSettings.Lang))
+                    {
+                        case false:
+                            LangController.SetApplicationLang(this, AppSettings.Lang);
+                            break;
+                        default:
 #pragma warning disable 618
-                        var deviceLang = (int)Build.VERSION.SdkInt < 25
-                            ? Resources?.Configuration?.Locale?.Language
-                            : Resources?.Configuration?.Locales?.Get(0)?.Language ?? Resources?.Configuration?.Locale?.Language;
+                            var deviceLang = (int)Build.VERSION.SdkInt < 25
+                                ? Resources?.Configuration?.Locale?.Language
+                                : Resources?.Configuration?.Locales?.Get(0)?.Language ?? Resources?.Configuration?.Locale?.Language;
 #pragma warning restore 618
-                        UserDetails.LangName = (deviceLang ?? "en").ToLower(CultureInfo.InvariantCulture);
-                        LangController.SetApplicationLang(this, UserDetails.LangName);
-                        break;
+                            UserDetails.LangName = (deviceLang ?? "en").ToLower(CultureInfo.InvariantCulture);
+                            LangController.SetApplicationLang(this, UserDetails.LangName);
+                            break;
+                    }
+                }
+                catch (Exception langEx)
+                {
+                    Methods.DisplayReportResultTrack(langEx);
                 }
 
                 if (Intent?.Data != null)

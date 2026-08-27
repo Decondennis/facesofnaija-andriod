@@ -2776,12 +2776,7 @@ namespace Facesofnaija.Helpers.Utils
                     {
                         if (Build.VERSION.SdkInt >= BuildVersionCodes.R)
                         {
-                            //context.Window?.SetDecorFitsSystemWindows(false);
-
-                            context.RequestWindowFeature(WindowFeatures.NoTitle);
                             context.Window?.SetFlags(WindowManagerFlags.Fullscreen, WindowManagerFlags.Fullscreen);
-
-                            //context.Window?.AddFlags(WindowManagerFlags.Fullscreen); 
                         }
                         else if (Build.VERSION.SdkInt >= BuildVersionCodes.Lollipop)
                         {
