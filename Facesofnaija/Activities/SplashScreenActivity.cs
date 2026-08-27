@@ -21,7 +21,7 @@ using System.Globalization;
 
 namespace Facesofnaija.Activities
 {
-    [Activity(Icon = "@mipmap/icon", Label = "Facesofnaija", MainLauncher = true, NoHistory = true, Theme = "@style/SplashScreenTheme", Exported = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
+    [Activity(Icon = "@mipmap/icon", Label = "Facesofnaija", MainLauncher = true, Theme = "@style/SplashScreenTheme", Exported = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
     [IntentFilter(new[] { Intent.ActionView }, Categories = new[] { Intent.CategoryBrowsable, Intent.CategoryDefault }, DataSchemes = new[] { "http", "https" }, DataHost = "@string/ApplicationUrlWeb", AutoVerify = false)]
     [IntentFilter(new[] { Intent.ActionView, Intent.ActionMain }, Categories = new[] { Intent.CategoryBrowsable, Intent.CategoryDefault }, DataSchemes = new[] { "http", "https" }, DataHost = "@string/ApplicationUrlWeb", DataPathPrefixes = new[] { "/register", "/post/", "/index.php?link1=reset-password", "/index.php?link1=activate" }, AutoVerify = false)]
     public class SplashScreenActivity : AppCompatActivity
@@ -30,16 +30,6 @@ namespace Facesofnaija.Activities
         {
             try
             {
-                try
-                {
-                    if (Build.VERSION.SdkInt >= BuildVersionCodes.S)
-                        Androidx.Core.Splashscreen.SplashScreen.InstallSplashScreen(this);
-                }
-                catch (Exception splashEx)
-                {
-                    Methods.DisplayReportResultTrack(splashEx);
-                }
-
                 base.OnCreate(savedInstanceState);
 
                 FirstRunExcite();

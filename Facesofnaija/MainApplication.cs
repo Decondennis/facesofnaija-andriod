@@ -284,9 +284,6 @@ namespace Facesofnaija
             {
                 //Init Settings
                 MainSettings.Init();
-
-                Methods.AppLifecycleObserver appLifecycleObserver = new Methods.AppLifecycleObserver();
-                ProcessLifecycleOwner.Get().Lifecycle.AddObserver(appLifecycleObserver);
             }
             catch (Exception exception)
             {
@@ -526,6 +523,7 @@ namespace Facesofnaija
             {
                 Activity = activity;
                 CrossCurrentActivity.Current.Activity = activity;
+                Methods.AppLifecycleObserver.AppState = "Foreground";
             }
             catch (Exception exception)
             {
@@ -535,7 +533,15 @@ namespace Facesofnaija
 
         public void OnActivityStopped(Activity activity)
         {
-            Activity = activity;
+            try
+            {
+                Activity = activity;
+                Methods.AppLifecycleObserver.AppState = "Background";
+            }
+            catch (Exception exception)
+            {
+                Methods.DisplayReportResultTrack(exception);
+            }
         }
 
         public void OnActivityPostCreated(Activity activity, Bundle savedInstanceState)
