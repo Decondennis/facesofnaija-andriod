@@ -604,4 +604,9 @@
 	    <HintPath>..\API\YouTubePlayerAndroidX.dll</HintPath>
 	  </Reference>
 	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\InAppBilling\InAppBilling.csproj" />
+	  <TrimmerRootAssembly Include="InAppBilling" RootMode="All" />
+	  <TrimmerRootAssembly Include="WoWonderClient" RootMode="All" />
+	</ItemGroup>
 </Project>

@@ -91,11 +91,12 @@
 				<data android:scheme="${applicationId}.braintree" />
 			</intent-filter>
 		</activity>
-		<!--<activity android:name=".SplashScreenActivity"  android:exported="true" android:theme="@style/SplashScreenTheme" android:label="appname">
+		<activity android:name="com.facesofnaija.tlapp.SplashScreenActivity" android:exported="true" android:theme="@style/SplashScreenTheme" android:label="Facesofnaija" android:configChanges="screenSize|orientation">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
-		</activity>-->
+		</activity>
 		<provider android:name="androidx.core.content.FileProvider" android:authorities="com.facesofnaija.tlapp.fileprovider" android:exported="false" android:grantUriPermissions="true">
 			<meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
 		</provider>

@@ -21,7 +21,7 @@ using System.Globalization;
 
 namespace Facesofnaija.Activities
 {
-    [Activity(Icon = "@mipmap/icon", Label = "Facesofnaija", MainLauncher = true, Theme = "@style/SplashScreenTheme", Exported = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
+    [Activity(Name = "com.facesofnaija.tlapp.SplashScreenActivity", Icon = "@mipmap/icon", Label = "Facesofnaija", MainLauncher = true, Theme = "@style/SplashScreenTheme", Exported = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation)]
     [IntentFilter(new[] { Intent.ActionView }, Categories = new[] { Intent.CategoryBrowsable, Intent.CategoryDefault }, DataSchemes = new[] { "http", "https" }, DataHost = "@string/ApplicationUrlWeb", AutoVerify = false)]
     [IntentFilter(new[] { Intent.ActionView, Intent.ActionMain }, Categories = new[] { Intent.CategoryBrowsable, Intent.CategoryDefault }, DataSchemes = new[] { "http", "https" }, DataHost = "@string/ApplicationUrlWeb", DataPathPrefixes = new[] { "/register", "/post/", "/index.php?link1=reset-password", "/index.php?link1=activate" }, AutoVerify = false)]
     public class SplashScreenActivity : AppCompatActivity
