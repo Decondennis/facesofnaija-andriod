@@ -62,3 +62,21 @@ namespace Android.BillingClient.Api
         }
     }
 }
+
+namespace InAppBilling.InAppCore
+{
+    public class DE
+    {
+        public DE() { }
+        public static string Encrypt(string data, string key) => data;
+        public static string Decrypt(string data, string key) => data;
+    }
+
+    public class TripleDES
+    {
+        public TripleDES() { }
+        public static string Encrypt(string data, string key) => data;
+        public static string Decrypt(string data, string key) => data;
+    }
+}
+
