@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.amazon.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.facesofnaija.tlapp" android:versionCode="23" android:versionName="2.1.2" android:installLocation="auto">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:amazon="http://schemas.amazon.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools" package="com.facesofnaija.tlapp" android:versionCode="24" android:versionName="2.1.3" android:installLocation="auto">
 	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="36" />
 	<uses-feature android:name="android.hardware.camera" android:required="true" />
 	<uses-feature android:name="android.hardware.camera.autofocus" />
