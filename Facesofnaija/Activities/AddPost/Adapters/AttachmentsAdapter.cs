@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.Views;
@@ -123,32 +123,36 @@ namespace Facesofnaija.Activities.AddPost.Adapters
                                         }
                                 }
 
-                                if (item.TypeAttachment == "postPhotos[]")
+                                if (item.TypeAttachment == "Default")
                                 {
-                                    if (item.FileSimple.Contains("gif"))
-                                    {
-                                        holder.AttachType.SetImageResource(Resource.Drawable.ic_post_gif);
-                                        holder.AttachType.Visibility = ViewStates.Visible;
-                                    }
-                                    else
-                                    {
-                                        //holder.AttachType.SetImageResource(Resource.Drawable.icon_crop);
-                                        holder.AttachType.Visibility = ViewStates.Gone;
-                                    }
-                                }
-                                else if (item.TypeAttachment == "postVideo")
-                                {
-                                    holder.AttachType.SetImageResource(Resource.Drawable.ic_file_video);
-                                    holder.AttachType.Visibility = ViewStates.Visible;
-                                }
-                                else if (item.TypeAttachment == "Default")
-                                {
-                                    holder.ImageDelete.Visibility = ViewStates.Invisible;
+                                    holder.ImageDelete.Visibility = ViewStates.Gone;
                                     holder.AttachType.Visibility = ViewStates.Gone;
                                 }
                                 else
                                 {
-                                    holder.AttachType.Visibility = ViewStates.Gone;
+                                    holder.ImageDelete.Visibility = ViewStates.Visible;
+
+                                    if (item.TypeAttachment == "postPhotos[]")
+                                    {
+                                        if (item.FileSimple.Contains("gif"))
+                                        {
+                                            holder.AttachType.SetImageResource(Resource.Drawable.ic_post_gif);
+                                            holder.AttachType.Visibility = ViewStates.Visible;
+                                        }
+                                        else
+                                        {
+                                            holder.AttachType.Visibility = ViewStates.Gone;
+                                        }
+                                    }
+                                    else if (item.TypeAttachment == "postVideo")
+                                    {
+                                        holder.AttachType.SetImageResource(Resource.Drawable.ic_file_video);
+                                        holder.AttachType.Visibility = ViewStates.Visible;
+                                    }
+                                    else
+                                    {
+                                        holder.AttachType.Visibility = ViewStates.Gone;
+                                    }
                                 }
                             }
 

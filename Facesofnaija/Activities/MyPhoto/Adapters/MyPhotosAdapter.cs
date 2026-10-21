@@ -1,4 +1,4 @@
-﻿
+
 using Android.App;
 using Android.Views;
 using Android.Widget;
@@ -67,7 +67,13 @@ namespace Facesofnaija.Activities.MyPhoto.Adapters
                             var item = MyPhotosList[position];
                             if (item != null)
                             {
-                                GlideImageLoader.LoadImage(ActivityContext, item.PostFileFull, holder.Image, ImageStyle.CenterCrop, ImagePlaceholders.Color);
+                                var imageUrl = !string.IsNullOrEmpty(item.PostFileFull) ? item.PostFileFull :
+                                               !string.IsNullOrEmpty(item.PostFile) ? item.PostFile :
+                                               (item.PhotoAlbum?.Count > 0 ? (!string.IsNullOrEmpty(item.PhotoAlbum[0].Image) ? item.PhotoAlbum[0].Image : item.PhotoAlbum[0].ImageOrg) :
+                                               (item.PhotoMulti?.Count > 0 ? (!string.IsNullOrEmpty(item.PhotoMulti[0].Image) ? item.PhotoMulti[0].Image : item.PhotoMulti[0].ImageOrg) : ""));
+
+                                imageUrl = GlideImageLoader.NormalizeImageUrl(imageUrl);
+                                GlideImageLoader.LoadImage(ActivityContext, imageUrl, holder.Image, ImageStyle.CenterCrop, ImagePlaceholders.Color);
                             }
 
                             break;

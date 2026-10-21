@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
@@ -49,6 +49,7 @@ using WoWonderClient.Classes.Posts;
 using WoWonderClient.Classes.Product;
 using WoWonderClient.Classes.User;
 using WoWonderClient.Requests;
+using Facesofnaija.CustomApi.Requests;
 using static Facesofnaija.Activities.NativePost.Extra.WRecyclerView;
 using Console = System.Console;
 using Exception = System.Exception;
@@ -823,7 +824,12 @@ namespace Facesofnaija.Activities.UserProfile
             if (AppSettings.ShowAddToFamily)
                 fetch += ",family";
 
-            var (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(SUserId, fetch);
+            var (apiStatus, respond) = await CustomRequests.GetUserDataDirectAsync(SUserId, fetch);
+            if (apiStatus != 200 || respond is not GetUserDataObject res || res.UserData == null)
+            {
+                (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(SUserId, fetch);
+            }
+
             if (apiStatus != 200 || respond is not GetUserDataObject result || result.UserData == null)
             {
                 Methods.DisplayReportResult(this, respond);
@@ -1592,15 +1598,30 @@ namespace Facesofnaija.Activities.UserProfile
                         {
                             var postId = data.GetStringExtra("PostId") ?? "";
                             var postText = data.GetStringExtra("PostText") ?? "";
+                            var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                            if (updatedPost != null)
+                            {
+                                if (PostFeedAdapter != null)
+                                    FeedCombiner.UpdatePostInAdapter(PostFeedAdapter, updatedPost, this);
+
+                                var mainFeedAdapter = Facesofnaija.Activities.Tabbes.TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                                if (mainFeedAdapter != null && mainFeedAdapter != PostFeedAdapter)
+                                    FeedCombiner.UpdatePostInAdapter(mainFeedAdapter, updatedPost, this);
+
+                                break;
+                            }
+
                             var diff = PostFeedAdapter?.ListDiffer;
-                            List<AdapterModelsClass> dataGlobal = diff.Where(a => a.PostData?.Id == postId).ToList();
-                            switch (dataGlobal.Count)
+                            List<AdapterModelsClass> dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
+                            switch (dataGlobal?.Count)
                             {
                                 case > 0:
                                     {
                                         foreach (var postData in dataGlobal)
                                         {
                                             postData.PostData.Orginaltext = postText;
+                                            postData.PostData.PostText = postText;
                                             var index = diff.IndexOf(postData);
                                             switch (index)
                                             {
@@ -1643,6 +1664,7 @@ namespace Facesofnaija.Activities.UserProfile
 
                             break;
                         }
+
                     //Edit post product 
                     case 3500 when resultCode == Result.Ok:
                         {

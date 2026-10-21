@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Ads;
@@ -387,7 +387,7 @@ namespace Facesofnaija.Activities.Album
                             var item = JsonConvert.DeserializeObject<PostDataObject>(result);
                             if (item != null)
                             {
-                                MAdapter.AlbumList.Add(item);
+                                MAdapter.AlbumList.Insert(0, item);
                                 MAdapter.NotifyDataSetChanged();
 
                                 RunOnUiThread(ShowEmptyPage);

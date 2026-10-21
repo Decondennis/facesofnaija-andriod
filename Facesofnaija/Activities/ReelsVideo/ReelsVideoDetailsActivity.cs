@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.OS;
@@ -337,6 +337,7 @@ namespace Facesofnaija.Activities.ReelsVideo
                 var (apiStatus, respond) = await ApiPostAsync.FetchReelsDirectAsync(postId, AppSettings.PostApiLimitOnScroll);
                 if (apiStatus != 200 || respond is not PostObject result || result.Data == null)
                 {
+                    ApiRun = false;
                     Methods.DisplayReportResult(this, respond);
                 }
                 else
@@ -364,6 +365,11 @@ namespace Facesofnaija.Activities.ReelsVideo
                             DataVideos = ListUtils.VideoReelsList;
                             MAdapter.UpdateReelsVideoPager(DataVideos.Count, DataVideos);
                             Pager.Adapter.NotifyDataSetChanged();
+
+                            if (DataVideos.Count == 0)
+                            {
+                                ToastUtils.ShowToast(this, "No videos found", ToastLength.Short);
+                            }
                         }
                         catch (Exception e)
                         {

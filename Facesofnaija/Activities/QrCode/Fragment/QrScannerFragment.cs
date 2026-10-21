@@ -168,7 +168,7 @@ namespace Facesofnaija.Activities.QrCode.Fragment
                     .RequireLensFacing(CameraSelector.LensFacingBack)
                     .Build();
 
-                preview.SetSurfaceProvider(PreviewView.SurfaceProvider);
+                preview.SetSurfaceProvider(ContextCompat.GetMainExecutor(Activity), PreviewView.SurfaceProvider);
 
                 ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                     .SetTargetResolution(new Size(480, 640))

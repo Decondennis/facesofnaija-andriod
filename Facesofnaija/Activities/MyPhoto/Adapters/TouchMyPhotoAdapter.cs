@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Views;
 using AndroidX.ViewPager.Widget;
 using Bumptech.Glide;
@@ -42,7 +42,19 @@ namespace Facesofnaija.Activities.MyPhoto.Adapters
                 var layout = Inflater.Inflate(Resource.Layout.Style_MultiImageCoursalVeiw, view, false);
                 Image = layout.FindViewById<ImageViewTouch>(Resource.Id.image);
 
-                var imageUrl = !string.IsNullOrEmpty(ImagesList[position].PostSticker) ? ImagesList[position].PostSticker : ImagesList[position].PostFileFull;
+                var imageUrl = !string.IsNullOrEmpty(ImagesList[position].PostSticker)
+                    ? ImagesList[position].PostSticker
+                    : !string.IsNullOrEmpty(ImagesList[position].PostFileFull)
+                        ? ImagesList[position].PostFileFull
+                        : !string.IsNullOrEmpty(ImagesList[position].PostFile)
+                            ? ImagesList[position].PostFile
+                            : ImagesList[position].PhotoAlbum?.Count > 0
+                                ? (!string.IsNullOrEmpty(ImagesList[position].PhotoAlbum[0].Image) ? ImagesList[position].PhotoAlbum[0].Image : ImagesList[position].PhotoAlbum[0].ImageOrg)
+                                : ImagesList[position].PhotoMulti?.Count > 0
+                                    ? (!string.IsNullOrEmpty(ImagesList[position].PhotoMulti[0].Image) ? ImagesList[position].PhotoMulti[0].Image : ImagesList[position].PhotoMulti[0].ImageOrg)
+                                    : "";
+
+                imageUrl = Facesofnaija.Helpers.CacheLoaders.GlideImageLoader.NormalizeImageUrl(imageUrl);
                 Glide.With(ActivityContext?.BaseContext).Load(imageUrl).Apply(new RequestOptions()).Into(Image);
 
                 view.AddView(layout);

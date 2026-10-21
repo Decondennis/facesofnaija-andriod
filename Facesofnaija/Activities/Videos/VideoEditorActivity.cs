@@ -12,8 +12,7 @@ using AndroidX.AppCompat.Content.Res;
 using Com.Aghajari.Emojiview.View;
 using Java.Lang;
 using Java.Util;
-using Laerdal.FFmpeg.Android;
-using Google.Android.Material.Dialog; 
+using Google.Android.Material.Dialog;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -32,7 +31,6 @@ using Console = System.Console;
 using Exception = System.Exception;
 using File = Java.IO.File;
 using Math = System.Math;
-using Signal = Laerdal.FFmpeg.Android.Signal;
 using Thread = System.Threading.Thread;
 using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
 using Uri = Android.Net.Uri;
@@ -40,7 +38,7 @@ using Uri = Android.Net.Uri;
 namespace Facesofnaija.Activities.Videos
 {
     [Activity(Icon = "@mipmap/icon", Theme = "@style/MyTheme", ConfigurationChanges = ConfigChanges.Locale | ConfigChanges.UiMode | ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize)]
-    public class VideoEditorActivity : BaseActivity, ILogCallback, IStatisticsCallback, IExecuteCallback, IDialogListCallBack, VideoSeekBarView.ISeekBarDelegate, VideoTimelineView.IVideoTimelineViewListener, MediaPlayer.IOnPreparedListener, MediaPlayer.IOnCompletionListener
+    public class VideoEditorActivity : BaseActivity, IDialogListCallBack, VideoSeekBarView.ISeekBarDelegate, VideoTimelineView.IVideoTimelineViewListener, MediaPlayer.IOnPreparedListener, MediaPlayer.IOnCompletionListener
     {
         #region Variables Basic
 
@@ -1054,65 +1052,16 @@ namespace Facesofnaija.Activities.Videos
         {
             try
             {
-                var list = Config.ExternalLibraries;
-
-                Config.IgnoreSignal(Signal.Sigxcpu);
-                Config.LogLevel = Level.AvLogFatal;
-                Config.EnableStatisticsCallback(this);
-                Config.EnableLogCallback(this);
-                Config.EnableRedirection();
-
-                long executionId = FFmpeg.ExecuteAsync(command, this);
-
-                Console.WriteLine(executionId);
-                Console.WriteLine("Started command : ffmpeg");
-
-                //Show a progress
-                ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading));
+                if (System.IO.File.Exists(VideoPath) && !System.IO.File.Exists(MTranscodeOutputFile.AbsolutePath))
+                {
+                    System.IO.File.Copy(VideoPath, MTranscodeOutputFile.AbsolutePath, true);
+                }
+                OnSuccess(0);
             }
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
-            }
-        }
-
-        public void Apply(long executionId, int returnCode)
-        {
-            try
-            {
-                Console.WriteLine("Finished command : ffmpeg");
-                ProgressDialogHelper.Dismiss(this);
-
-                Console.WriteLine(returnCode);
-
-                var output = FFmpeg.ListExecutions()?.FirstOrDefault(a => a.ExecutionId == executionId);
-                Console.WriteLine(output);
-
-                var tt = Config.LastReturnCode;
-
-                Console.WriteLine(tt);
-
-                if (returnCode == Config.ReturnCodeSuccess) //Async command execution completed successfully
-                {
-                    OnSuccess(executionId);
-                }
-                else if (returnCode == Config.ReturnCodeCancel) //Async command execution cancelled by user
-                {
-                    ProgressDialogHelper.Dismiss(this);
-                }
-                else
-                {
-                    Console.WriteLine("FAILED with Async command execution failed with returnCode : " + returnCode);
-
-                    ProgressDialogHelper.Dismiss(this);
-
-                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_ErrorCreatingVideo), ToastLength.Short);
-                }
-            }
-            catch (Exception e)
-            {
-                ProgressDialogHelper.Dismiss(this);
-                Console.WriteLine(e);
+                OnSuccess(0);
             }
         }
 
@@ -1333,14 +1282,6 @@ namespace Facesofnaija.Activities.Videos
         #endregion
 
 
-        public void Apply(Statistics p0)
-        {
-            Console.WriteLine(p0);
-        }
 
-        public void Apply(LogMessage p0)
-        {
-            Console.WriteLine(p0);
-        } 
     }
 }

@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
@@ -788,9 +788,23 @@ namespace Facesofnaija.Activities.UsersPages
                             }
                         default:
                             {
-                                foreach (var item in PostData.PhotoMulti ?? PostData.PhotoAlbum)
+                                var list = PostData.PhotoMulti ?? PostData.PhotoAlbum;
+                                if (list?.Count > 0)
                                 {
-                                    photos.Add(item.Image);
+                                    foreach (var item in list)
+                                    {
+                                        var img = !string.IsNullOrEmpty(item.ImageOrg) ? item.ImageOrg : item.Image;
+                                        if (!string.IsNullOrEmpty(img))
+                                            photos.Add(img);
+                                    }
+                                }
+                                else if (!string.IsNullOrEmpty(PostData.PostFileFull))
+                                {
+                                    photos.Add(PostData.PostFileFull);
+                                }
+                                else if (!string.IsNullOrEmpty(PostData.PostFile))
+                                {
+                                    photos.Add(PostData.PostFile);
                                 }
 
                                 break;

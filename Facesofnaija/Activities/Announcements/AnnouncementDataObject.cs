@@ -39,6 +39,6 @@ namespace Facesofnaija.Activities.Announcements
         public string TimeText { get; set; }
 
         [JsonProperty("is_viewed")]
-        public string IsViewed { get; set; }
+        public object IsViewed { get; set; }
     }
 }

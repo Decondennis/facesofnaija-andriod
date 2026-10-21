@@ -49,11 +49,11 @@ if (-not $deviceSerial) {
 
 Write-Host "Target Device: $deviceSerial" -ForegroundColor Green
 Write-Host "Installing $apk..." -ForegroundColor Yellow
-$installOutput = & $adb -s $deviceSerial install -r $apk 2>&1
+$installOutput = & $adb -s $deviceSerial install -r -d $apk 2>&1
 Write-Host ($installOutput -join "`n")
 
 Write-Host "Launching app on device..." -ForegroundColor Yellow
-$launchOutput = & $adb -s $deviceSerial shell am start -n com.facesofnaija.tlapp/crc64e231b352b2de0b5e.SplashScreenActivity 2>&1
+$launchOutput = & $adb -s $deviceSerial shell am start -n com.facesofnaija.tlapp/com.facesofnaija.tlapp.SplashScreenActivity 2>&1
 Write-Host ($launchOutput -join "`n")
 
 Write-Host "Verifying installed package..." -ForegroundColor Yellow

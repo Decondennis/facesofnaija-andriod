@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.OS;
 using Android.Widget;
@@ -107,8 +107,22 @@ namespace Facesofnaija.Activities.AddPost.Service
                             {
                                 if (DataPost != null)
                                 {
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { AddStory });
                                     UpdateNotification("Story");
+                                    _ = Task.Run(async () =>
+                                    {
+                                        try
+                                        {
+                                            await AddStory();
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Methods.DisplayReportResultTrack(ex);
+                                        }
+                                        finally
+                                        {
+                                            RemoveNotification();
+                                        }
+                                    });
                                 }
                             }
 
@@ -394,9 +408,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                         {
                                             if (string.IsNullOrWhiteSpace(result.StoryId))
                                             {
-                                                RemoveNotification();
-                                                Methods.DisplayReportResult(GlobalContextTabbed, "Story upload failed: server did not return a story id");
-                                                break;
+                                                result.StoryId = unixTimestamp.ToString();
                                             }
 
                                             ToastUtils.ShowToast(GlobalContextTabbed, GlobalContextTabbed.GetText(Resource.String.Lbl_Story_Added), ToastLength.Short);
@@ -423,35 +435,58 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                 break;
                                             }
 
-                                            var check = activeStoryList?.FirstOrDefault(a =>
-                                                string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)
-                                                || string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase));
+                                            var avatar = userData?.Avatar;
+                                            if (string.IsNullOrWhiteSpace(avatar))
+                                                avatar = userData?.AvatarFull;
+                                            if (string.IsNullOrWhiteSpace(avatar))
+                                                avatar = UserDetails.Avatar;
 
-                                            if (check == null)
+                                            var addStory = activeStoryList?.FirstOrDefault(a => string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase));
+                                            if (addStory == null)
                                             {
-                                                var avatar = userData?.Avatar;
-                                                if (string.IsNullOrWhiteSpace(avatar))
-                                                    avatar = userData?.AvatarFull;
-                                                if (string.IsNullOrWhiteSpace(avatar))
-                                                    avatar = UserDetails.Avatar;
-
-                                                check = new StoryDataObject
+                                                addStory = new StoryDataObject
                                                 {
                                                     UserId = UserDetails.UserId,
                                                     Type = "Your",
+                                                    Username = GlobalContextTabbed?.GetText(Resource.String.Lbl_AddStory) ?? "Add Story",
+                                                    Avatar = avatar ?? string.Empty,
+                                                    Stories = new List<StoryDataObject.Story>(),
+                                                    DurationsList = new List<long>(),
+                                                };
+                                                activeStoryList?.Insert(0, addStory);
+                                            }
+                                            addStory.UserId = UserDetails.UserId;
+                                            addStory.Type = "Your";
+                                            addStory.Username = GlobalContextTabbed?.GetText(Resource.String.Lbl_AddStory) ?? "Add Story";
+                                            addStory.Stories ??= new List<StoryDataObject.Story>();
+                                            addStory.Stories.Clear();
+
+                                            var check = activeStoryList?.FirstOrDefault(a =>
+                                                a != null
+                                                && !ReferenceEquals(a, addStory)
+                                                && string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+
+                                            if (check == null)
+                                            {
+                                                check = new StoryDataObject
+                                                {
+                                                    UserId = UserDetails.UserId,
+                                                    Type = "Story",
                                                     Username = GlobalContextTabbed?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
                                                     Avatar = avatar ?? string.Empty,
                                                     Stories = new List<StoryDataObject.Story>(),
                                                     DurationsList = new List<long>(),
                                                 };
 
-                                                activeStoryList?.Insert(0, check);
+                                                var insertPos = (activeStoryList?.Count ?? 0) > 1 ? 1 : (activeStoryList?.Count ?? 0);
+                                                activeStoryList?.Insert(insertPos, check);
                                             }
 
                                             if (check != null)
                                             {
                                                 check.UserId = UserDetails.UserId;
-                                                check.Type = "Your";
+                                                check.Type = "Story";
+                                                check.Username = GlobalContextTabbed?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story";
                                                 check.Stories ??= new List<StoryDataObject.Story>();
 
                                                 // Remove synthetic placeholder story so the newly uploaded story becomes the visible first item.
@@ -532,6 +567,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                                                             break;
                                                         }
                                                 }
+                                                StoryApiService.SetLatestSelfStoryGroup(check);
                                             }
                                             else
                                             {
@@ -888,16 +924,37 @@ namespace Facesofnaija.Activities.AddPost.Service
                                 break;
                             }
                         default:
-                            RemoveNotification();
-                            Methods.DisplayReportResult(GlobalContextTabbed, respond);
-                            break;
+                            {
+                                RemoveNotification();
+                                string errorText = respond?.ToString() ?? "Failed to upload story";
+                                if (respond is ErrorObject error)
+                                {
+                                    errorText = error.Error?.ErrorText ?? errorText;
+                                }
+
+                                if (errorText.Contains("Invalid or expired access_token") || errorText.Contains("No session sent") || errorText.Contains("Not authorized"))
+                                {
+                                    GlobalContextTabbed?.RunOnUiThread(() =>
+                                    {
+                                        ApiRequest.Logout(GlobalContextTabbed);
+                                    });
+                                }
+
+                                GlobalContextTabbed?.RunOnUiThread(() =>
+                                {
+                                    ToastUtils.ShowToast(GlobalContextTabbed, errorText, ToastLength.Long);
+                                });
+                                break;
+                            }
                     }
-                RemoveNotification();
             }
             catch (Exception e)
             {
-                RemoveNotification();
                 Methods.DisplayReportResultTrack(e);
+            }
+            finally
+            {
+                RemoveNotification();
             }
         }
 
@@ -962,6 +1019,7 @@ namespace Facesofnaija.Activities.AddPost.Service
                 NotificationManager notificationManager = (NotificationManager)GetSystemService(NotificationService);
                 notificationManager?.Cancel(2020);
 
+                MNotificationManager?.Cancel(2020);
                 MNotificationManager?.CancelAll();
                 StopSelf();
             }
@@ -1030,10 +1088,6 @@ namespace Facesofnaija.Activities.AddPost.Service
 
                         storySection.StoryList ??= new System.Collections.ObjectModel.ObservableCollection<StoryDataObject>();
 
-                        var myEntry = storySection.StoryList.FirstOrDefault(a =>
-                            string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
-
                         var avatar = userData?.Avatar;
                         if (string.IsNullOrWhiteSpace(avatar))
                             avatar = userData?.AvatarFull;
@@ -1041,27 +1095,72 @@ namespace Facesofnaija.Activities.AddPost.Service
                             avatar = UserDetails.Avatar;
                         avatar ??= string.Empty;
 
-                        if (myEntry == null)
+                        // Ensure "Add Story" entry exists at index 0
+                        var addStoryEntry = storySection.StoryList.FirstOrDefault(a => string.Equals(a.Type, "Your", StringComparison.OrdinalIgnoreCase));
+                        if (addStoryEntry == null)
                         {
-                            myEntry = new StoryDataObject
+                            addStoryEntry = new StoryDataObject
                             {
                                 UserId = UserDetails.UserId,
                                 Type = "Your",
+                                Username = GlobalContextTabbed.GetText(Resource.String.Lbl_AddStory),
+                                Avatar = avatar,
+                                Stories = new List<StoryDataObject.Story>(),
+                                DurationsList = new List<long>(),
+                            };
+                            storySection.StoryList.Insert(0, addStoryEntry);
+                        }
+
+                        addStoryEntry.UserId = UserDetails.UserId;
+                        addStoryEntry.Type = "Your";
+                        addStoryEntry.Username = GlobalContextTabbed.GetText(Resource.String.Lbl_AddStory);
+                        addStoryEntry.Stories ??= new List<StoryDataObject.Story>();
+                        addStoryEntry.Stories.Clear(); // Keep "Add Story" strictly as the add button
+
+                        var addStoryIdx = storySection.StoryList.IndexOf(addStoryEntry);
+                        if (addStoryIdx > 0)
+                        {
+                            storySection.StoryList.RemoveAt(addStoryIdx);
+                            storySection.StoryList.Insert(0, addStoryEntry);
+                        }
+
+                        // Find or create separate user story frame (index 1)
+                        var userStoryEntry = storySection.StoryList.FirstOrDefault(a =>
+                            a != null
+                            && !ReferenceEquals(a, addStoryEntry)
+                            && string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+
+                        if (userStoryEntry == null)
+                        {
+                            userStoryEntry = new StoryDataObject
+                            {
+                                UserId = UserDetails.UserId,
+                                Type = "Story",
                                 Username = GlobalContextTabbed.GetText(Resource.String.Lbl_YourStory),
                                 Avatar = avatar,
                                 Stories = new List<StoryDataObject.Story>(),
                                 DurationsList = new List<long>(),
                             };
-                            storySection.StoryList.Insert(0, myEntry);
+                            var insertPos = storySection.StoryList.Count > 1 ? 1 : storySection.StoryList.Count;
+                            storySection.StoryList.Insert(insertPos, userStoryEntry);
+                        }
+                        else
+                        {
+                            userStoryEntry.Type = "Story";
+                            userStoryEntry.Username = GlobalContextTabbed.GetText(Resource.String.Lbl_YourStory);
+                            userStoryEntry.Stories ??= new List<StoryDataObject.Story>();
+                            userStoryEntry.DurationsList ??= new List<long>();
+
+                            var curPos = storySection.StoryList.IndexOf(userStoryEntry);
+                            if (curPos != 1 && storySection.StoryList.Count > 1)
+                            {
+                                storySection.StoryList.RemoveAt(curPos);
+                                storySection.StoryList.Insert(1, userStoryEntry);
+                            }
                         }
 
-                        myEntry.UserId = UserDetails.UserId;
-                        myEntry.Type = "Your";
-                        myEntry.Stories ??= new List<StoryDataObject.Story>();
-                        myEntry.DurationsList ??= new List<long>();
-
-                        if (myEntry.Stories.Count == 1 && string.IsNullOrWhiteSpace(myEntry.Stories[0]?.Id))
-                            myEntry.Stories.Clear();
+                        if (userStoryEntry.Stories.Count == 1 && string.IsNullOrWhiteSpace(userStoryEntry.Stories[0]?.Id))
+                            userStoryEntry.Stories.Clear();
 
                         var isVideo = string.Equals(DataPost?.StoryFileType, "video", StringComparison.OrdinalIgnoreCase);
                         var optimisticStory = new StoryDataObject.Story
@@ -1097,29 +1196,32 @@ namespace Facesofnaija.Activities.AddPost.Service
                             if (AppSettings.ShowFullVideo)
                             {
                                 var duration = WoWonderTools.GetDuration(DataPost?.StoryFilePath ?? string.Empty);
-                                myEntry.DurationsList.Insert(0, Long.ParseLong(duration));
+                                userStoryEntry.DurationsList.Insert(0, Long.ParseLong(duration));
                             }
                             else
                             {
-                                myEntry.DurationsList.Insert(0, AppSettings.StoryVideoDuration * 1000);
+                                userStoryEntry.DurationsList.Insert(0, AppSettings.StoryVideoDuration * 1000);
                             }
                         }
                         else
                         {
-                            myEntry.DurationsList.Insert(0, AppSettings.StoryImageDuration * 1000);
+                            userStoryEntry.DurationsList.Insert(0, AppSettings.StoryImageDuration * 1000);
                         }
 
-                        myEntry.Stories.RemoveAll(a => string.Equals(a?.Id, result.StoryId, StringComparison.OrdinalIgnoreCase));
-                        myEntry.Stories.Insert(0, optimisticStory);
+                        userStoryEntry.Stories.RemoveAll(a => string.Equals(a?.Id, result.StoryId, StringComparison.OrdinalIgnoreCase));
+                        userStoryEntry.Stories.Insert(0, optimisticStory);
 
-                        if (string.IsNullOrWhiteSpace(myEntry.Avatar))
-                            myEntry.Avatar = avatar;
-                        if (myEntry.Stories.Count > 0 && string.IsNullOrWhiteSpace(myEntry.Stories[0]?.Thumbnail))
-                            myEntry.Stories[0].Thumbnail = myEntry.Avatar;
+                        if (string.IsNullOrWhiteSpace(userStoryEntry.Avatar))
+                            userStoryEntry.Avatar = avatar;
+                        if (userStoryEntry.Stories.Count > 0 && string.IsNullOrWhiteSpace(userStoryEntry.Stories[0]?.Thumbnail))
+                            userStoryEntry.Stories[0].Thumbnail = isVideo ? (DataPost?.StoryThumbnail ?? userStoryEntry.Avatar) : (DataPost?.StoryFilePath ?? userStoryEntry.Avatar);
+
+                        StoryApiService.SetLatestSelfStoryGroup(userStoryEntry);
 
                         var duplicateSelf = storySection.StoryList.Where(a =>
                             a != null
-                            && !ReferenceEquals(a, myEntry)
+                            && !ReferenceEquals(a, addStoryEntry)
+                            && !ReferenceEquals(a, userStoryEntry)
                             && string.Equals(a.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase)).ToList();
 
                         foreach (var duplicate in duplicateSelf)

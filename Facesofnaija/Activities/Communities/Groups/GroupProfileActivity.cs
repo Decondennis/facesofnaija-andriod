@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
@@ -673,36 +673,51 @@ namespace Facesofnaija.Activities.Communities.Groups
                 {
                     var postId = data.GetStringExtra("PostId") ?? "";
                     var postText = data.GetStringExtra("PostText") ?? "";
-                    var diff = PostFeedAdapter?.ListDiffer;
-                    List<AdapterModelsClass> dataGlobal = diff.Where(a => a.PostData?.Id == postId).ToList();
-                    if (dataGlobal.Count > 0)
+                    var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                    if (updatedPost != null)
                     {
-                        foreach (var postData in dataGlobal)
-                        {
-                            postData.PostData.Orginaltext = postText;
-                            var index = diff.IndexOf(postData);
-                            if (index > -1) PostFeedAdapter?.NotifyItemChanged(index);
-                        }
+                        if (PostFeedAdapter != null)
+                            FeedCombiner.UpdatePostInAdapter(PostFeedAdapter, updatedPost, this);
 
-                        var checkTextSection = dataGlobal.FirstOrDefault(w => w.TypeView == PostModelType.TextSectionPostPart);
-                        if (checkTextSection == null)
+                        var mainFeedAdapter = Facesofnaija.Activities.Tabbes.TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                        if (mainFeedAdapter != null && mainFeedAdapter != PostFeedAdapter)
+                            FeedCombiner.UpdatePostInAdapter(mainFeedAdapter, updatedPost, this);
+                    }
+                    else
+                    {
+                        var diff = PostFeedAdapter?.ListDiffer;
+                        List<AdapterModelsClass> dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
+                        if (dataGlobal?.Count > 0)
                         {
-                            var collection = dataGlobal.FirstOrDefault()?.PostData;
-                            var item = new AdapterModelsClass
+                            foreach (var postData in dataGlobal)
                             {
-                                TypeView = PostModelType.TextSectionPostPart,
-                                Id = Convert.ToInt32((int)PostModelType.TextSectionPostPart + collection?.Id),
-                                PostData = collection,
-                                IsDefaultFeedPost = true
-                            };
+                                postData.PostData.Orginaltext = postText;
+                                postData.PostData.PostText = postText;
+                                var index = diff.IndexOf(postData);
+                                if (index > -1) PostFeedAdapter?.NotifyItemChanged(index);
+                            }
 
-                            var headerPostIndex =
-                                diff.IndexOf(dataGlobal.FirstOrDefault(w =>
-                                    w.TypeView == PostModelType.HeaderPost));
-                            if (headerPostIndex > -1)
+                            var checkTextSection = dataGlobal.FirstOrDefault(w => w.TypeView == PostModelType.TextSectionPostPart);
+                            if (checkTextSection == null)
                             {
-                                diff.Insert(headerPostIndex + 1, item);
-                                PostFeedAdapter?.NotifyItemInserted(headerPostIndex + 1);
+                                var collection = dataGlobal.FirstOrDefault()?.PostData;
+                                var item = new AdapterModelsClass
+                                {
+                                    TypeView = PostModelType.TextSectionPostPart,
+                                    Id = Convert.ToInt32((int)PostModelType.TextSectionPostPart + collection?.Id),
+                                    PostData = collection,
+                                    IsDefaultFeedPost = true
+                                };
+
+                                var headerPostIndex =
+                                    diff.IndexOf(dataGlobal.FirstOrDefault(w =>
+                                        w.TypeView == PostModelType.HeaderPost));
+                                if (headerPostIndex > -1)
+                                {
+                                    diff.Insert(headerPostIndex + 1, item);
+                                    PostFeedAdapter?.NotifyItemInserted(headerPostIndex + 1);
+                                }
                             }
                         }
                     }
@@ -1126,14 +1141,23 @@ namespace Facesofnaija.Activities.Communities.Groups
 
         private async Task GetGroupDataApi()
         {
-            var (apiStatus, respond) = await RequestsAsync.Group.GetGroupDataAsync(GroupId);
-
-            if (apiStatus != 200 || respond is not GetGroupDataObject result || result.GroupData == null)
-                Methods.DisplayReportResult(this, respond);
-            else
+            try
             {
-                GroupDataClass = result.GroupData;
-                RunOnUiThread(() => { LoadPassedData(GroupDataClass); });
+                var (apiStatus, respond) = await RequestsAsync.Group.GetGroupDataAsync(GroupId);
+
+                if (apiStatus != 200 || respond is not GetGroupDataObject result || result.GroupData == null)
+                {
+                    Android.Util.Log.Warn("WoGroup", $"GetGroupDataApi failed status={apiStatus}");
+                }
+                else
+                {
+                    GroupDataClass = result.GroupData;
+                    RunOnUiThread(() => { LoadPassedData(GroupDataClass); });
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
             }
         }
 

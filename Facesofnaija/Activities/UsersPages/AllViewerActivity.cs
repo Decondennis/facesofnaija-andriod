@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Ads;
@@ -897,7 +897,7 @@ namespace Facesofnaija.Activities.UsersPages
                         {
                             MainScrollEvent.IsLoading = true;
 
-                            var (apiStatus, respond) = await RequestsAsync.Story.GetUserStoriesAsync("10", lastIdUser);
+                            var (apiStatus, respond) = await StoryApiService.GetUserStoriesAsync("10", lastIdUser);
                             if (apiStatus != 200 || respond is not GetUserStoriesObject result || result.Stories == null)
                             {
                                 MainScrollEvent.IsLoading = false;
@@ -1101,7 +1101,19 @@ namespace Facesofnaija.Activities.UsersPages
                                 {
                                     case > 0:
                                         {
-                                            result.Data.RemoveAll(w => string.IsNullOrEmpty(w.PostFileFull));
+                                            foreach (var w in result.Data)
+                                            {
+                                                if (string.IsNullOrEmpty(w.PostFileFull))
+                                                {
+                                                    if (!string.IsNullOrEmpty(w.PostFile))
+                                                        w.PostFileFull = w.PostFile;
+                                                    else if (w.PhotoAlbum?.Count > 0 && !string.IsNullOrEmpty(w.PhotoAlbum[0].ImageOrg))
+                                                        w.PostFileFull = w.PhotoAlbum[0].ImageOrg;
+                                                    else if (w.PhotoAlbum?.Count > 0 && !string.IsNullOrEmpty(w.PhotoAlbum[0].Image))
+                                                        w.PostFileFull = w.PhotoAlbum[0].Image;
+                                                }
+                                            }
+                                            result.Data.RemoveAll(w => string.IsNullOrEmpty(w.PostFileFull) && string.IsNullOrEmpty(w.PostFile) && (w.PhotoAlbum == null || w.PhotoAlbum.Count == 0));
 
                                             switch (countList)
                                             {

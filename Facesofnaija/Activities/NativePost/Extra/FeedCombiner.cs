@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.Util;
 using System;
 using System.Collections.Generic;
@@ -15,6 +15,8 @@ using Facesofnaija.Helpers.Utils;
 using WoWonderClient.Classes.Global;
 using WoWonderClient.Classes.Posts;
 using WoWonderClient.Classes.Story;
+using Newtonsoft.Json;
+using Facesofnaija.Activities.EditPost;
 
 namespace Facesofnaija.Activities.NativePost.Extra
 {
@@ -2374,5 +2376,83 @@ namespace Facesofnaija.Activities.NativePost.Extra
                 Methods.DisplayReportResultTrack(e);
             }
         }
+
+        public static PostDataObject ExtractUpdatedPost(Intent data)
+        {
+            try
+            {
+                var updated = EditPostActivity.UpdatedPostResult;
+                EditPostActivity.UpdatedPostResult = null;
+                if (updated != null)
+                    return updated;
+
+                if (data != null && data.HasExtra("PostItem"))
+                {
+                    var postJson = data.GetStringExtra("PostItem");
+                    if (!string.IsNullOrEmpty(postJson))
+                    {
+                        return JsonConvert.DeserializeObject<PostDataObject>(postJson);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+            return null;
+        }
+
+        public static void UpdatePostInAdapter(NativePostAdapter adapter, PostDataObject updatedPostData, Context context)
+        {
+            try
+            {
+                if (adapter?.ListDiffer == null || updatedPostData == null)
+                    return;
+
+                var postId = updatedPostData.Id;
+                if (string.IsNullOrEmpty(postId))
+                    return;
+
+                var diff = adapter.ListDiffer;
+                var oldSections = diff.Where(a => a.PostData?.Id == postId).ToList();
+                if (oldSections.Count == 0)
+                    return;
+
+                int firstIndex = diff.IndexOf(oldSections[0]);
+                if (firstIndex < 0)
+                    return;
+
+                updatedPostData.Reaction ??= new Reaction();
+                var filteredPost = ApiPostAsync.RegexFilterText(updatedPostData);
+
+                var tempSections = new List<AdapterModelsClass>();
+                var combiner = new FeedCombiner(filteredPost, tempSections, context ?? adapter.ActivityContext);
+                combiner.CombineDefaultPostSections("Add");
+
+                if (tempSections.Count == 0)
+                    return;
+
+                diff.RemoveAll(a => a.PostData?.Id == postId);
+
+                for (int i = 0; i < tempSections.Count; i++)
+                {
+                    diff.Insert(firstIndex + i, tempSections[i]);
+                }
+
+                var hostActivity = (context as Android.App.Activity) ?? (adapter.ActivityContext as Android.App.Activity);
+                if (hostActivity != null)
+                {
+                    hostActivity.RunOnUiThread(() => adapter.NotifyDataSetChanged());
+                }
+                else
+                {
+                    adapter.NotifyDataSetChanged();
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
     }
-}
+}

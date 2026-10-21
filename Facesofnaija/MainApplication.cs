@@ -172,6 +172,12 @@ namespace Facesofnaija
                             Methods.DisplayReportResultTrack(inner);
                         }
                     }
+
+                    if (string.IsNullOrWhiteSpace(InitializeWoWonder.ServerKey))
+                    {
+                        var serverKeyField = typeof(InitializeWoWonder).GetField("b", BindingFlags.Static | BindingFlags.NonPublic);
+                        serverKeyField?.SetValue(null, "FacesofnaijaAndroidApp2024Key");
+                    }
                 }
                 catch (Exception ex)
                 {

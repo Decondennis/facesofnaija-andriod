@@ -1,4 +1,4 @@
-﻿using Android;
+using Android;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -37,6 +37,7 @@ using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.Live.Page;
 using Facesofnaija.Activities.Live.Utils;
 using Facesofnaija.Activities.NativePost.Post;
+using Facesofnaija.Activities.NativePost.Extra;
 using Facesofnaija.Activities.PopularPosts;
 using Facesofnaija.Activities.ReelsVideo;
 using Facesofnaija.Activities.Search;
@@ -47,6 +48,11 @@ using Facesofnaija.Activities.Tabbes.Fragment;
 using Facesofnaija.Activities.Videos;
 using Facesofnaija.Adapters;
 using Facesofnaija.Helpers.Controller;
+using Facesofnaija.Activities.NativePost.Pages;
+using Facesofnaija.Activities.Communities.Communities;
+using Facesofnaija.Activities.Communities.Groups;
+using Facesofnaija.Activities.Communities.Pages;
+using Facesofnaija.Activities.Events;
 using Facesofnaija.Helpers.MediaPlayerController;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -134,11 +140,235 @@ namespace Facesofnaija.Activities.Tabbes
 
                 new Handler(Looper.MainLooper).PostDelayed(() => Task.Run(GetGeneralAppData), 2500);
                 SetService();
+
+                GetOneSignalNotification(Intent);
             }
             catch (Exception e)
             {
                 Methods.DisplayReportResultTrack(e);
             }
+        }
+
+        protected override void OnNewIntent(Intent intent)
+        {
+            try
+            {
+                base.OnNewIntent(intent);
+                Intent = intent;
+                GetOneSignalNotification(intent);
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        public void GetOneSignalNotification(Intent intent)
+        {
+            try
+            {
+                if (intent == null) return;
+                string userId = intent.GetStringExtra("userId") ?? "";
+                string postId = intent.GetStringExtra("PostId") ?? "";
+                string pageId = intent.GetStringExtra("PageId") ?? "";
+                string groupId = intent.GetStringExtra("GroupId") ?? "";
+                string communityId = intent.GetStringExtra("CommunityId") ?? "";
+                string eventId = intent.GetStringExtra("EventId") ?? "";
+                string type = intent.GetStringExtra("type") ?? "";
+                string url = intent.GetStringExtra("url") ?? "";
+                string notifier = intent.GetStringExtra("Notifier") ?? "";
+
+                if (string.IsNullOrWhiteSpace(Current.AccessToken) && !string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                    Current.AccessToken = UserDetails.AccessToken;
+
+                if (notifier == "Chat" || notifier == "Notifier" || !string.IsNullOrEmpty(postId) || !string.IsNullOrEmpty(userId) || !string.IsNullOrEmpty(pageId) || !string.IsNullOrEmpty(groupId) || !string.IsNullOrEmpty(communityId))
+                {
+                    // Try extracting IDs from url if not directly provided
+                    if ((string.IsNullOrEmpty(postId) || postId == "0") && !string.IsNullOrEmpty(url))
+                    {
+                        var extPost = NotificationsFragment.ExtractPostIdFromUrl(url);
+                        if (!string.IsNullOrEmpty(extPost)) postId = extPost;
+                    }
+                    if ((string.IsNullOrEmpty(communityId) || communityId == "0") && !string.IsNullOrEmpty(url))
+                    {
+                        var extComm = NotificationsFragment.ExtractCommunityIdFromUrl(url);
+                        if (!string.IsNullOrEmpty(extComm)) communityId = extComm;
+                    }
+                    if ((string.IsNullOrEmpty(groupId) || groupId == "0") && !string.IsNullOrEmpty(url))
+                    {
+                        var extGroup = NotificationsFragment.ExtractGroupIdFromUrl(url);
+                        if (!string.IsNullOrEmpty(extGroup)) groupId = extGroup;
+                    }
+                    if ((string.IsNullOrEmpty(pageId) || pageId == "0") && !string.IsNullOrEmpty(url))
+                    {
+                        var extPage = NotificationsFragment.ExtractPageIdFromUrl(url);
+                        if (!string.IsNullOrEmpty(extPage)) pageId = extPage;
+                    }
+
+                    ClearNotificationExtras(intent);
+
+                    // Check type-driven routing first
+                    switch (type?.ToLowerInvariant())
+                    {
+                        case "following":
+                        case "visited_profile":
+                        case "accepted_request":
+                        case "poke":
+                            if (!string.IsNullOrEmpty(userId) && userId != "0")
+                            {
+                                WoWonderTools.OpenProfile(this, userId, null);
+                                return;
+                            }
+                            break;
+
+                        case "invited_page":
+                            StartActivity(new Intent(this, typeof(InvitedPageActivity)));
+                            return;
+
+                        case "liked_page":
+                        case "accepted_invite":
+                        case "page_admin":
+                            if (!string.IsNullOrEmpty(pageId) && pageId != "0")
+                            {
+                                var pageIntent = new Intent(this, typeof(PageProfileActivity));
+                                pageIntent.PutExtra("PageId", pageId);
+                                StartActivity(pageIntent);
+                                return;
+                            }
+                            break;
+
+                        case "joined_group":
+                        case "accepted_join_request":
+                        case "added_you_to_group":
+                        case "group_admin":
+                            if (!string.IsNullOrEmpty(groupId) && groupId != "0")
+                            {
+                                var groupIntent = new Intent(this, typeof(GroupProfileActivity));
+                                groupIntent.PutExtra("GroupId", groupId);
+                                StartActivity(groupIntent);
+                                return;
+                            }
+                            break;
+
+                        case "requested_to_join_group":
+                            {
+                                var joinIntent = new Intent(this, typeof(Facesofnaija.Activities.Communities.Groups.JoinRequestActivity));
+                                joinIntent.PutExtra("GroupId", groupId);
+                                StartActivity(joinIntent);
+                                return;
+                            }
+
+                        case "community_moderator":
+                        case "accepted_community_join_request":
+                        case "request_join_community":
+                        case "requested_to_join_community":
+                        case "joined_community":
+                            if (!string.IsNullOrEmpty(communityId) && communityId != "0")
+                            {
+                                var commIntent = new Intent(this, typeof(CommunityProfileActivity));
+                                commIntent.PutExtra("CommunityId", communityId);
+                                StartActivity(commIntent);
+                                return;
+                            }
+                            break;
+
+                        case "going_event":
+                        case "interested_event":
+                        case "invited_event":
+                            if (!string.IsNullOrEmpty(eventId) && eventId != "0")
+                            {
+                                var eventIntent = new Intent(this, typeof(EventViewActivity));
+                                eventIntent.PutExtra("EventId", eventId);
+                                StartActivity(eventIntent);
+                                return;
+                            }
+                            break;
+
+                        case "memory":
+                            StartActivity(new Intent(this, typeof(Facesofnaija.Activities.Memories.MemoriesActivity)));
+                            return;
+                    }
+
+                    // Hierarchy of entity IDs (Post > Community > Group > Page > Event > User)
+                    if (!string.IsNullOrEmpty(postId) && postId != "0")
+                    {
+                        var postIntent = new Intent(this, typeof(ViewFullPostActivity));
+                        postIntent.PutExtra("Id", postId);
+                        postIntent.PutExtra("PostId", postId);
+                        StartActivity(postIntent);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(communityId) && communityId != "0")
+                    {
+                        var commIntent = new Intent(this, typeof(CommunityProfileActivity));
+                        commIntent.PutExtra("CommunityId", communityId);
+                        StartActivity(commIntent);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(groupId) && groupId != "0")
+                    {
+                        var groupIntent = new Intent(this, typeof(GroupProfileActivity));
+                        groupIntent.PutExtra("GroupId", groupId);
+                        StartActivity(groupIntent);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(pageId) && pageId != "0")
+                    {
+                        var pageIntent = new Intent(this, typeof(PageProfileActivity));
+                        pageIntent.PutExtra("PageId", pageId);
+                        StartActivity(pageIntent);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(eventId) && eventId != "0")
+                    {
+                        var eventIntent = new Intent(this, typeof(EventViewActivity));
+                        eventIntent.PutExtra("EventId", eventId);
+                        StartActivity(eventIntent);
+                        return;
+                    }
+                    if (!string.IsNullOrEmpty(userId) && userId != "0")
+                    {
+                        WoWonderTools.OpenProfile(this, userId, null);
+                        return;
+                    }
+
+                    // Fallback to NotificationsTab if available
+                    NotificationsTab?.EventClickNotification(this, new Facesofnaija.CustomApi.Classes.Global.CustomNotificationObject
+                    {
+                        NotifierId = userId,
+                        Notifier = new UserDataObject { UserId = userId },
+                        PostId = postId,
+                        PageId = pageId,
+                        GroupId = groupId,
+                        CommunityId = communityId,
+                        EventId = eventId,
+                        Url = url,
+                        Type = type,
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
+        }
+
+        private static void ClearNotificationExtras(Intent intent)
+        {
+            if (intent == null) return;
+            try
+            {
+                intent.RemoveExtra("Notifier");
+                intent.RemoveExtra("PostId");
+                intent.RemoveExtra("userId");
+                intent.RemoveExtra("PageId");
+                intent.RemoveExtra("GroupId");
+                intent.RemoveExtra("CommunityId");
+                intent.RemoveExtra("EventId");
+                intent.RemoveExtra("type");
+                intent.RemoveExtra("url");
+            }
+            catch (Exception) { }
         }
 
         protected override void OnResume()
@@ -216,10 +446,6 @@ namespace Facesofnaija.Activities.Tabbes
                 Intent intent = new Intent(this, typeof(PlayerService));
                 intent.SetAction(PlayerService.ActionStop);
 
-                if ((!Constant.IsLoggingOut && !Constant.IsChangingTheme && !Constant.IsOpenNotify) || Constant.IsPlayed)
-                {
-                    ContextCompat.StartForegroundService(this, intent);
-                }
                 StopService(intent);
 
                 Constant.IsLoggingOut = false;
@@ -593,15 +819,24 @@ namespace Facesofnaija.Activities.Tabbes
                         {
                             var postId = data.GetStringExtra("PostId") ?? "";
                             var postText = data.GetStringExtra("PostText") ?? "";
+                            var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                            if (updatedPost != null && NewsFeedTab?.PostFeedAdapter != null)
+                            {
+                                FeedCombiner.UpdatePostInAdapter(NewsFeedTab.PostFeedAdapter, updatedPost, this);
+                                break;
+                            }
+
                             var diff = NewsFeedTab.PostFeedAdapter?.ListDiffer;
-                            List<AdapterModelsClass> dataGlobal = diff.Where(a => a.PostData?.Id == postId).ToList();
-                            switch (dataGlobal.Count)
+                            List<AdapterModelsClass> dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
+                            switch (dataGlobal?.Count)
                             {
                                 case > 0:
                                     {
                                         foreach (var postData in dataGlobal)
                                         {
                                             postData.PostData.Orginaltext = postText;
+                                            postData.PostData.PostText = postText;
                                             var index = diff.IndexOf(postData);
                                             switch (index)
                                             {
@@ -1263,6 +1498,7 @@ namespace Facesofnaija.Activities.Tabbes
                                     Activity.RlReels.Visibility = ViewStates.Visible;
 
                                 Activity.NewsFeedTab?.MainRecyclerView?.StopVideo();
+                                Activity.NotificationsTab?.OnTabVisible();
                                 break;
                             }
                         // Trending_Tab
@@ -1487,7 +1723,6 @@ namespace Facesofnaija.Activities.Tabbes
                         {
                             case "Your":
                                 {
-                                    // Like web: "Your Story" button always opens Add Story dialog
                                     ShowDialogAddStory();
                                     break;
                                 }
@@ -1828,37 +2063,7 @@ namespace Facesofnaija.Activities.Tabbes
         {
             try
             {
-                string userId = Intent?.GetStringExtra("userId") ?? "";
-                string postId = Intent?.GetStringExtra("PostId") ?? "";
-                string pageId = Intent?.GetStringExtra("PageId") ?? "";
-                string groupId = Intent?.GetStringExtra("GroupId") ?? "";
-                string eventId = Intent?.GetStringExtra("EventId") ?? "";
-                string type = Intent?.GetStringExtra("type") ?? "";
-                string notifier = Intent?.GetStringExtra("Notifier") ?? "";
-                if (notifier == "Chat" || notifier == "Notifier")
-                {
-                    //PageId, GroupId,EventId
-                    NotificationsTab.EventClickNotification(this, new NotificationObject
-                    {
-                        NotifierId = userId,
-                        Notifier = new UserDataObject
-                        {
-                            UserId = userId,
-                        },
-                        PostId = postId,
-                        PageId = pageId,
-                        GroupId = groupId,
-                        EventId = eventId,
-                        Type = type,
-                    });
-
-                    //Old 
-                    //if (!string.IsNullOrEmpty(userId))
-                    //{
-                    //    MeoNavigationTabBar.Show(1, true);
-                    //    ViewPager.SetCurrentItem(1, true);
-                    //}
-                }
+                GetOneSignalNotification(Intent);
             }
             catch (Exception e)
             {

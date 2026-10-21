@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Ads;
@@ -20,6 +20,7 @@ using Facesofnaija.Activities.AddPost;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.MyPhoto.Adapters;
 using Facesofnaija.Helpers.Ads;
+using Facesofnaija.Helpers.CacheLoaders;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -415,7 +416,27 @@ namespace Facesofnaija.Activities.MyPhoto
                     {
                         case > 0:
                             {
-                                result.Data.RemoveAll(w => string.IsNullOrEmpty(w.PostFileFull));
+                                foreach (var w in result.Data)
+                                {
+                                    if (string.IsNullOrEmpty(w.PostFileFull))
+                                    {
+                                        if (!string.IsNullOrEmpty(w.PostFile))
+                                            w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PostFile);
+                                        else if (w.PhotoAlbum?.Count > 0 && !string.IsNullOrEmpty(w.PhotoAlbum[0].Image))
+                                            w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PhotoAlbum[0].Image);
+                                        else if (w.PhotoAlbum?.Count > 0 && !string.IsNullOrEmpty(w.PhotoAlbum[0].ImageOrg))
+                                            w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PhotoAlbum[0].ImageOrg);
+                                        else if (w.PhotoMulti?.Count > 0 && !string.IsNullOrEmpty(w.PhotoMulti[0].Image))
+                                            w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PhotoMulti[0].Image);
+                                        else if (w.PhotoMulti?.Count > 0 && !string.IsNullOrEmpty(w.PhotoMulti[0].ImageOrg))
+                                            w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PhotoMulti[0].ImageOrg);
+                                    }
+                                    else
+                                    {
+                                        w.PostFileFull = GlideImageLoader.NormalizeImageUrl(w.PostFileFull);
+                                    }
+                                }
+                                result.Data.RemoveAll(w => string.IsNullOrEmpty(w.PostFileFull) && string.IsNullOrEmpty(w.PostFile) && (w.PhotoAlbum == null || w.PhotoAlbum.Count == 0) && (w.PhotoMulti == null || w.PhotoMulti.Count == 0));
 
                                 switch (countList)
                                 {

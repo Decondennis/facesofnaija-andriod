@@ -75,11 +75,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                     var NewPostsList = task.Result;
                     if (NewPostsList == null || NewPostsList.Count <= 0)
                     {
-                        if (beforeList == 0)
-                        {
-                            WRecyclerView.Visibility = ViewStates.Visible;
-                            WRecyclerView?.ShimmerInflater?.Hide();
-                        }
+                        WRecyclerView.Visibility = ViewStates.Visible;
+                        WRecyclerView?.ShimmerInflater?.Hide();
                         WRecyclerView.MainScrollEvent.IsLoading = false;
                         return;
                     }
@@ -162,7 +159,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                             (apiStatus, respond) = await GetGlobalPostDirect(offset, adId);
                         break;
                     case NativeFeedType.User:
-                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
+                        try
+                        {
+                            (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
+                        }
+                        catch (Exception sdkEx)
+                        {
+                            Console.WriteLine($"FON_FEED: SDK GetGlobalPost User threw: {sdkEx.Message}");
+                            apiStatus = 400;
+                            respond = null;
+                        }
+                        if (apiStatus != 200)
+                            (apiStatus, respond) = await GetUserPostsDirectAsync(NativeFeedAdapter.IdParameter, offset);
                         break;
                     case NativeFeedType.Group:
                         (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_group_posts", NativeFeedAdapter.IdParameter, "", "", adId);
@@ -417,7 +425,18 @@ namespace Facesofnaija.Activities.NativePost.Post
                     }
                     break;
                 case NativeFeedType.User:
-                    (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
+                    try
+                    {
+                        (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_user_posts", NativeFeedAdapter.IdParameter, "", "", adId);
+                    }
+                    catch (Exception sdkEx)
+                    {
+                        Console.WriteLine($"FON_FEED: SDK GetGlobalPost User threw: {sdkEx.Message}");
+                        apiStatus = 400;
+                        respond = null;
+                    }
+                    if (apiStatus != 200)
+                        (apiStatus, respond) = await GetUserPostsDirectAsync(NativeFeedAdapter.IdParameter, offset);
                     break;
                 case NativeFeedType.Group:
                     (apiStatus, respond) = await RequestsAsync.Posts.GetGlobalPost(AppSettings.PostApiLimitOnScroll, offset, "get_group_posts", NativeFeedAdapter.IdParameter, "", "", adId);
@@ -1666,7 +1685,7 @@ namespace Facesofnaija.Activities.NativePost.Post
         }
 
         /// <summary>
-        /// Direct Reels fetch using app_api.php phone route with post_type=video (works reliably).
+        /// Direct Reels fetch using api-v2.php with type=get_news_feed and post_type=video.
         /// </summary>
         public static async Task<(int, dynamic)> FetchReelsDirectAsync(string offset = "0", string limit = "10")
         {
@@ -1678,16 +1697,16 @@ namespace Facesofnaija.Activities.NativePost.Post
                 client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
 
                 var accessToken = UserDetails.AccessToken ?? string.Empty;
-                var userId = UserDetails.UserId?.ToString() ?? "0";
+                var url = AppSettings.SiteUrl + "/api-v2.php?type=posts&access_token=" + System.Uri.EscapeDataString(accessToken);
 
-                var url = AppSettings.SiteUrl + "/app_api.php?application=phone&type=get_news_feed";
                 var postData = new List<KeyValuePair<string, string>>
                 {
-                    new KeyValuePair<string, string>("user_id", userId),
-                    new KeyValuePair<string, string>("s", accessToken),
-                    new KeyValuePair<string, string>("limit", limit),
-                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                    new KeyValuePair<string, string>("type", "get_news_feed"),
                     new KeyValuePair<string, string>("post_type", "video"),
+                    new KeyValuePair<string, string>("filter", "0"),
+                    new KeyValuePair<string, string>("limit", limit ?? "10"),
+                    new KeyValuePair<string, string>("after_post_id", offset ?? "0"),
                 };
 
                 using var content = new FormUrlEncodedContent(postData);
@@ -1695,9 +1714,108 @@ namespace Facesofnaija.Activities.NativePost.Post
                 var response = await client.SendAsync(request).ConfigureAwait(false);
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-                if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith("<"))
+                if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
                 {
-                    Log.Warn("FON_REELS", $"FetchReelsDirectAsync empty/HTML response, status={response.StatusCode}");
+                    Log.Warn("FON_REELS", $"FetchReelsDirectAsync non-JSON response, status={response.StatusCode}");
+                    return (400, "Invalid response");
+                }
+
+                var jObject = JObject.Parse(json);
+                var statusText = jObject["api_status"]?.ToString();
+                int.TryParse(statusText, out int status);
+
+                if (status == 200)
+                {
+                    var direct = jObject.ToObject<PostObject>();
+                    if (direct?.Data != null && direct.Data.Count > 0)
+                        return (200, (dynamic)direct);
+
+                    var arr = jObject["data"] as JArray ?? jObject["posts"] as JArray;
+                    if (arr != null)
+                    {
+                        var list = arr.ToObject<List<PostDataObject>>();
+                        if (list != null && list.Count > 0)
+                            return (200, (dynamic)new PostObject { Data = list });
+                    }
+
+                    // Fallback: if get_news_feed returned 0 videos, query popular posts with video
+                    try
+                    {
+                        var popUrl = AppSettings.SiteUrl + "/api-v2.php?type=most_liked&access_token=" + System.Uri.EscapeDataString(accessToken);
+                        var popData = new List<KeyValuePair<string, string>>
+                        {
+                            new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                            new KeyValuePair<string, string>("limit", limit ?? "10"),
+                            new KeyValuePair<string, string>("after_post_id", offset ?? "0"),
+                        };
+                        using var popContent = new FormUrlEncodedContent(popData);
+                        using var popRequest = new HttpRequestMessage(HttpMethod.Post, popUrl) { Content = popContent };
+                        var popResponse = await client.SendAsync(popRequest).ConfigureAwait(false);
+                        var popJson = await popResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(popJson) && popJson.TrimStart().StartsWith("{"))
+                        {
+                            var popObj = JObject.Parse(popJson);
+                            var popArr = popObj["data"] as JArray;
+                            if (popArr != null)
+                            {
+                                var popList = popArr.ToObject<List<PostDataObject>>();
+                                var videoList = popList?.Where(p => !string.IsNullOrEmpty(p.PostFile) || !string.IsNullOrEmpty(p.PostFileFull) || !string.IsNullOrEmpty(p.PostYoutube) || !string.IsNullOrEmpty(p.PostPlaytube)).ToList();
+                                if (videoList != null && videoList.Count > 0)
+                                    return (200, (dynamic)new PostObject { Data = videoList });
+                            }
+                        }
+                    }
+                    catch { }
+
+                    return (200, (dynamic)new PostObject { Data = new List<PostDataObject>() });
+                }
+
+                Log.Warn("FON_REELS", $"FetchReelsDirectAsync non-200 api_status={status}");
+                return (400, "Invalid response");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("FON_REELS", $"FetchReelsDirectAsync exception: {ex.Message}");
+                return (400, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Direct Popular Posts fetch using api-v2.php?type=get_popular_posts.
+        /// </summary>
+                /// <summary>
+        /// Direct User Posts fetch using api-v2.php?type=posts with type=get_user_posts.
+        /// </summary>
+        public static async Task<(int, dynamic)> GetUserPostsDirectAsync(string userId, string offset = "0", string limit = "10")
+        {
+            try
+            {
+                using var handler = new Xamarin.Android.Net.AndroidMessageHandler { AllowAutoRedirect = false };
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(45) };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var accessToken = UserDetails.AccessToken ?? string.Empty;
+                var url = AppSettings.SiteUrl + "/api-v2.php?type=posts&access_token=" + System.Uri.EscapeDataString(accessToken);
+
+                var postData = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                    new KeyValuePair<string, string>("type", "get_user_posts"),
+                    new KeyValuePair<string, string>("id", !string.IsNullOrEmpty(userId) ? userId : UserDetails.UserId?.ToString() ?? "0"),
+                    new KeyValuePair<string, string>("limit", limit ?? "10"),
+                    new KeyValuePair<string, string>("after_post_id", offset ?? "0"),
+                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                };
+
+                using var content = new FormUrlEncodedContent(postData);
+                using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+                var response = await client.SendAsync(request).ConfigureAwait(false);
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                {
+                    Log.Warn("FON_USER_POSTS", $"GetUserPostsDirectAsync non-JSON response status={response.StatusCode}");
                     return (400, "Invalid response");
                 }
 
@@ -1722,19 +1840,16 @@ namespace Facesofnaija.Activities.NativePost.Post
                     return (200, (dynamic)new PostObject { Data = new List<PostDataObject>() });
                 }
 
-                Log.Warn("FON_REELS", $"FetchReelsDirectAsync non-200 api_status={status}");
+                Log.Warn("FON_USER_POSTS", $"GetUserPostsDirectAsync api_status={status}");
                 return (400, "Invalid response");
             }
             catch (Exception ex)
             {
-                Log.Error("FON_REELS", $"FetchReelsDirectAsync exception: {ex.Message}");
+                Log.Error("FON_USER_POSTS", $"GetUserPostsDirectAsync exception: {ex.Message}");
                 return (400, ex.Message);
             }
         }
 
-        /// <summary>
-        /// Direct Popular Posts fetch using api-v2.php?type=get_popular_posts.
-        /// </summary>
         public static async Task<(int, dynamic)> GetPopularPostsDirectAsync(string limit = "10", string offset = "0")
         {
             try

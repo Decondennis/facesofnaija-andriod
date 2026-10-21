@@ -1,4 +1,4 @@
-﻿//##############################################
+//##############################################
 //Cᴏᴘʏʀɪɢʜᴛ 2020 DᴏᴜɢʜᴏᴜᴢLɪɢʜᴛ Codecanyon Item 19703216
 //Elin Doughouz >> https://www.facebook.com/Elindoughouz
 //====================================================
@@ -358,7 +358,7 @@ namespace Facesofnaija
         /// https://www.weatherapi.com
         /// </summary>
         public static readonly WeatherType WeatherType = WeatherType.Celsius;
-        public static readonly bool ShowWeather = true;
+        public static readonly bool ShowWeather = false;
         public static readonly string KeyWeatherApi = "a413d0bf31a44369a16140106221804";
 
         /// <summary>
@@ -377,7 +377,7 @@ namespace Facesofnaija
         /// <summary>
         /// you can edit video using FFMPEG 
         /// </summary>
-        public static readonly bool EnableVideoEditor = true;
+        public static readonly bool EnableVideoEditor = false;
 
 
         public static readonly bool ShowUserPoint = false;

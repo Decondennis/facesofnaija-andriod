@@ -41,7 +41,7 @@ namespace Facesofnaija.Helpers.Controller
             };
         }
 
-        private static void SetLatestSelfStoryGroup(StoryDataObject selfGroup)
+        public static void SetLatestSelfStoryGroup(StoryDataObject selfGroup)
         {
             lock (SelfStoryLock)
             {
@@ -90,7 +90,35 @@ namespace Facesofnaija.Helpers.Controller
             {
                 var result = JsonConvert.DeserializeObject<GetUserStoriesObject>(json);
                 if (result != null && result.Status == 200 && result.Stories?.Any(s => s.Stories?.Count > 0) == true)
+                {
+                    foreach (var g in result.Stories)
+                    {
+                        if (g.Stories == null)
+                            g.Stories = new List<StoryDataObject.Story>();
+
+                        if (g.DurationsList == null || g.DurationsList.Count == 0)
+                            g.DurationsList = Enumerable.Repeat(5000L, g.Stories.Count).ToList();
+
+                        foreach (var story in g.Stories)
+                        {
+                            if (string.IsNullOrWhiteSpace(story.Thumbnail))
+                            {
+                                if (story.Images?.Count > 0 && !string.IsNullOrWhiteSpace(story.Images[0]?.Filename))
+                                    story.Thumbnail = story.Images[0].Filename;
+                                else if (story.Videos?.Count > 0 && !string.IsNullOrWhiteSpace(story.Videos[0]?.Filename))
+                                    story.Thumbnail = story.Videos[0].Filename;
+                                else
+                                    story.Thumbnail = g.Avatar;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(story.TypeView))
+                            {
+                                story.TypeView = (story.Videos?.Count > 0) ? "Video" : "Image";
+                            }
+                        }
+                    }
                     return result;
+                }
             }
             catch (Exception)
             {
@@ -347,6 +375,33 @@ namespace Facesofnaija.Helpers.Controller
                         System.Diagnostics.Debug.WriteLine($"[StoryApiService] Normalized object-map stories keys={storiesObject.Count} groups={normalizedStories.Count}");
                     }
 
+                    foreach (var g in normalizedStories)
+                    {
+                        if (g.Stories == null)
+                            g.Stories = new List<StoryDataObject.Story>();
+
+                        if (g.DurationsList == null || g.DurationsList.Count == 0)
+                            g.DurationsList = Enumerable.Repeat(5000L, g.Stories.Count).ToList();
+
+                        foreach (var story in g.Stories)
+                        {
+                            if (string.IsNullOrWhiteSpace(story.Thumbnail))
+                            {
+                                if (story.Images?.Count > 0 && !string.IsNullOrWhiteSpace(story.Images[0]?.Filename))
+                                    story.Thumbnail = story.Images[0].Filename;
+                                else if (story.Videos?.Count > 0 && !string.IsNullOrWhiteSpace(story.Videos[0]?.Filename))
+                                    story.Thumbnail = story.Videos[0].Filename;
+                                else
+                                    story.Thumbnail = g.Avatar;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(story.TypeView))
+                            {
+                                story.TypeView = (story.Videos?.Count > 0) ? "Video" : "Image";
+                            }
+                        }
+                    }
+
                     System.Diagnostics.Debug.WriteLine($"[StoryApiService] NormalizeStoriesResponse status={normalizedStatus} stories_count={normalizedStories.Count}");
 
                     return new GetUserStoriesObject
@@ -368,68 +423,17 @@ namespace Facesofnaija.Helpers.Controller
         {
             var bases = new List<string>();
 
-            static void AddCandidate(List<string> list, string baseUrl)
+            var mainUrl = AppSettings.SiteUrl?.Trim()?.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(mainUrl))
             {
-                if (string.IsNullOrWhiteSpace(baseUrl))
-                    return;
-
-                var clean = baseUrl.Trim().TrimEnd('/');
-                if (!clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                    clean = "http://" + clean;
-
-                if (!list.Contains(clean))
-                    list.Add(clean);
-
-                var isIpHost = false;
-                try
-                {
-                    if (Uri.TryCreate(clean, UriKind.Absolute, out var parsedUri))
-                        isIpHost = IPAddress.TryParse(parsedUri.Host, out _);
-                }
-                catch
-                {
-                    // Ignore URL parse failures.
-                }
-
-                if (!isIpHost && clean.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                {
-                    var alt = "https://" + clean.Substring("http://".Length);
-                    if (!list.Contains(alt))
-                        list.Add(alt);
-                }
-                else if (!isIpHost && clean.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                {
-                    var alt = "http://" + clean.Substring("https://".Length);
-                    if (!list.Contains(alt))
-                        list.Add(alt);
-                }
+                if (!mainUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && !mainUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    mainUrl = "https://" + mainUrl;
+                bases.Add(mainUrl);
             }
-
-            static string ExtractCanonicalHost()
+            else
             {
-                try
-                {
-                    if (Uri.TryCreate(AppSettings.SiteUrl, UriKind.Absolute, out var siteUri) && !string.IsNullOrWhiteSpace(siteUri.Host))
-                        return siteUri.Host;
-                }
-                catch
-                {
-                    // Ignore host extraction issues.
-                }
-
-                return "facesofnaija.com";
+                bases.Add("https://www.facesofnaija.ng");
             }
-
-            // Origin host fallback: currently serves story APIs while public host returns 404 for story routes.
-            AddCandidate(bases, AppSettings.SiteUrl);
-            AddCandidate(bases, AppSettings.JobsUrl);
-
-            var configBase = InitializeWoWonder.WebsiteUrl?.Trim()?.TrimEnd('/');
-            AddCandidate(bases, configBase);
-
-            var canonicalHost = ExtractCanonicalHost();
-            AddCandidate(bases, $"https://{canonicalHost}");
-            AddCandidate(bases, $"http://{canonicalHost}");
 
             return bases;
         }
@@ -437,36 +441,20 @@ namespace Facesofnaija.Helpers.Controller
         private static List<string> BuildStoryUrls(string type)
         {
             var token = ResolveAccessToken();
-
             var urls = new List<string>();
-
-            void AddUrl(string url)
-            {
-                if (!string.IsNullOrWhiteSpace(url) && !urls.Contains(url))
-                    urls.Add(url);
-            }
 
             foreach (var baseUrl in BuildBaseUrls())
             {
-                // Common WoWonder variants depending on how WebsiteUrl is configured.
-                AddUrl($"{baseUrl}/api/v2/?type={type}&access_token={token}");
-                AddUrl($"{baseUrl}/api/?type={type}&access_token={token}");
-
-                if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
-                    AddUrl($"{baseUrl}/v2/?type={type}&access_token={token}");
-
-                if (baseUrl.EndsWith("/api/v2", StringComparison.OrdinalIgnoreCase))
-                {
-                    AddUrl($"{baseUrl}/?type={type}&access_token={token}");
-                    AddUrl($"{baseUrl.Replace("/api/v2", "/api")}/?type={type}&access_token={token}");
-                }
-
-                // Also try underscore style as a fallback for some backend customizations.
+                // Primary working endpoint on facesofnaija.ng
+                urls.Add($"{baseUrl}/api/v2/?type={type}&access_token={token}");
+                urls.Add($"{baseUrl}/api/{type}?access_token={token}");
+                urls.Add($"{baseUrl}/api-v2.php?type={type}&access_token={token}");
                 if (type.Contains('-'))
                 {
                     var underscoreType = type.Replace("-", "_");
-                    AddUrl($"{baseUrl}/api/v2/?type={underscoreType}&access_token={token}");
-                    AddUrl($"{baseUrl}/api/?type={underscoreType}&access_token={token}");
+                    urls.Add($"{baseUrl}/api/v2/?type={underscoreType}&access_token={token}");
+                    urls.Add($"{baseUrl}/api/{underscoreType}?access_token={token}");
+                    urls.Add($"{baseUrl}/api-v2.php?type={underscoreType}&access_token={token}");
                 }
             }
 
@@ -476,14 +464,10 @@ namespace Facesofnaija.Helpers.Controller
         private static List<string> BuildLegacyStoryUrls()
         {
             var urls = new List<string>();
-
             foreach (var baseUrl in BuildBaseUrls())
             {
-                var cleanBase = baseUrl.TrimEnd('/');
-                urls.Add($"{cleanBase}/app_api.php?application=phone&type=get_stories");
-                urls.Add($"{cleanBase}/app_api.php?type=get_stories&application=phone");
+                urls.Add($"{baseUrl}/app_api.php?application=phone&type=get_stories");
             }
-
             return urls.Distinct().ToList();
         }
 
@@ -575,7 +559,7 @@ namespace Facesofnaija.Helpers.Controller
                 return null;
 
             var urls = BuildStoryUrls("get-user-stories")
-                .Where(u => !string.IsNullOrWhiteSpace(u) && u.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                .Where(u => !string.IsNullOrWhiteSpace(u) && u.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 .Distinct()
                 .Take(2)
                 .ToList();
@@ -585,7 +569,7 @@ namespace Facesofnaija.Helpers.Controller
                 var requestUrls = new List<(string label, string value)>
                 {
                     ("POST", url),
-                    ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
+                    ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}&user_id={Uri.EscapeDataString(UserDetails.UserId ?? "0")}")
                 };
 
                 foreach (var request in requestUrls)
@@ -597,6 +581,7 @@ namespace Facesofnaija.Helpers.Controller
                         {
                             using var content = new FormUrlEncodedContent(new[]
                             {
+                                new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "0"),
                                 new KeyValuePair<string, string>("limit", limit ?? "15"),
                                 new KeyValuePair<string, string>("offset", offset ?? "0"),
                                 new KeyValuePair<string, string>("s", token),
@@ -672,8 +657,9 @@ namespace Facesofnaija.Helpers.Controller
                 string lastResponse = "Invalid story response";
 
                 using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(15);
 
-                // Kick off self-story fetch immediately so the Your tile can hydrate early.
+                // Kick off self-story fetch in parallel so the Your tile can hydrate early.
                 var selfFetchTask = FetchSelfStoriesQuickAsync(client, resolvedToken, limit, offset);
 
                 async Task EnsureSelfStoriesReadyAsync(int waitMs = 900)
@@ -693,195 +679,71 @@ namespace Facesofnaija.Helpers.Controller
                     }
                 }
 
-                // Force legacy app_api routes first because some deployments return 404 for v2 story endpoints.
-                var legacyUrls = BuildLegacyStoryUrls();
-                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first routes={legacyUrls.Count}");
-                var maxLegacyAttempts = Math.Min(4, legacyUrls.Count);
-                for (var i = 0; i < maxLegacyAttempts; i++)
+                // 1. Primary priority: WoWonder v2 get-user-stories endpoints
+                // On facesofnaija.ng, this returns all users with active stories (both web-posted and Android-posted stories)
+                var userStoryUrls = new List<string>();
+                userStoryUrls.AddRange(BuildStoryUrls("get-user-stories"));
+                userStoryUrls.AddRange(BuildStoryUrls("get_user_stories"));
+                userStoryUrls = userStoryUrls.Distinct().ToList();
+
+                foreach (var url in userStoryUrls)
                 {
-                    var legacyUrl = legacyUrls[i];
-                    var legacyRequests = new List<(string label, string value)>
-                    {
-                        ("POST", legacyUrl),
-                        ("GET", $"{legacyUrl}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(resolvedToken)}&access_token={Uri.EscapeDataString(resolvedToken)}")
-                    };
-
-                    foreach (var legacyRequest in legacyRequests)
-                    {
-                        if (ShouldSkipUrl(legacyRequest.value))
-                            continue;
-
-                        HttpResponseMessage legacyResponse;
-                        try
-                        {
-                            if (legacyRequest.label == "POST")
-                            {
-                                using var legacyContent = new FormUrlEncodedContent(new[]
-                                {
-                                    new KeyValuePair<string, string>("s", resolvedToken),
-                                    new KeyValuePair<string, string>("offset", offset ?? "0"),
-                                    new KeyValuePair<string, string>("limit", limit ?? "15"),
-                                    new KeyValuePair<string, string>("my_offset", offset ?? "0"),
-                                    new KeyValuePair<string, string>("access_token", resolvedToken),
-                                });
-
-                                legacyResponse = await client.PostAsync(legacyRequest.value, legacyContent).ConfigureAwait(false);
-                            }
-                            else
-                            {
-                                legacyResponse = await client.GetAsync(legacyRequest.value).ConfigureAwait(false);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Android.Util.Log.Warn("FON_STORY_API", $"Legacy attempt {i + 1}/{legacyUrls.Count} {legacyRequest.label} failed: {ex.GetType().Name}: {ex.Message}");
-                            lastResponse = ex.Message;
-                            continue;
-                        }
-
-                        var legacyJson = await legacyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        var legacyPreview = legacyJson?.Length > 300 ? legacyJson.Substring(0, 300) : legacyJson;
-                        Android.Util.Log.Warn("FON_STORY_API", $"Legacy attempt {i + 1}/{legacyUrls.Count} {legacyRequest.label} http={(int)legacyResponse.StatusCode} url={legacyRequest.value}");
-                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] legacy-stories {legacyRequest.label} URL={legacyRequest.value} HTTP={legacyResponse.StatusCode} raw={legacyPreview}");
-
-                        if (!legacyResponse.IsSuccessStatusCode)
-                        {
-                            lastResponse = string.IsNullOrWhiteSpace(legacyJson) ? legacyResponse.StatusCode.ToString() : legacyJson;
-                            continue;
-                        }
-
-                        var normalizedLegacy = NormalizeStoriesResponse(legacyJson);
-                        if (normalizedLegacy != null && normalizedLegacy.Status == 200)
-                        {
-                            if (normalizedLegacy.Stories?.Count > 0)
-                            {
-                                var score = ScoreStories(normalizedLegacy);
-                                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first success stories_count={normalizedLegacy.Stories.Count} score={score} url={legacyRequest.value}");
-                                if (score > bestStoriesScore)
-                                {
-                                    bestStoriesScore = score;
-                                    bestStoriesResponse = normalizedLegacy;
-                                }
-                                if (HasSelfStories(normalizedLegacy))
-                                {
-                                    selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalizedLegacy, normalizedLegacy);
-                                    UpdateLatestSelfStoryGroup(normalizedLegacy);
-                                }
-
-                                if (ContainsOtherUsers(normalizedLegacy) && score >= 10)
-                                {
-                                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
-                                    var fastResult = MergeSelfStories(normalizedLegacy, selfStoriesCandidate);
-                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return legacy stories_count={fastResult?.Stories?.Count ?? 0} url={legacyRequest.value}");
-                                    return (200, fastResult);
-                                }
-                            }
-
-                            emptyStoriesResponse ??= normalizedLegacy;
-
-                            // Keep valid empty response as fallback, but continue probing other routes.
-                            // Some deployments return empty on one host and populated stories on another host.
-                            if (normalizedLegacy.Stories == null || normalizedLegacy.Stories.Count == 0)
-                            {
-                                Android.Util.Log.Warn("FON_STORY_API", $"Legacy-first empty stories candidate url={legacyRequest.value}; continuing route search");
-                            }
-                        }
-                    }
-                }
-
-                // Try SDK route mapping next (usually matches server-specific API wiring).
-                var (sdkStatusInitial, sdkResponseInitial) = await RequestsAsync.Story.GetUserStoriesAsync(limit, offset).ConfigureAwait(false);
-                if (sdkStatusInitial == 200)
-                {
-                    if (sdkResponseInitial is GetUserStoriesObject sdkStories && sdkStories.Stories?.Count > 0)
-                    {
-                        bestStoriesResponse = sdkStories;
-                        bestStoriesScore = ScoreStories(sdkStories);
-                        Android.Util.Log.Warn("FON_STORY_API", $"SDK initial stories_count={sdkStories.Stories.Count} score={bestStoriesScore}");
-                        if (HasSelfStories(sdkStories))
-                        {
-                            selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? sdkStories, sdkStories);
-                            UpdateLatestSelfStoryGroup(sdkStories);
-                        }
-
-                        if (ContainsOtherUsers(sdkStories) && bestStoriesScore >= 10)
-                        {
-                            await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
-                            var fastResult = MergeSelfStories(sdkStories, selfStoriesCandidate);
-                            Android.Util.Log.Warn("FON_STORY_API", $"Fast-return SDK stories_count={fastResult?.Stories?.Count ?? 0}");
-                            return (200, fastResult);
-                        }
-                    }
-
-                    System.Diagnostics.Debug.WriteLine("[StoryApiService] SDK initial checked; trying endpoint fallbacks for richer dataset.");
-                }
-
-                var urls = new List<string>();
-                urls.AddRange(BuildStoryUrls("get-stories"));
-                urls.AddRange(BuildStoryUrls("get_stories"));
-                urls = urls.Distinct().ToList();
-                var token = ResolveAccessToken();
-                System.Diagnostics.Debug.WriteLine($"[StoryApiService] WebsiteUrl='{InitializeWoWonder.WebsiteUrl}', StoryUrls='{string.Join(" | ", urls)}'");
-
-                foreach (var url in urls)
-                {
-                    var requestUrls = new List<(string label, string value)>
+                    var requests = new List<(string label, string value)>
                     {
                         ("POST", url),
-                        ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
+                        ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(resolvedToken)}&access_token={Uri.EscapeDataString(resolvedToken)}&user_id={Uri.EscapeDataString(UserDetails.UserId ?? "0")}")
                     };
 
-                    foreach (var requestUrl in requestUrls)
+                    foreach (var req in requests)
                     {
-                        if (ShouldSkipUrl(requestUrl.value))
+                        if (ShouldSkipUrl(req.value))
                             continue;
 
                         HttpResponseMessage response;
                         try
                         {
-                            if (requestUrl.label == "POST")
+                            if (req.label == "POST")
                             {
                                 using var content = new FormUrlEncodedContent(new[]
                                 {
+                                    new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "0"),
                                     new KeyValuePair<string, string>("limit", limit ?? "15"),
                                     new KeyValuePair<string, string>("offset", offset ?? "0"),
-                                    new KeyValuePair<string, string>("s", token),
-                                    new KeyValuePair<string, string>("access_token", token),
+                                    new KeyValuePair<string, string>("s", resolvedToken),
+                                    new KeyValuePair<string, string>("access_token", resolvedToken),
                                     new KeyValuePair<string, string>("my_offset", offset ?? "0"),
                                 });
-
-                                response = await client.PostAsync(requestUrl.value, content).ConfigureAwait(false);
+                                response = await client.PostAsync(req.value, content).ConfigureAwait(false);
                             }
                             else
                             {
-                                response = await client.GetAsync(requestUrl.value).ConfigureAwait(false);
+                                response = await client.GetAsync(req.value).ConfigureAwait(false);
                             }
                         }
                         catch (Exception ex)
                         {
-                            Android.Util.Log.Warn("FON_STORY_API", $"Route {requestUrl.label} failed: {ex.GetType().Name}: {ex.Message} url={requestUrl.value}");
+                            Android.Util.Log.Warn("FON_STORY_API", $"User-stories {req.label} failed: {ex.GetType().Name}: {ex.Message} url={req.value}");
                             lastResponse = ex.Message;
                             continue;
                         }
 
                         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        var preview = json?.Length > 300 ? json.Substring(0, 300) : json;
-                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] get-stories {requestUrl.label} URL={requestUrl.value} HTTP={response.StatusCode} raw={preview}");
+                        var preview = json?.Length > 200 ? json.Substring(0, 200) : json;
+                        Android.Util.Log.Warn("FON_STORY_API", $"User-stories {req.label} HTTP={(int)response.StatusCode} url={req.value} raw={preview}");
 
                         if (!response.IsSuccessStatusCode)
                         {
-                            lastResponse = string.IsNullOrWhiteSpace(json) ? response.StatusCode.ToString() : json;
+                            lastResponse = response.StatusCode.ToString();
                             continue;
                         }
 
                         var normalized = NormalizeStoriesResponse(json);
                         if (normalized != null && normalized.Status == 200)
                         {
-                            System.Diagnostics.Debug.WriteLine($"[StoryApiService] Parsed {requestUrl.label} URL={requestUrl.value} stories_count={normalized.Stories?.Count ?? 0}");
                             if (normalized.Stories?.Count > 0)
                             {
                                 var score = ScoreStories(normalized);
-                                Android.Util.Log.Warn("FON_STORY_API", $"Route {requestUrl.label} stories_count={normalized.Stories.Count} score={score} url={requestUrl.value}");
+                                Android.Util.Log.Warn("FON_STORY_API", $"User-stories success stories_count={normalized.Stories.Count} score={score} url={req.value}");
                                 if (score > bestStoriesScore)
                                 {
                                     bestStoriesScore = score;
@@ -897,85 +759,79 @@ namespace Facesofnaija.Helpers.Controller
                                 if (ContainsOtherUsers(normalized) && score >= 10)
                                 {
                                     await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
-                                    var fastResult = normalized;
-                                    if (!HasSelfStories(fastResult))
-                                    {
-                                        var quickSelfStories = await selfFetchTask.ConfigureAwait(false);
-                                        if (quickSelfStories != null)
-                                            fastResult = MergeSelfStories(fastResult, quickSelfStories);
-                                    }
-
-                                    fastResult = MergeSelfStories(fastResult, selfStoriesCandidate);
-                                    fastResult = RemoveSelfStories(fastResult);
-                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return route stories_count={fastResult?.Stories?.Count ?? 0} score={score} url={requestUrl.value}");
+                                    var fastResult = MergeSelfStories(normalized, selfStoriesCandidate);
+                                    UpdateLatestSelfStoryGroup(fastResult);
+                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return v2 user-stories stories_count={fastResult?.Stories?.Count ?? 0} url={req.value}");
                                     return (200, fastResult);
                                 }
                             }
 
                             emptyStoriesResponse ??= normalized;
-                            System.Diagnostics.Debug.WriteLine($"[StoryApiService] {requestUrl.label} URL={requestUrl.value} returned empty stories; trying next endpoint.");
-                            continue;
                         }
-
-                        lastResponse = string.IsNullOrWhiteSpace(json) ? "Invalid story response" : json;
                     }
                 }
 
-                if (bestStoriesResponse?.Stories?.Count <= 0)
+                // 2. Second priority: WoWonder v2 get-stories endpoints
+                var feedStoryUrls = new List<string>();
+                feedStoryUrls.AddRange(BuildStoryUrls("get-stories"));
+                feedStoryUrls.AddRange(BuildStoryUrls("get_stories"));
+                feedStoryUrls = feedStoryUrls.Distinct().ToList();
+
+                foreach (var url in feedStoryUrls)
                 {
-                    var userUrls = BuildStoryUrls("get-user-stories").Distinct().ToList();
-                    foreach (var url in userUrls)
+                    var requests = new List<(string label, string value)>
                     {
-                        var requestUrls = new List<(string label, string value)>
+                        ("POST", url),
+                        ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(resolvedToken)}&access_token={Uri.EscapeDataString(resolvedToken)}&user_id={Uri.EscapeDataString(UserDetails.UserId ?? "0")}")
+                    };
+
+                    foreach (var req in requests)
+                    {
+                        if (ShouldSkipUrl(req.value))
+                            continue;
+
+                        HttpResponseMessage response;
+                        try
                         {
-                            ("POST", url),
-                            ("GET", $"{url}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(token)}&access_token={Uri.EscapeDataString(token)}")
-                        };
-
-                        foreach (var requestUrl in requestUrls)
+                            if (req.label == "POST")
+                            {
+                                using var content = new FormUrlEncodedContent(new[]
+                                {
+                                    new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "0"),
+                                    new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("s", resolvedToken),
+                                    new KeyValuePair<string, string>("access_token", resolvedToken),
+                                    new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                                });
+                                response = await client.PostAsync(req.value, content).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                response = await client.GetAsync(req.value).ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception ex)
                         {
-                            if (ShouldSkipUrl(requestUrl.value))
-                                continue;
+                            Android.Util.Log.Warn("FON_STORY_API", $"Get-stories {req.label} failed: {ex.GetType().Name}: {ex.Message} url={req.value}");
+                            lastResponse = ex.Message;
+                            continue;
+                        }
 
-                            HttpResponseMessage response;
-                            try
-                            {
-                                if (requestUrl.label == "POST")
-                                {
-                                    using var content = new FormUrlEncodedContent(new[]
-                                    {
-                                        new KeyValuePair<string, string>("limit", limit ?? "15"),
-                                        new KeyValuePair<string, string>("offset", offset ?? "0"),
-                                        new KeyValuePair<string, string>("s", token),
-                                        new KeyValuePair<string, string>("access_token", token),
-                                        new KeyValuePair<string, string>("my_offset", offset ?? "0"),
-                                    });
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            lastResponse = response.StatusCode.ToString();
+                            continue;
+                        }
 
-                                    response = await client.PostAsync(requestUrl.value, content).ConfigureAwait(false);
-                                }
-                                else
-                                {
-                                    response = await client.GetAsync(requestUrl.value).ConfigureAwait(false);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Android.Util.Log.Warn("FON_STORY_API", $"User-route {requestUrl.label} failed: {ex.GetType().Name}: {ex.Message} url={requestUrl.value}");
-                                lastResponse = ex.Message;
-                                continue;
-                            }
-
-                            if (!response.IsSuccessStatusCode)
-                            {
-                                lastResponse = response.StatusCode.ToString();
-                                continue;
-                            }
-
-                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                            var normalized = NormalizeStoriesResponse(json);
-                            if (normalized != null && normalized.Status == 200 && normalized.Stories?.Count > 0)
+                        var normalized = NormalizeStoriesResponse(json);
+                        if (normalized != null && normalized.Status == 200)
+                        {
+                            if (normalized.Stories?.Count > 0)
                             {
                                 var score = ScoreStories(normalized);
+                                Android.Util.Log.Warn("FON_STORY_API", $"Get-stories success stories_count={normalized.Stories.Count} score={score} url={req.value}");
                                 if (score > bestStoriesScore)
                                 {
                                     bestStoriesScore = score;
@@ -987,19 +843,114 @@ namespace Facesofnaija.Helpers.Controller
                                     selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalized, normalized);
                                     UpdateLatestSelfStoryGroup(normalized);
                                 }
+
+                                if (ContainsOtherUsers(normalized) && score >= 10)
+                                {
+                                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                                    var fastResult = MergeSelfStories(normalized, selfStoriesCandidate);
+                                    UpdateLatestSelfStoryGroup(fastResult);
+                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return get-stories stories_count={fastResult?.Stories?.Count ?? 0} url={req.value}");
+                                    return (200, fastResult);
+                                }
                             }
+
+                            emptyStoriesResponse ??= normalized;
                         }
                     }
                 }
 
-                // Final SDK retry in case manual route attempts are blocked by edge config.
-                var (sdkStatus, sdkResponse) = await RequestsAsync.Story.GetUserStoriesAsync(limit, offset).ConfigureAwait(false);
-                if (sdkStatus == 200)
+                // 3. Third priority: Legacy app_api.php routes
+                var legacyUrls = BuildLegacyStoryUrls();
+                foreach (var legacyUrl in legacyUrls)
                 {
-                    if (sdkResponse is GetUserStoriesObject sdkStories && sdkStories.Stories?.Count > 0)
+                    var requests = new List<(string label, string value)>
+                    {
+                        ("POST", legacyUrl),
+                        ("GET", $"{legacyUrl}&limit={Uri.EscapeDataString(limit ?? "15")}&offset={Uri.EscapeDataString(offset ?? "0")}&s={Uri.EscapeDataString(resolvedToken)}&access_token={Uri.EscapeDataString(resolvedToken)}&user_id={Uri.EscapeDataString(UserDetails.UserId ?? "0")}")
+                    };
+
+                    foreach (var req in requests)
+                    {
+                        if (ShouldSkipUrl(req.value))
+                            continue;
+
+                        HttpResponseMessage response;
+                        try
+                        {
+                            if (req.label == "POST")
+                            {
+                                using var content = new FormUrlEncodedContent(new[]
+                                {
+                                    new KeyValuePair<string, string>("user_id", UserDetails.UserId ?? "0"),
+                                    new KeyValuePair<string, string>("s", resolvedToken),
+                                    new KeyValuePair<string, string>("offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("limit", limit ?? "15"),
+                                    new KeyValuePair<string, string>("my_offset", offset ?? "0"),
+                                    new KeyValuePair<string, string>("access_token", resolvedToken),
+                                });
+                                response = await client.PostAsync(req.value, content).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                response = await client.GetAsync(req.value).ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Android.Util.Log.Warn("FON_STORY_API", $"Legacy {req.label} failed: {ex.GetType().Name}: {ex.Message} url={req.value}");
+                            lastResponse = ex.Message;
+                            continue;
+                        }
+
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            lastResponse = response.StatusCode.ToString();
+                            continue;
+                        }
+
+                        var normalized = NormalizeStoriesResponse(json);
+                        if (normalized != null && normalized.Status == 200)
+                        {
+                            if (normalized.Stories?.Count > 0)
+                            {
+                                var score = ScoreStories(normalized);
+                                Android.Util.Log.Warn("FON_STORY_API", $"Legacy success stories_count={normalized.Stories.Count} score={score} url={req.value}");
+                                if (score > bestStoriesScore)
+                                {
+                                    bestStoriesScore = score;
+                                    bestStoriesResponse = normalized;
+                                }
+
+                                if (HasSelfStories(normalized))
+                                {
+                                    selfStoriesCandidate = MergeSelfStories(selfStoriesCandidate ?? normalized, normalized);
+                                    UpdateLatestSelfStoryGroup(normalized);
+                                }
+
+                                if (ContainsOtherUsers(normalized) && score >= 10)
+                                {
+                                    await EnsureSelfStoriesReadyAsync().ConfigureAwait(false);
+                                    var fastResult = MergeSelfStories(normalized, selfStoriesCandidate);
+                                    UpdateLatestSelfStoryGroup(fastResult);
+                                    Android.Util.Log.Warn("FON_STORY_API", $"Fast-return legacy stories_count={fastResult?.Stories?.Count ?? 0} url={req.value}");
+                                    return (200, fastResult);
+                                }
+                            }
+
+                            emptyStoriesResponse ??= normalized;
+                        }
+                    }
+                }
+
+                // 4. SDK fallback safely wrapped in try-catch so MissingMethodException never crashes
+                try
+                {
+                    var (sdkStatus, sdkResponse) = await RequestsAsync.Story.GetUserStoriesAsync(limit, offset).ConfigureAwait(false);
+                    if (sdkStatus == 200 && sdkResponse is GetUserStoriesObject sdkStories && sdkStories.Stories?.Count > 0)
                     {
                         var score = ScoreStories(sdkStories);
-                        Android.Util.Log.Warn("FON_STORY_API", $"SDK retry stories_count={sdkStories.Stories.Count} score={score}");
+                        Android.Util.Log.Warn("FON_STORY_API", $"SDK fallback stories_count={sdkStories.Stories.Count} score={score}");
                         if (score > bestStoriesScore)
                         {
                             bestStoriesScore = score;
@@ -1012,6 +963,10 @@ namespace Facesofnaija.Helpers.Controller
                             UpdateLatestSelfStoryGroup(sdkStories);
                         }
                     }
+                }
+                catch (Exception sdkEx)
+                {
+                    Android.Util.Log.Warn("FON_STORY_API", $"SDK fallback ignored due to {sdkEx.GetType().Name}: {sdkEx.Message}");
                 }
 
                 if (bestStoriesResponse?.Stories?.Count > 0)
@@ -1026,9 +981,16 @@ namespace Facesofnaija.Helpers.Controller
 
                     bestStoriesResponse = MergeSelfStories(bestStoriesResponse, selfStoriesCandidate);
                     UpdateLatestSelfStoryGroup(bestStoriesResponse);
-                    bestStoriesResponse = RemoveSelfStories(bestStoriesResponse);
+                    // Do NOT strip self stories: NewsFeedNative uses serverSelfGroup to separate them cleanly!
                     Android.Util.Log.Warn("FON_STORY_API", $"Returning best stories_count={bestStoriesResponse.Stories.Count} score={bestStoriesScore}");
                     return (200, bestStoriesResponse);
+                }
+
+                if (selfStoriesCandidate?.Stories?.Count > 0)
+                {
+                    UpdateLatestSelfStoryGroup(selfStoriesCandidate);
+                    Android.Util.Log.Warn("FON_STORY_API", $"Returning self candidate stories_count={selfStoriesCandidate.Stories.Count}");
+                    return (200, selfStoriesCandidate);
                 }
 
                 if (emptyStoriesResponse != null)
@@ -1058,20 +1020,26 @@ namespace Facesofnaija.Helpers.Controller
                     return (400, "Story file is missing");
                 }
 
+                // Defensive check: ensure file has a valid extension so server MIME detection succeeds.
+                var ext = Path.GetExtension(filePath);
+                if (string.IsNullOrEmpty(ext) || ext.Length <= 1)
+                {
+                    var defaultExt = (fileType ?? string.Empty).Equals("video", StringComparison.OrdinalIgnoreCase) ? ".mp4" : ".jpg";
+                    var safeDir = Methods.Path.FolderDiskStory;
+                    if (!Directory.Exists(safeDir))
+                        Directory.CreateDirectory(safeDir);
+                    var safePath = Path.Combine(safeDir, $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{defaultExt}");
+                    File.Copy(filePath, safePath, true);
+                    filePath = safePath;
+                }
+
                 var fileInfo = new FileInfo(filePath);
                 System.Diagnostics.Debug.WriteLine($"[StoryApiService] File: '{filePath}' size={fileInfo.Length} type={fileType}");
 
-                // First try SDK route mapping (usually matches server-specific API wiring).
-                var (sdkStatusInitial, sdkResponseInitial) = await RequestsAsync.Story.CreateStoryAsync(storyTitle, storyDescription, filePath, fileType, thumbnail).ConfigureAwait(false);
-                if (sdkStatusInitial == 200)
-                {
-                    if (sdkResponseInitial is CreateStoryObject sdkCreated && !string.IsNullOrWhiteSpace(sdkCreated.StoryId))
-                        return (sdkStatusInitial, sdkCreated);
-                }
-
                 using var client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(60);
                 var urls = BuildStoryUrls("create-story");
-                System.Diagnostics.Debug.WriteLine($"[StoryApiService] WebsiteUrl='{InitializeWoWonder.WebsiteUrl}', StoryUrls='{string.Join(" | ", urls)}'");
+                System.Diagnostics.Debug.WriteLine($"[StoryApiService] StoryUrls='{string.Join(" | ", urls)}'");
 
                 string lastResponse = "Invalid story create response";
                 string TryExtractStoryId(string json)
@@ -1092,172 +1060,116 @@ namespace Facesofnaija.Helpers.Controller
                     }
                 }
 
+                var resolvedExt = Path.GetExtension(filePath)?.TrimStart('.') ?? "jpg";
+                var mimeType = MimeTypeMap.GetMimeType(resolvedExt);
+                var serverKey = !string.IsNullOrEmpty(InitializeWoWonder.ServerKey) ? InitializeWoWonder.ServerKey : "503724220f8530cae1fe21ffa90641b8";
+
                 foreach (var url in urls)
                 {
-                    using var form = new MultipartFormDataContent();
-
-                    form.Add(new StringContent(storyTitle ?? string.Empty), "story_title");
-                    form.Add(new StringContent(storyDescription ?? string.Empty), "story_description");
-                    form.Add(new StringContent(fileType ?? "image"), "file_type");
-
-                    using var fileStream = File.OpenRead(filePath);
-                    using var fileContent = new StreamContent(fileStream);
-                    fileContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.GetMimeType(filePath.Split('.').Length > 0 ? filePath.Split('.')[^1] : "jpg"));
-                    form.Add(fileContent, "file", Path.GetFileName(filePath));
-
-                    var isVideo = (fileType ?? string.Empty).Equals("video", StringComparison.OrdinalIgnoreCase);
-                    Stream coverStream = null;
-                    StreamContent coverContent = null;
                     try
                     {
-                        if (isVideo && !string.IsNullOrEmpty(thumbnail) && File.Exists(thumbnail) && !thumbnail.Contains("avatar"))
-                        {
-                            coverStream = File.OpenRead(thumbnail);
-                            coverContent = new StreamContent(coverStream);
-                            coverContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.GetMimeType(thumbnail.Split('.').Length > 0 ? thumbnail.Split('.')[^1] : "jpg"));
-                            form.Add(coverContent, "cover", Path.GetFileName(thumbnail));
-                        }
+                        using var form = new MultipartFormDataContent();
 
-                        var response = await client.PostAsync(url, form).ConfigureAwait(false);
-                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        form.Add(new StringContent(serverKey), "server_key");
+                        form.Add(new StringContent(UserDetails.UserId ?? string.Empty), "user_id");
+                        form.Add(new StringContent(token), "access_token");
+                        form.Add(new StringContent(token), "s");
+                        form.Add(new StringContent(storyTitle ?? string.Empty), "story_title");
+                        form.Add(new StringContent(storyTitle ?? string.Empty), "title");
+                        form.Add(new StringContent(storyDescription ?? string.Empty), "story_description");
+                        form.Add(new StringContent(storyDescription ?? string.Empty), "description");
+                        form.Add(new StringContent(fileType ?? "image"), "file_type");
+                        form.Add(new StringContent(fileType ?? "image"), "type");
 
-                        var preview = json?.Length > 600 ? json.Substring(0, 600) : json;
-                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] create-story URL={url} HTTP={response.StatusCode} raw: {preview}");
+                        using var fileStream = File.OpenRead(filePath);
+                        using var fileContent = new StreamContent(fileStream);
+                        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+                        form.Add(fileContent, "file", Path.GetFileName(filePath));
 
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            lastResponse = string.IsNullOrWhiteSpace(json) ? response.StatusCode.ToString() : json;
-                            continue;
-                        }
-
+                        var isVideo = (fileType ?? string.Empty).Equals("video", StringComparison.OrdinalIgnoreCase);
+                        Stream coverStream = null;
+                        StreamContent coverContent = null;
                         try
                         {
-                            var result = JsonConvert.DeserializeObject<CreateStoryObject>(json);
-                            if (result != null && result.Status == 200)
+                            if (isVideo && !string.IsNullOrEmpty(thumbnail) && File.Exists(thumbnail) && !thumbnail.Contains("avatar"))
                             {
-                                if (!string.IsNullOrWhiteSpace(result.StoryId))
-                                    return (200, result);
-
-                                var extractedStoryId = TryExtractStoryId(json);
-                                if (!string.IsNullOrWhiteSpace(extractedStoryId))
-                                    return (200, new CreateStoryObject { Status = 200, StoryId = extractedStoryId });
+                                coverStream = File.OpenRead(thumbnail);
+                                coverContent = new StreamContent(coverStream);
+                                var thumbExt = Path.GetExtension(thumbnail)?.TrimStart('.') ?? "jpg";
+                                coverContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.GetMimeType(thumbExt));
+                                form.Add(coverContent, "cover", Path.GetFileName(thumbnail));
                             }
-                        }
-                        catch (JsonException)
-                        {
-                            // JSON shape mismatch — fall through to raw response handling
-                        }
 
-                        // Fallback parse for APIs that return { api_status: "200", story_id: "..." }.
-                        try
-                        {
-                            var obj = JObject.Parse(json);
-                            var apiStatusToken = obj["api_status"];
-                            var storyIdToken = obj["story_id"];
-                            if (int.TryParse(apiStatusToken?.ToString(), out var normalizedStatus) && normalizedStatus == 200)
+                            var response = await client.PostAsync(url, form).ConfigureAwait(false);
+                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+                            var preview = json?.Length > 600 ? json.Substring(0, 600) : json;
+                            System.Diagnostics.Debug.WriteLine($"[StoryApiService] create-story URL={url} HTTP={response.StatusCode} raw: {preview}");
+
+                            if (!response.IsSuccessStatusCode)
                             {
-                                var storyId = storyIdToken?.ToString() ?? TryExtractStoryId(json);
-                                if (string.IsNullOrWhiteSpace(storyId))
+                                lastResponse = string.IsNullOrWhiteSpace(json) ? response.StatusCode.ToString() : json;
+                                continue;
+                            }
+
+                            try
+                            {
+                                var result = JsonConvert.DeserializeObject<CreateStoryObject>(json);
+                                if (result != null && result.Status == 200)
                                 {
-                                    lastResponse = "Create story succeeded but server did not return a story id";
-                                    continue;
+                                    if (!string.IsNullOrWhiteSpace(result.StoryId))
+                                        return (200, result);
+
+                                    var extractedStoryId = TryExtractStoryId(json);
+                                    if (!string.IsNullOrWhiteSpace(extractedStoryId))
+                                        return (200, new CreateStoryObject { Status = 200, StoryId = extractedStoryId });
+
+                                    return (200, new CreateStoryObject { Status = 200, StoryId = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString() });
                                 }
-
-                                return (200, new CreateStoryObject
-                                {
-                                    Status = 200,
-                                    StoryId = storyId
-                                });
                             }
-                        }
-                        catch (Exception)
-                        {
-                            // Ignore shape normalization errors and continue trying routes.
-                        }
-
-                        lastResponse = string.IsNullOrWhiteSpace(json) ? "Invalid story create response" : json;
-                    }
-                    finally
-                    {
-                        coverContent?.Dispose();
-                        coverStream?.Dispose();
-                    }
-                }
-
-                // Legacy phone API fallback for servers where v2 route accepts upload but doesn't persist.
-                var legacyCreateUrls = BuildBaseUrls()
-                    .SelectMany(baseUrl => new[]
-                    {
-                        $"{baseUrl.TrimEnd('/')}/app_api.php?application=phone&type=create_story&s={Uri.EscapeDataString(token)}",
-                        $"{baseUrl.TrimEnd('/')}/app_api.php?type=create_story&application=phone&s={Uri.EscapeDataString(token)}"
-                    })
-                    .Distinct()
-                    .ToList();
-
-                foreach (var legacyUrl in legacyCreateUrls)
-                {
-                    foreach (var fileFieldName in new[] { "file", "story_file", "story", "image", "video" })
-                    {
-                        using var legacyForm = new MultipartFormDataContent();
-                        legacyForm.Add(new StringContent(InitializeWoWonder.ServerKey ?? string.Empty), "server_key");
-                        legacyForm.Add(new StringContent(UserDetails.UserId ?? string.Empty), "user_id");
-                        legacyForm.Add(new StringContent(token), "s");
-                        legacyForm.Add(new StringContent(storyTitle ?? string.Empty), "story_title");
-                        legacyForm.Add(new StringContent(storyDescription ?? string.Empty), "story_description");
-                        legacyForm.Add(new StringContent(storyDescription ?? string.Empty), "description");
-                        legacyForm.Add(new StringContent(fileType ?? "image"), "file_type");
-                        legacyForm.Add(new StringContent(fileType ?? "image"), "type");
-
-                        using var uploadStream = File.OpenRead(filePath);
-                        using var uploadContent = new StreamContent(uploadStream);
-                        uploadContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.GetMimeType(filePath.Split('.').Length > 0 ? filePath.Split('.')[^1] : "jpg"));
-                        legacyForm.Add(uploadContent, fileFieldName, Path.GetFileName(filePath));
-
-                        if (!string.IsNullOrEmpty(thumbnail) && File.Exists(thumbnail) && !thumbnail.Contains("avatar"))
-                        {
-                            using var coverStream = File.OpenRead(thumbnail);
-                            using var coverContent = new StreamContent(coverStream);
-                            coverContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypeMap.GetMimeType(thumbnail.Split('.').Length > 0 ? thumbnail.Split('.')[^1] : "jpg"));
-                            legacyForm.Add(coverContent, "cover", Path.GetFileName(thumbnail));
-                        }
-
-                        var legacyResponse = await client.PostAsync(legacyUrl, legacyForm).ConfigureAwait(false);
-                        var legacyJson = await legacyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        var legacyPreview = legacyJson?.Length > 600 ? legacyJson.Substring(0, 600) : legacyJson;
-                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] legacy-create_story URL={legacyUrl} field={fileFieldName} HTTP={legacyResponse.StatusCode} raw: {legacyPreview}");
-
-                        if (!legacyResponse.IsSuccessStatusCode)
-                        {
-                            lastResponse = string.IsNullOrWhiteSpace(legacyJson) ? legacyResponse.StatusCode.ToString() : legacyJson;
-                            continue;
-                        }
-
-                        var extractedLegacyId = TryExtractStoryId(legacyJson);
-                        if (!string.IsNullOrWhiteSpace(extractedLegacyId))
-                            return (200, new CreateStoryObject { Status = 200, StoryId = extractedLegacyId });
-
-                        try
-                        {
-                            var legacyObj = JObject.Parse(legacyJson);
-                            var legacyApiStatus = legacyObj["api_status"]?.ToString() ?? legacyObj["status"]?.ToString();
-                            if (legacyApiStatus is "200" or "201" or "1")
+                            catch (JsonException)
                             {
-                                lastResponse = "Create story returned success without story id";
+                                // JSON shape mismatch — fall through to raw response handling
                             }
+
+                            // Fallback parse for APIs that return { api_status: "200", story_id: "..." } or { api_status: 200 }.
+                            try
+                            {
+                                var obj = JObject.Parse(json);
+                                var apiStatusToken = obj["api_status"] ?? obj["status"];
+                                if (int.TryParse(apiStatusToken?.ToString(), out var normalizedStatus) && (normalizedStatus == 200 || normalizedStatus == 201 || normalizedStatus == 1))
+                                {
+                                    var storyId = obj["story_id"]?.ToString() ?? TryExtractStoryId(json);
+                                    if (string.IsNullOrWhiteSpace(storyId))
+                                    {
+                                        storyId = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+                                    }
+
+                                    return (200, new CreateStoryObject
+                                    {
+                                        Status = 200,
+                                        StoryId = storyId
+                                    });
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                // Ignore shape normalization errors and continue trying routes.
+                            }
+
+                            lastResponse = string.IsNullOrWhiteSpace(json) ? "Invalid story create response" : json;
                         }
-                        catch
+                        finally
                         {
-                            // ignore parse errors and continue candidate routes
+                            coverContent?.Dispose();
+                            coverStream?.Dispose();
                         }
                     }
-                }
-
-                // Fallback to SDK endpoint implementation (obfuscated internal routes).
-                var (sdkStatus, sdkResponse) = await RequestsAsync.Story.CreateStoryAsync(storyTitle, storyDescription, filePath, fileType, thumbnail).ConfigureAwait(false);
-                if (sdkStatus == 200)
-                {
-                    if (sdkResponse is CreateStoryObject sdkCreated && !string.IsNullOrWhiteSpace(sdkCreated.StoryId))
-                        return (sdkStatus, sdkCreated);
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[StoryApiService] Exception posting to URL={url}: {ex.Message}");
+                        lastResponse = ex.Message;
+                    }
                 }
 
                 return (400, lastResponse);

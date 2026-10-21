@@ -1673,9 +1673,29 @@ namespace Facesofnaija.Activities.NativePost.Post
         {
             try
             {
+                if (item == null)
+                    return;
+
+                if (string.IsNullOrWhiteSpace(item.Orginaltext))
+                {
+                    if (!string.IsNullOrWhiteSpace(item.PostText))
+                        item.Orginaltext = item.PostText;
+                    else if (!string.IsNullOrWhiteSpace(item.PostTextApi))
+                        item.Orginaltext = item.PostTextApi;
+                }
+
+                EditPostActivity.PostDataExtra = item;
+
                 Intent intent = new Intent(MainContext, typeof(EditPostActivity));
                 intent.PutExtra("PostId", item.Id);
-                intent.PutExtra("PostItem", JsonConvert.SerializeObject(item));
+                try
+                {
+                    intent.PutExtra("PostItem", JsonConvert.SerializeObject(item));
+                }
+                catch (Exception ex)
+                {
+                    Methods.DisplayReportResultTrack(ex);
+                }
                 MainContext.StartActivityForResult(intent, 3950);
             }
             catch (Exception e)

@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using WoWonderClient.Requests;
 using WoWonderClient.Classes.Global;
+using WoWonderClient.Classes.User;
 using WoWonderClient.Classes.Posts;
 using WoWonderClient.Classes.Comments;
 using System.Collections.ObjectModel;
@@ -906,11 +907,12 @@ namespace Facesofnaija.CustomApi.Requests
                 if (seen)
                     url += "&seen=1";
 
+                var serverKey = !string.IsNullOrWhiteSpace(InitializeWoWonder.ServerKey) ? InitializeWoWonder.ServerKey : "FacesofnaijaAndroidApp2024Key";
                 var postData = new List<KeyValuePair<string, string>>
                 {
                     new KeyValuePair<string, string>("fetch", fetch ?? string.Empty),
                     new KeyValuePair<string, string>("offset", offset ?? "0"),
-                    new KeyValuePair<string, string>("server_key", InitializeWoWonder.ServerKey ?? string.Empty),
+                    new KeyValuePair<string, string>("server_key", serverKey),
                 };
                 if (!string.IsNullOrWhiteSpace(deviceId))
                     postData.Add(new KeyValuePair<string, string>("android_n_device_id", deviceId));
@@ -935,7 +937,25 @@ namespace Facesofnaija.CustomApi.Requests
                 {
                     var result = JsonConvert.DeserializeObject<GetGeneralDataObject>(json);
                     if (result != null)
+                    {
+                        try
+                        {
+                            var notifsToken = jObject["notifications"];
+                            if (notifsToken != null && notifsToken.Type == JTokenType.Array)
+                            {
+                                var customNotifs = notifsToken.ToObject<List<CustomNotificationObject>>();
+                                if (customNotifs != null)
+                                {
+                                    result.Notifications = customNotifs.Cast<NotificationObject>().ToList();
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn("FON_NOTIF", $"CustomNotificationObject parsing error: {ex.Message}");
+                        }
                         return (200, (dynamic)result);
+                    }
                 }
 
                 Log.Warn("FON_NOTIF", $"GetGeneralDataDirectAsync api_status={status}");
@@ -1130,6 +1150,100 @@ namespace Facesofnaija.CustomApi.Requests
                             }
                             else
                                 lastError = json;
+                        }
+
+                        return (400, lastError);
+                    }
+                    catch (Exception ex)
+                    {
+                        return (404, ex.Message);
+                    }
+                }
+
+                public static async Task<(int, dynamic)> EditPostAsync(
+                    string postId,
+                    string textContent,
+                    string privacy,
+                    List<string> newImagePaths = null,
+                    string deletedImagesIds = null,
+                    bool allImagesDeleted = false)
+                {
+                    try
+                    {
+                        var sessionId = string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? Current.AccessToken : UserDetails.AccessToken;
+                        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(postId))
+                            return (400, "Missing session or post id");
+
+                        var userId = UserDetails.UserId ?? "";
+                        using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(60) };
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                        var endpoints = new[]
+                        {
+                            $"{GetApiBase()}/api-v2.php?type=post-actions&access_token={Uri.EscapeDataString(sessionId)}",
+                            $"{GetApiBase()}/api/post-actions?access_token={Uri.EscapeDataString(sessionId)}"
+                        };
+
+                        string lastError = "Edit post failed.";
+                        foreach (var url in endpoints)
+                        {
+                            try
+                            {
+                                using var form = new MultipartFormDataContent(Guid.NewGuid().ToString());
+                                form.Add(new StringContent(InitializeWoWonder.ServerKey ?? string.Empty), "server_key");
+                                form.Add(new StringContent(userId), "user_id");
+                                form.Add(new StringContent(sessionId), "s");
+                                form.Add(new StringContent(postId), "post_id");
+                                form.Add(new StringContent("edit"), "action");
+                                form.Add(new StringContent(textContent ?? string.Empty), "text");
+
+                                if (!string.IsNullOrEmpty(privacy))
+                                    form.Add(new StringContent(privacy), "privacy_type");
+
+                                if (allImagesDeleted)
+                                    form.Add(new StringContent("1"), "all_images");
+
+                                if (!string.IsNullOrEmpty(deletedImagesIds))
+                                    form.Add(new StringContent(deletedImagesIds), "deleted_images");
+
+                                if (newImagePaths != null && newImagePaths.Count > 0)
+                                {
+                                    foreach (var imagePath in newImagePaths)
+                                    {
+                                        if (!string.IsNullOrEmpty(imagePath) && System.IO.File.Exists(imagePath))
+                                        {
+                                            var fileStream = System.IO.File.OpenRead(imagePath);
+                                            var imageContent = new StreamContent(fileStream);
+                                            imageContent.Headers.ContentType = new MediaTypeHeaderValue(GetMimeType(imagePath));
+                                            form.Add(imageContent, "images[]", System.IO.Path.GetFileName(imagePath));
+                                        }
+                                    }
+                                }
+
+                                var response = await client.PostAsync(url, form);
+                                var json = await response.Content.ReadAsStringAsync();
+
+                                if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                                {
+                                    lastError = $"Unexpected server response (HTTP {(int)response.StatusCode})";
+                                    continue;
+                                }
+
+                                var token = JObject.Parse(json);
+                                var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                                if (apiStatus == "200" || apiStatus == "201" || apiStatus == "1")
+                                {
+                                    return (200, token);
+                                }
+
+                                var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? json;
+                                lastError = errorText;
+                            }
+                            catch (Exception ex)
+                            {
+                                lastError = ex.Message;
+                            }
                         }
 
                         return (400, lastError);
@@ -2015,7 +2129,8 @@ namespace Facesofnaija.CustomApi.Requests
                     var idKey = isReply ? "comment_id" : "post_id";
                     var endpoints = new[]
                     {
-                        $"{GetApiBase()}/api/comments?access_token={sessionId}&{idKey}={targetId}&limit={limit}&offset={offset}",
+                        $"{GetApiBase()}/api/comments?access_token={sessionId}&{idKey}={targetId}&limit={limit}&offset={offset}&type={type}",
+                        $"{GetApiBase()}/api/get-post-comments?access_token={sessionId}&post_id={targetId}&limit={limit}&offset={offset}",
                         $"{GetApiBase()}/api/comment?access_token={sessionId}&{idKey}={targetId}&limit={limit}&offset={offset}&type={type}",
                     };
 
@@ -2054,6 +2169,65 @@ namespace Facesofnaija.CustomApi.Requests
                     }
 
                     return (400, "Comment loading web API fallback failed");
+                }
+
+                public static async Task<(int, dynamic)> FetchPostDataWebApiAsync(string sessionId, string postId, string fetch = "post_data")
+                {
+                    using var handler = new Xamarin.Android.Net.AndroidMessageHandler();
+                    using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                    var endpoints = new[]
+                    {
+                        $"{GetApiBase()}/api-v2.php?type=get-post-data&access_token={Uri.EscapeDataString(sessionId ?? string.Empty)}",
+                        $"{GetApiBase()}/api/get-post-data?access_token={Uri.EscapeDataString(sessionId ?? string.Empty)}",
+                        $"{GetApiBase()}/app_api.php?application=phone&type=get_post_data&s={Uri.EscapeDataString(sessionId ?? string.Empty)}"
+                    };
+
+                    var serverKey = !string.IsNullOrWhiteSpace(InitializeWoWonder.ServerKey) ? InitializeWoWonder.ServerKey : "FacesofnaijaAndroidApp2024Key";
+                    var postData = new Dictionary<string, string>
+                    {
+                        { "server_key", serverKey },
+                        { "post_id", postId ?? string.Empty },
+                        { "id", postId ?? string.Empty },
+                        { "fetch", fetch ?? "post_data" }
+                    };
+
+                    foreach (var endpoint in endpoints)
+                    {
+                        try
+                        {
+                            Log.Info("WoFallback", $"FetchPostDataWebApi trying endpoint={endpoint} postId={postId}");
+                            using var form = new FormUrlEncodedContent(postData);
+                            var response = await client.PostAsync(endpoint, form);
+                            var json = await response.Content.ReadAsStringAsync();
+
+                            if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("{"))
+                                continue;
+
+                            var token = JObject.Parse(json);
+                            var apiStatus = token["api_status"]?.ToString() ?? token["status"]?.ToString();
+                            if (apiStatus == "200" || apiStatus == "201")
+                            {
+                                var result = JsonConvert.DeserializeObject<GetPostDataObject>(json);
+                                if (result?.PostData != null)
+                                {
+                                    result.Status = 200;
+                                    return (200, result);
+                                }
+                            }
+
+                            var errorText = token["errors"]?["error_text"]?.ToString() ?? token["error"]?.ToString() ?? json;
+                            Log.Warn("WoFallback", $"FetchPostDataWebApi failed endpoint={endpoint} apiStatus={apiStatus} error={errorText}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warn("WoFallback", $"FetchPostDataWebApi exception endpoint={endpoint} ex={ex.Message}");
+                        }
+                    }
+
+                    return (400, "Post loading web API fallback failed");
                 }
 
                 public static async Task<(int, dynamic)> SharePostWebApiAsync(string sessionId, string postId, string targetId, string shareMode, string text)
@@ -2208,6 +2382,114 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                 }
             }
+
+        public static async Task<(int Status, string FollowStatus, string Error)> FollowUserDirectAsync(string userId, string action = "follow")
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(userId))
+                    return (400, "", "user_id is missing");
+
+                string sessionId = Current.AccessToken ?? UserDetails.AccessToken ?? "";
+                if (string.IsNullOrEmpty(sessionId))
+                    return (401, "", "Session expired");
+
+                string serverKey = InitializeWoWonder.ServerKey ?? "FacesofnaijaAndroidApp2024Key";
+                string url = AppSettings.SiteUrl + "/api-v2.php?type=follow-user&access_token=" + Uri.EscapeDataString(sessionId);
+
+                using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler())
+                {
+                    Timeout = TimeSpan.FromSeconds(30)
+                };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var postData = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("server_key", serverKey),
+                    new KeyValuePair<string, string>("user_id", userId)
+                };
+
+                if (!string.IsNullOrEmpty(action))
+                {
+                    postData.Add(new KeyValuePair<string, string>("action", action));
+                }
+
+                using var content = new FormUrlEncodedContent(postData);
+                var response = await client.PostAsync(url, content);
+                string json = await response.Content.ReadAsStringAsync();
+
+                Log.Debug("FON_FOLLOW_USER", $"userId={userId}, action={action}, status={(int)response.StatusCode}, json={json}");
+
+                if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                {
+                    var jObj = JObject.Parse(json);
+                    int apiStatus = jObj["api_status"]?.Value<int>() ?? 0;
+                    if (apiStatus == 200)
+                    {
+                        string followStatus = jObj["follow_status"]?.ToString() ?? "";
+                        return (200, followStatus, null);
+                    }
+                    string errorText = jObj["errors"]?["error_text"]?.ToString() ?? jObj["message"]?.ToString() ?? "Unknown error";
+                    return (apiStatus != 0 ? apiStatus : 400, "", errorText);
+                }
+
+                return ((int)response.StatusCode, "", "Network request failed: " + response.ReasonPhrase);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("FON_FOLLOW_USER", $"EXCEPTION: {ex.Message}");
+                return (404, "", ex.Message);
+            }
+        }
+
+        public static async Task<(int, dynamic)> GetUserDataDirectAsync(string userId, string fetch = "user_data,followers,following,liked_pages,joined_groups,family")
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(userId))
+                    return (400, "user_id is missing");
+
+                string sessionId = Current.AccessToken ?? UserDetails.AccessToken ?? "";
+                if (string.IsNullOrEmpty(sessionId))
+                    return (401, "Session expired");
+
+                string serverKey = InitializeWoWonder.ServerKey ?? "FacesofnaijaAndroidApp2024Key";
+                string url = AppSettings.SiteUrl + "/api-v2.php?type=get-user-data&access_token=" + Uri.EscapeDataString(sessionId);
+
+                using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler())
+                {
+                    Timeout = TimeSpan.FromSeconds(30)
+                };
+                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                var content = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("server_key", serverKey),
+                    new KeyValuePair<string, string>("user_id", userId),
+                    new KeyValuePair<string, string>("fetch", fetch)
+                });
+
+                var response = await client.PostAsync(url, content);
+                string json = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                {
+                    var result = JsonConvert.DeserializeObject<GetUserDataObject>(json);
+                    if (result != null && result.Status == 200)
+                    {
+                        return (200, result);
+                    }
+                }
+                var error = JsonConvert.DeserializeObject<ErrorObject>(json);
+                return (400, error);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("FON_GET_USER_DATA", $"EXCEPTION: {ex.Message}");
+                return (404, ex.Message);
+            }
         }
     }
 
@@ -2253,3 +2535,4 @@ namespace Facesofnaija.CustomApi.Requests
             base.Dispose(disposing);
         }
     }
+}

@@ -401,7 +401,7 @@ namespace Facesofnaija.Activities.Album
                 }
                 else
                 {
-                    if (string.IsNullOrEmpty(TxtNameAlbum.Text.Replace(" ", "")))
+                    if (string.IsNullOrWhiteSpace(TxtNameAlbum.Text))
                     {
                         ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_Please_enter_name), ToastLength.Short);
                         return;
@@ -417,26 +417,22 @@ namespace Facesofnaija.Activities.Album
                         ProgressDialogHelper.Show(this, GetText(Resource.String.Lbl_Loading) + "...");
 
                         var list = MAdapter.AttachmentList.Where(a => a.TypeAttachment != "Default").ToList();
-                        var (apiStatus, respond) = await RequestsAsync.Album.CreateAlbumAsync(TxtNameAlbum.Text.Replace(" ", ""), new ObservableCollection<Attachments>(list));
-                        if (apiStatus == 200)
+                        var (apiStatus, respond) = await RequestsAsync.Album.CreateAlbumAsync(TxtNameAlbum.Text.Trim(), new ObservableCollection<Attachments>(list));
+                        ProgressDialogHelper.Dismiss(this);
+                        if (apiStatus == 200 && respond is CreateAlbumObject result && result.Data != null)
                         {
-                            if (respond is CreateAlbumObject result)
-                            {
-                                if (result.Data.PhotoAlbum.Count > 0)
-                                {
-                                    ProgressDialogHelper.Dismiss(this);
-                                    ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_CreatedSuccessfully), ToastLength.Short);
+                            ToastUtils.ShowToast(this, GetText(Resource.String.Lbl_CreatedSuccessfully), ToastLength.Short);
 
-                                    //AlbumItem >> PostDataObject  
-                                    Intent returnIntent = new Intent();
-                                    returnIntent?.PutExtra("AlbumItem", JsonConvert.SerializeObject(result.Data));
-                                    SetResult(Result.Ok, returnIntent);
-                                    Finish();
-                                }
-                            }
+                            //AlbumItem >> PostDataObject  
+                            Intent returnIntent = new Intent();
+                            returnIntent.PutExtra("AlbumItem", JsonConvert.SerializeObject(result.Data));
+                            SetResult(Result.Ok, returnIntent);
+                            Finish();
                         }
                         else
+                        {
                             Methods.DisplayAndHudErrorResult(this, respond);
+                        }
                     }
                 }
             }

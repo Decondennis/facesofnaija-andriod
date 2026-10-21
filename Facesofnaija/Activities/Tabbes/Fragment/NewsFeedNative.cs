@@ -635,7 +635,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                                             freshSection.StoryList ??= new ObservableCollection<StoryDataObject>();
 
-                                            // Ensure "Your Story" entry exists in the differ's list (not just in StoryAdapter)
+                                            // Ensure "Add Story" entry exists at index 0 in the differ's list
                                             var yourEntry = freshSection.StoryList.FirstOrDefault(s => s.Type == "Your");
                                             var insertedYourEntry = false;
                                             if (yourEntry == null)
@@ -645,7 +645,8 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     UserId = UserDetails.UserId,
                                                     Avatar = ResolveCurrentUserAvatar(),
                                                     Type = "Your",
-                                                    Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
+                                                    Username = Activity?.GetText(Resource.String.Lbl_AddStory) ?? "Add Story",
+                                                    Stories = new List<StoryDataObject.Story>()
                                                 };
                                                 freshSection.StoryList.Insert(0, yourEntry);
                                                 insertedYourEntry = true;
@@ -653,24 +654,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                                             yourEntry.UserId = UserDetails.UserId;
                                             yourEntry.Type = "Your";
-                                            yourEntry.Stories = new List<StoryDataObject.Story>();
-
-                                            // Do NOT copy cachedSelfGroup stories into "Your Story" entry.
-                                            // The user's own story appears as a separate frame in the list.
-                                            var selfEntries = freshSection.StoryList
-                                                .Where(s => s != null
-                                                            && !ReferenceEquals(s, yourEntry)
-                                                            && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
-                                                .ToList();
-                                            foreach (var selfEntry in selfEntries)
-                                            {
-                                                if (!string.IsNullOrWhiteSpace(selfEntry?.Avatar)
-                                                    && !selfEntry.Avatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase)
-                                                    && !selfEntry.Avatar.Contains("d-avatar", StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    yourEntry.Avatar = NormalizeStoryUrl(selfEntry.Avatar);
-                                                }
-                                            }
+                                            yourEntry.Username = Activity?.GetText(Resource.String.Lbl_AddStory) ?? "Add Story";
+                                            yourEntry.Stories ??= new List<StoryDataObject.Story>();
+                                            yourEntry.Stories.Clear(); // Keep "Add Story" strictly as the add button
 
                                             var yourIndex = freshSection.StoryList.IndexOf(yourEntry);
                                             if (yourIndex > 0)
@@ -679,9 +665,108 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                 freshSection.StoryList.Insert(0, yourEntry);
                                             }
 
-                                            bool added = insertedYourEntry;
+                                            // Check if incoming server stories contain current user's stories
+                                            var serverSelfGroup = storiesToAdd.FirstOrDefault(s => s != null && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+                                            if (serverSelfGroup != null)
+                                            {
+                                                storiesToAdd.Remove(serverSelfGroup);
+                                            }
+
+                                            // Find existing separate user story frame in freshSection.StoryList (not yourEntry)
+                                            var userStoryEntry = freshSection.StoryList.FirstOrDefault(s => s != null
+                                                && !ReferenceEquals(s, yourEntry)
+                                                && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
+
+                                            // Determine user's active stories source:
+                                            List<StoryDataObject.Story> selfStories = null;
+                                            List<long> selfDurations = null;
+                                            string selfAvatar = null;
+
+                                            if (serverSelfGroup?.Stories?.Count > 0)
+                                            {
+                                                selfStories = serverSelfGroup.Stories;
+                                                selfDurations = serverSelfGroup.DurationsList;
+                                                selfAvatar = serverSelfGroup.Avatar;
+                                            }
+                                            else
+                                            {
+                                                var cachedSelf = StoryApiService.GetLatestSelfStoryGroup();
+                                                if (cachedSelf?.Stories?.Count > 0)
+                                                {
+                                                    selfStories = new List<StoryDataObject.Story>(cachedSelf.Stories);
+                                                    selfDurations = cachedSelf.DurationsList != null ? new List<long>(cachedSelf.DurationsList) : null;
+                                                    selfAvatar = cachedSelf.Avatar;
+                                                }
+                                            }
+
+                                            if (string.IsNullOrWhiteSpace(selfAvatar) || selfAvatar.Contains("no_profile", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                selfAvatar = ResolveCurrentUserAvatar();
+                                            }
+
+                                            // Remove any duplicate separate self entries if there are more than 1
+                                            var extraSelfEntries = freshSection.StoryList
+                                                .Where(s => s != null
+                                                            && !ReferenceEquals(s, yourEntry)
+                                                            && !ReferenceEquals(s, userStoryEntry)
+                                                            && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
+                                                .ToList();
+                                            foreach (var extra in extraSelfEntries)
+                                            {
+                                                freshSection.StoryList.Remove(extra);
+                                            }
+
+                                            bool userStoryChanged = false;
+                                            if (selfStories != null && selfStories.Count > 0)
+                                            {
+                                                if (userStoryEntry == null)
+                                                {
+                                                    userStoryEntry = new StoryDataObject
+                                                    {
+                                                        UserId = UserDetails.UserId,
+                                                        Type = "Story",
+                                                        Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story",
+                                                        Avatar = NormalizeStoryUrl(selfAvatar),
+                                                        Stories = selfStories,
+                                                        DurationsList = selfDurations ?? new List<long>(),
+                                                    };
+                                                    var insertPos = freshSection.StoryList.Count > 1 ? 1 : freshSection.StoryList.Count;
+                                                    freshSection.StoryList.Insert(insertPos, userStoryEntry);
+                                                    userStoryChanged = true;
+                                                }
+                                                else
+                                                {
+                                                    userStoryEntry.Type = "Story";
+                                                    userStoryEntry.Username = Activity?.GetText(Resource.String.Lbl_YourStory) ?? "Your Story";
+                                                    userStoryEntry.Stories = selfStories;
+                                                    if (selfDurations != null)
+                                                        userStoryEntry.DurationsList = selfDurations;
+                                                    if (!string.IsNullOrWhiteSpace(selfAvatar))
+                                                        userStoryEntry.Avatar = NormalizeStoryUrl(selfAvatar);
+
+                                                    var curPos = freshSection.StoryList.IndexOf(userStoryEntry);
+                                                    if (curPos != 1 && freshSection.StoryList.Count > 1)
+                                                    {
+                                                        freshSection.StoryList.RemoveAt(curPos);
+                                                        freshSection.StoryList.Insert(1, userStoryEntry);
+                                                    }
+                                                    userStoryChanged = true;
+                                                }
+
+                                                StoryApiService.SetLatestSelfStoryGroup(userStoryEntry);
+                                            }
+                                            else if (userStoryEntry != null)
+                                            {
+                                                freshSection.StoryList.Remove(userStoryEntry);
+                                                userStoryChanged = true;
+                                            }
+
+                                            bool added = insertedYourEntry || userStoryChanged;
                                             foreach (var storyItem in storiesToAdd)
                                             {
+                                                if (string.Equals(storyItem?.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
+                                                    continue;
+
                                                 var existing = freshSection.StoryList.FirstOrDefault(s => s != null && !ReferenceEquals(s, yourEntry) && string.Equals(s.UserId, storyItem?.UserId, StringComparison.OrdinalIgnoreCase));
                                                 if (existing != null)
                                                 {
@@ -700,34 +785,6 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                                     freshSection.StoryList.Add(storyItem);
                                                     added = true;
                                                 }
-
-                                                // Update "Your Story" entry avatar from the user's own story data
-                                                if (string.Equals(storyItem.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase))
-                                                {
-                                                    var resolvedAvatar = !string.IsNullOrWhiteSpace(storyItem.Avatar)
-                                                        ? NormalizeStoryUrl(storyItem.Avatar)
-                                                        : ResolveCurrentUserAvatar();
-                                                    yourEntry.UserId = UserDetails.UserId;
-                                                    var hasChanges = yourEntry.Avatar != resolvedAvatar;
-                                                    yourEntry.Avatar = resolvedAvatar;
-                                                    if (yourEntry.Stories?.Count > 0 && (string.IsNullOrWhiteSpace(yourEntry.Stories[0].Thumbnail) || yourEntry.Stories[0].Thumbnail.Contains("no_profile", StringComparison.OrdinalIgnoreCase) || yourEntry.Stories[0].Thumbnail.Contains("d-avatar", StringComparison.OrdinalIgnoreCase)))
-                                                        yourEntry.Stories[0].Thumbnail = resolvedAvatar;
-                                                    if (!string.IsNullOrWhiteSpace(resolvedAvatar) && resolvedAvatar.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                                                        UserDetails.Avatar = resolvedAvatar;
-                                                    if (hasChanges) added = true;
-                                                }
-                                            }
-
-                                            // If the user's own story is not in the list from the server, add it from local cache
-                                            var myExisting = freshSection.StoryList.FirstOrDefault(s => s != null && !ReferenceEquals(s, yourEntry) && string.Equals(s.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase));
-                                            if (myExisting == null)
-                                            {
-                                                var cachedSelf = StoryApiService.GetLatestSelfStoryGroup();
-                                                if (cachedSelf != null && string.Equals(cachedSelf.UserId, UserDetails.UserId, StringComparison.OrdinalIgnoreCase) && cachedSelf.Stories?.Count > 0)
-                                                {
-                                                    freshSection.StoryList.Add(cachedSelf);
-                                                    added = true;
-                                                }
                                             }
 
                                             if (!added) return;
@@ -738,6 +795,7 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                             var storyIdx = PostFeedAdapter.ListDiffer.IndexOf(freshSection);
                                             Android.Util.Log.Warn("FON_TIMELINE", $"LoadStory: NotifyItemChanged idx={storyIdx} storyListCount={freshSection.StoryList.Count}");
                                             PostFeedAdapter?.NotifyItemChanged(storyIdx);
+                                            PostFeedAdapter?.HolderStory?.StoryAdapter?.NotifyDataSetChanged();
 
                                             // Also update "What's Going On" avatar from the user's own story avatar
                                             if (yourEntry?.Avatar?.StartsWith("http", StringComparison.OrdinalIgnoreCase) == true)

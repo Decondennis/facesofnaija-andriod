@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Widget;
 using Com.Onesignal;
@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using Facesofnaija.Activities.Tabbes;
+using Facesofnaija.Activities.Tabbes.Fragment;
 using Facesofnaija.Helpers.MediaPlayerController;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
@@ -17,7 +18,7 @@ namespace Facesofnaija.Library.OneSignalNotif
     {
         //Force your app to Register Notification directly without loading it from server (For Best Result)
 
-        private static string UserId, PostId, PageId, GroupId, EventId, Type;
+        private static string UserId, PostId, PageId, GroupId, EventId, CommunityId, Type;
 
         private static volatile OneSignalNotification InstanceRenamed;
         public static OneSignalNotification Instance
@@ -208,52 +209,117 @@ namespace Facesofnaija.Library.OneSignalNotif
                 string message = notification.Notification.Body;
                 Dictionary<string, object> additionalData = notification.Notification.AdditionalData;
 
+                string userId = "";
+                string postId = "";
+                string pageId = "";
+                string groupId = "";
+                string eventId = "";
+                string communityId = "";
+                string type = "";
+                string url = "";
+
                 if (additionalData?.Count > 0)
                 {
                     foreach (var item in additionalData)
                     {
-                        switch (item.Key)
+                        var key = item.Key?.ToLowerInvariant() ?? "";
+                        var val = item.Value?.ToString() ?? "";
+
+                        switch (key)
                         {
                             case "post_id":
-                                PostId = item.Value.ToString();
+                                postId = val;
+                                break;
+                            case "story_id":
+                                if (string.IsNullOrEmpty(postId) || postId == "0")
+                                    postId = val;
                                 break;
                             case "user_id":
-                                UserId = item.Value.ToString();
+                                userId = val;
                                 break;
                             case "page_id":
-                                PageId = item.Value.ToString();
+                                pageId = val;
                                 break;
                             case "group_id":
-                                GroupId = item.Value.ToString();
+                                groupId = val;
                                 break;
                             case "event_id":
-                                EventId = item.Value.ToString();
+                                eventId = val;
+                                break;
+                            case "community_id":
+                                communityId = val;
                                 break;
                             case "type":
                             case "chat_type":
-                                Type = item.Value.ToString();
+                                type = val;
                                 break;
-                            case "call_type": //room_name ,call_id
-                                Type = "call_" + item.Value.ToString();
+                            case "call_type":
+                                type = "call_" + val;
+                                break;
+                            case "url":
+                            case "ajax_url":
+                            case "full_link":
+                                url = val;
                                 break;
                         }
                     }
                 }
 
+                // If postId is empty/0, try extracting from url
+                if ((string.IsNullOrEmpty(postId) || postId == "0") && !string.IsNullOrEmpty(url))
+                {
+                    var extPost = NotificationsFragment.ExtractPostIdFromUrl(url);
+                    if (!string.IsNullOrEmpty(extPost))
+                        postId = extPost;
+                }
+
+                // If communityId is empty/0, try extracting from url
+                if ((string.IsNullOrEmpty(communityId) || communityId == "0") && !string.IsNullOrEmpty(url))
+                {
+                    var extComm = NotificationsFragment.ExtractCommunityIdFromUrl(url);
+                    if (!string.IsNullOrEmpty(extComm))
+                        communityId = extComm;
+                }
+
+                // If groupId is empty/0, try extracting from url
+                if ((string.IsNullOrEmpty(groupId) || groupId == "0") && !string.IsNullOrEmpty(url))
+                {
+                    var extGroup = NotificationsFragment.ExtractGroupIdFromUrl(url);
+                    if (!string.IsNullOrEmpty(extGroup))
+                        groupId = extGroup;
+                }
+
+                // If pageId is empty/0, try extracting from url
+                if ((string.IsNullOrEmpty(pageId) || pageId == "0") && !string.IsNullOrEmpty(url))
+                {
+                    var extPage = NotificationsFragment.ExtractPageIdFromUrl(url);
+                    if (!string.IsNullOrEmpty(extPage))
+                        pageId = extPage;
+                }
+
+                UserId = userId;
+                PostId = postId;
+                PageId = pageId;
+                GroupId = groupId;
+                EventId = eventId;
+                CommunityId = communityId;
+                Type = type;
+
                 Constant.IsOpenNotify = true;
 
-                //to : do
                 //go to activity or fragment depending on data 
                 Intent intent = new Intent(Application.Context, typeof(TabbedMainActivity));
                 intent.SetFlags(ActivityFlags.NewTask | ActivityFlags.ClearTask);
                 intent.AddFlags(ActivityFlags.SingleTop);
                 intent.SetAction(Intent.ActionView);
-                intent.PutExtra("userId", UserId);
-                intent.PutExtra("PostId", PostId);
-                intent.PutExtra("PageId", PageId);
-                intent.PutExtra("GroupId", GroupId);
-                intent.PutExtra("EventId", EventId);
-                intent.PutExtra("type", Type);
+                intent.PutExtra("userId", userId);
+                intent.PutExtra("PostId", postId);
+                intent.PutExtra("PageId", pageId);
+                intent.PutExtra("GroupId", groupId);
+                intent.PutExtra("CommunityId", communityId);
+                intent.PutExtra("EventId", eventId);
+                intent.PutExtra("type", type);
+                intent.PutExtra("url", url);
                 intent.PutExtra("Notifier", "Notifier");
                 Application.Context.StartActivity(intent);
             }

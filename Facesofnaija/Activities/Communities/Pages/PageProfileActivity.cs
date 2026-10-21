@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
@@ -781,15 +781,30 @@ namespace Facesofnaija.Activities.Communities.Pages
                         {
                             var postId = data.GetStringExtra("PostId") ?? "";
                             var postText = data.GetStringExtra("PostText") ?? "";
+                            var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                            if (updatedPost != null)
+                            {
+                                if (PostFeedAdapter != null)
+                                    FeedCombiner.UpdatePostInAdapter(PostFeedAdapter, updatedPost, this);
+
+                                var mainFeedAdapter = Facesofnaija.Activities.Tabbes.TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                                if (mainFeedAdapter != null && mainFeedAdapter != PostFeedAdapter)
+                                    FeedCombiner.UpdatePostInAdapter(mainFeedAdapter, updatedPost, this);
+
+                                break;
+                            }
+
                             var diff = PostFeedAdapter?.ListDiffer;
-                            var dataGlobal = diff.Where(a => a.PostData?.Id == postId).ToList();
-                            switch (dataGlobal.Count)
+                            var dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
+                            switch (dataGlobal?.Count)
                             {
                                 case > 0:
                                     {
                                         foreach (var postData in dataGlobal)
                                         {
                                             postData.PostData.Orginaltext = postText;
+                                            postData.PostData.PostText = postText;
                                             var index = diff.IndexOf(postData);
                                             switch (index)
                                             {
@@ -832,6 +847,7 @@ namespace Facesofnaija.Activities.Communities.Pages
 
                             break;
                         }
+
                     //Edit post product 
                     case 3500 when resultCode == Result.Ok:
                         {
@@ -1332,14 +1348,23 @@ namespace Facesofnaija.Activities.Communities.Pages
 
         private async Task GetPageDataApi()
         {
-            var (apiStatus, respond) = await RequestsAsync.Page.GetPageDataAsync(PageId);
-
-            if (apiStatus != 200 || respond is not GetPageDataObject result || result.PageData == null)
-                Methods.DisplayReportResult(this, respond);
-            else
+            try
             {
-                PageData = result.PageData;
-                RunOnUiThread(() => LoadPassedData(PageData));
+                var (apiStatus, respond) = await RequestsAsync.Page.GetPageDataAsync(PageId);
+
+                if (apiStatus != 200 || respond is not GetPageDataObject result || result.PageData == null)
+                {
+                    Android.Util.Log.Warn("WoPage", $"GetPageDataApi failed status={apiStatus}");
+                }
+                else
+                {
+                    PageData = result.PageData;
+                    RunOnUiThread(() => LoadPassedData(PageData));
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
             }
         }
 

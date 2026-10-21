@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Ads;
@@ -13,7 +13,9 @@ using Bumptech.Glide.Util;
 using Google.Android.Material.FloatingActionButton;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Facesofnaija.Activities.Album.Adapters;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Activities.UsersPages;
@@ -372,7 +374,26 @@ namespace Facesofnaija.Activities.Album
                 {
                     Toolbar.Title = Methods.FunString.DecodeString(ImageData.AlbumName);
 
-                    MAdapter.PhotosList = new ObservableCollection<PhotoAlbumObject>(ImageData.PhotoAlbum);
+                    if (ImageData.PhotoAlbum != null && ImageData.PhotoAlbum.Count > 0)
+                    {
+                        MAdapter.PhotosList = new ObservableCollection<PhotoAlbumObject>(ImageData.PhotoAlbum);
+                    }
+                    else if (ImageData.PhotoMulti != null && ImageData.PhotoMulti.Count > 0)
+                    {
+                        var list = ImageData.PhotoMulti.Select(m => new PhotoAlbumObject
+                        {
+                            Id = m.Id,
+                            PostId = m.PostId,
+                            Image = m.Image,
+                            ImageOrg = m.ImageOrg
+                        }).ToList();
+                        ImageData.PhotoAlbum = list;
+                        MAdapter.PhotosList = new ObservableCollection<PhotoAlbumObject>(list);
+                    }
+                    else
+                    {
+                        MAdapter.PhotosList = new ObservableCollection<PhotoAlbumObject>();
+                    }
                     MAdapter.NotifyDataSetChanged();
 
                     MRecycler.Visibility = ViewStates.Visible;

@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Gms.Maps;
@@ -641,15 +641,30 @@ namespace Facesofnaija.Activities.Events
                         {
                             var postId = data.GetStringExtra("PostId") ?? "";
                             var postText = data.GetStringExtra("PostText") ?? "";
+                            var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                            if (updatedPost != null)
+                            {
+                                if (PostFeedAdapter != null)
+                                    FeedCombiner.UpdatePostInAdapter(PostFeedAdapter, updatedPost, this);
+
+                                var mainFeedAdapter = Facesofnaija.Activities.Tabbes.TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                                if (mainFeedAdapter != null && mainFeedAdapter != PostFeedAdapter)
+                                    FeedCombiner.UpdatePostInAdapter(mainFeedAdapter, updatedPost, this);
+
+                                break;
+                            }
+
                             var diff = PostFeedAdapter?.ListDiffer;
-                            List<AdapterModelsClass> dataGlobal = diff.Where(a => a.PostData?.Id == postId).ToList();
-                            switch (dataGlobal.Count)
+                            List<AdapterModelsClass> dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
+                            switch (dataGlobal?.Count)
                             {
                                 case > 0:
                                     {
                                         foreach (var postData in dataGlobal)
                                         {
                                             postData.PostData.Orginaltext = postText;
+                                            postData.PostData.PostText = postText;
                                             var index = diff.IndexOf(postData);
                                             switch (index)
                                             {

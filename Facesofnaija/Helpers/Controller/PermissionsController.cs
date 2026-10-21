@@ -1,4 +1,4 @@
-﻿using Android;
+using Android;
 using Android.App;
 using Android.Content.PM;
 using Android.OS;
@@ -35,34 +35,30 @@ namespace Facesofnaija.Helpers.Controller
             if ((int)Build.VERSION.SdkInt < 23)
                 return true;
 
-            //below android 13
+            // Android 13+ (API 33+)
             if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
             {
+                if (type == "image")
+                {
+                    return ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaImages) == Permission.Granted ||
+                           ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted;
+                }
 
-                if (type == "image" &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.WriteExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaImages) == Permission.Granted)
-                    return true;
+                if (type == "video")
+                {
+                    return ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaVideo) == Permission.Granted ||
+                           ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted;
+                }
 
-                if (type == "video" &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.WriteExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaVideo) == Permission.Granted)
-                    return true;
+                if (type == "audio")
+                {
+                    return ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaAudio) == Permission.Granted ||
+                           ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted;
+                }
 
-                if (type == "audio" &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.WriteExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaAudio) == Permission.Granted)
-                    return true;
-
-                if (ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.WriteExternalStorage) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaImages) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaVideo) == Permission.Granted &&
-                    ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaAudio) == Permission.Granted)
-                    return true;
+                return (ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaImages) == Permission.Granted &&
+                        ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadMediaVideo) == Permission.Granted) ||
+                       ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted;
             }
 
             if (ContextCompat.CheckSelfPermission(Application.Context, Manifest.Permission.ReadExternalStorage) == Permission.Granted &&

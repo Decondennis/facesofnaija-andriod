@@ -1,3 +1,4 @@
+using Facesofnaija.CustomApi.Requests;
 ﻿using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -742,7 +743,7 @@ namespace Facesofnaija.Activities.MyProfile
                 {
                     LoadPassedDate(dataUser);
 
-                    switch (ListUtils.MyFollowingList.Count)
+                    switch (ListUtils.MyFollowingList?.Count)
                     {
                         case > 0 when dataUser.Details.DetailsClass != null:
                             LoadFriendsLayout(new List<UserDataObject>(ListUtils.MyFollowingList), Methods.FunString.FormatPriceValue(Convert.ToInt32(dataUser.Details.DetailsClass.FollowingCount)));
@@ -750,6 +751,9 @@ namespace Facesofnaija.Activities.MyProfile
                     }
 
                     PostFeedAdapter?.NotifyDataSetChanged();
+                    ShimmerInflater?.Hide();
+                    if (MainRecyclerView != null)
+                        MainRecyclerView.Visibility = ViewStates.Visible;
                 }
 
                 PostFeedAdapter?.SetLoading();
@@ -771,11 +775,29 @@ namespace Facesofnaija.Activities.MyProfile
 
         private async Task GetProfileApi()
         {
-            var (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(UserDetails.UserId, "user_data,following");
+            string fetch = "user_data,following";
+            var (apiStatus, respond) = await CustomRequests.GetUserDataDirectAsync(UserDetails.UserId, fetch);
+            if (apiStatus != 200 || respond is not GetUserDataObject res || res.UserData == null)
+            {
+                (apiStatus, respond) = await RequestsAsync.Global.GetUserDataAsync(UserDetails.UserId, fetch);
+            }
 
             if (apiStatus != 200 || respond is not GetUserDataObject result || result.UserData == null)
             {
                 Methods.DisplayReportResult(this, respond);
+                RunOnUiThread(() =>
+                {
+                    try
+                    {
+                        ShimmerInflater?.Hide();
+                        if (MainRecyclerView != null)
+                            MainRecyclerView.Visibility = ViewStates.Visible;
+                    }
+                    catch (Exception ex)
+                    {
+                        Methods.DisplayReportResultTrack(ex);
+                    }
+                });
             }
             else
             {
@@ -785,7 +807,7 @@ namespace Facesofnaija.Activities.MyProfile
                     {
                         LoadPassedDate(result.UserData);
 
-                        switch (result.Following.Count)
+                        switch (result.Following?.Count)
                         {
                             //if (SPrivacyFriend == "0" || result.UserProfileObject?.IsFollowing == "1" && SPrivacyFriend == "1" || SPrivacyFriend == "2")
                             case > 0 when result.UserData.Details.DetailsClass != null:
@@ -800,17 +822,15 @@ namespace Facesofnaija.Activities.MyProfile
                         {
                             Combiner.AddPostDivider(PostFeedAdapter.ListDiffer.IndexOf(check) + 1);
                             Combiner.AddPostBoxPostView("user", PostFeedAdapter.ListDiffer.IndexOf(check) + 2);
-                            //switch (AppSettings.ShowSearchForPosts)
-                            //{
-                            //    case true:
-                            //        Combiner.SearchForPostsView("user");
-                            //        break;
-                            //}
                         }
 
                         //------------------------------------------------------------------------ 
 
                         PostFeedAdapter?.NotifyDataSetChanged();
+                        ShimmerInflater?.Hide();
+                        if (MainRecyclerView != null)
+                            MainRecyclerView.Visibility = ViewStates.Visible;
+
                         var sqlEntity = new SqLiteDatabase();
                         sqlEntity.Insert_Or_Update_To_MyProfileTable(result.UserData);
 
@@ -821,7 +841,7 @@ namespace Facesofnaija.Activities.MyProfile
                                 break;
                         }
 
-                        ListUtils.MyFollowingList = result.Followers?.Count switch
+                        ListUtils.MyFollowingList = result.Following?.Count switch
                         {
                             > 0 => new ObservableCollection<UserDataObject>(result.Following),
                             _ => ListUtils.MyFollowingList
@@ -1259,6 +1279,20 @@ namespace Facesofnaija.Activities.MyProfile
                         {
                             var postId = data.GetStringExtra("PostId") ?? "";
                             var postText = data.GetStringExtra("PostText") ?? "";
+                            var updatedPost = FeedCombiner.ExtractUpdatedPost(data);
+
+                            if (updatedPost != null)
+                            {
+                                if (PostFeedAdapter != null)
+                                    FeedCombiner.UpdatePostInAdapter(PostFeedAdapter, updatedPost, this);
+
+                                var mainFeedAdapter = Facesofnaija.Activities.Tabbes.TabbedMainActivity.GetInstance()?.NewsFeedTab?.PostFeedAdapter;
+                                if (mainFeedAdapter != null && mainFeedAdapter != PostFeedAdapter)
+                                    FeedCombiner.UpdatePostInAdapter(mainFeedAdapter, updatedPost, this);
+
+                                break;
+                            }
+
                             var diff = PostFeedAdapter?.ListDiffer;
                             var dataGlobal = diff?.Where(a => a.PostData?.Id == postId).ToList();
                             switch (dataGlobal?.Count)
@@ -1268,6 +1302,7 @@ namespace Facesofnaija.Activities.MyProfile
                                         foreach (var postData in dataGlobal)
                                         {
                                             postData.PostData.Orginaltext = postText;
+                                            postData.PostData.PostText = postText;
                                             var index = diff.IndexOf(postData);
                                             switch (index)
                                             {
@@ -1307,6 +1342,7 @@ namespace Facesofnaija.Activities.MyProfile
                                         break;
                                     }
                             }
+
 
                             break;
                         }

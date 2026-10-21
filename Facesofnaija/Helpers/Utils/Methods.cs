@@ -3337,7 +3337,16 @@ namespace Facesofnaija.Helpers.Utils
                 if (string.IsNullOrEmpty(filename))
                     return "Forbidden";
 
+                if (filename.Contains('?'))
+                    filename = filename.Split('?')[0];
+
                 var extension = System.IO.Path.GetExtension(filename)?.TrimStart('.').ToLowerInvariant();
+                if (string.IsNullOrEmpty(extension) && filename.Contains('_'))
+                {
+                    var lastPart = filename.Split('_').LastOrDefault()?.ToLowerInvariant();
+                    if (lastPart is "jpg" or "jpeg" or "png" or "gif" or "webp" or "mp4" or "mov" or "m4v" or "webm" or "mp3" or "wav")
+                        extension = lastPart;
+                }
                 var mime = MimeTypeMap.GetMimeType(extension);
                 if (string.IsNullOrEmpty(mime))
                 {
@@ -3384,8 +3393,23 @@ namespace Facesofnaija.Helpers.Utils
                     parcelFd = contentResolver?.OpenFileDescriptor(uri, "r");
                     input = new FileInputStream(parcelFd?.FileDescriptor);
 
-                    string extension = MimeTypeMap.GetExtension(contentResolver?.GetType(uri));
-                    File f = new File(Path.FolderDiskMyApp, timeStamp + "_" + extension);
+                    string filename = GetContentName(contentResolver, uri);
+                    string extension = "";
+                    if (!string.IsNullOrEmpty(filename) && filename.Contains('.'))
+                    {
+                        extension = System.IO.Path.GetExtension(filename);
+                    }
+                    if (string.IsNullOrEmpty(extension))
+                    {
+                        var extFromMime = MimeTypeMap.GetExtension(contentResolver?.GetType(uri));
+                        if (!string.IsNullOrEmpty(extFromMime))
+                            extension = "." + extFromMime.TrimStart('.');
+                    }
+                    if (string.IsNullOrEmpty(extension))
+                        extension = ".jpg";
+
+                    Path.Chack_MyFolder();
+                    File f = new File(Path.FolderDiskMyApp, timeStamp + extension);
                     output = new FileOutputStream(f);
 
                     var size = input?.Channel?.Size() ?? 0;

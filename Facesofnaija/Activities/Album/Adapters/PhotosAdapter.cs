@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Views;
 using Android.Widget;
 using AndroidX.Core.Content;
@@ -71,17 +71,19 @@ namespace Facesofnaija.Activities.Album.Adapters
                             var item = PhotosList[position];
                             if (item != null)
                             {
-                                switch (string.IsNullOrEmpty(item.Image))
+                                var image = !string.IsNullOrEmpty(item.Image) ? item.Image : item.ImageOrg ?? "";
+                                image = GlideImageLoader.NormalizeImageUrl(image);
+                                switch (string.IsNullOrEmpty(image))
                                 {
-                                    case false when item.Image.Contains("file://") || item.Image.Contains("content://") || item.Image.Contains("storage") || item.Image.Contains("/data/user/0/"):
+                                    case false when image.Contains("file://") || image.Contains("content://") || image.Contains("storage") || image.Contains("/data/user/0/"):
                                         {
-                                            File file2 = new File(item.Image);
+                                            File file2 = new File(image);
                                             var photoUri = FileProvider.GetUriForFile(ActivityContext, ActivityContext.PackageName + ".fileprovider", file2);
                                             Glide.With(ActivityContext?.BaseContext).Load(photoUri).Apply(new RequestOptions()).Into(holder.Image);
                                             break;
                                         }
                                     default:
-                                        GlideImageLoader.LoadImage(ActivityContext, item.Image, holder.Image, ImageStyle.CenterCrop, ImagePlaceholders.Drawable);
+                                        GlideImageLoader.LoadImage(ActivityContext, image, holder.Image, ImageStyle.CenterCrop, ImagePlaceholders.Drawable);
                                         break;
                                 }
                             }

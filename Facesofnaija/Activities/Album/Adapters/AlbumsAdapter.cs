@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Views;
 using Android.Widget;
 using AndroidX.Core.Content;
@@ -66,7 +66,12 @@ namespace Facesofnaija.Activities.Album.Adapters
                     var item = AlbumList[position];
                     if (item != null)
                     {
-                        var image = item.PhotoAlbum[0]?.Image;
+                        var image = (item.PhotoAlbum?.Count > 0 ? (!string.IsNullOrEmpty(item.PhotoAlbum[0]?.Image) ? item.PhotoAlbum[0]?.Image : item.PhotoAlbum[0]?.ImageOrg) : null) ??
+                                    (item.PhotoMulti?.Count > 0 ? (!string.IsNullOrEmpty(item.PhotoMulti[0]?.Image) ? item.PhotoMulti[0]?.Image : item.PhotoMulti[0]?.ImageOrg) : null) ??
+                                    item.PostFileFull ?? item.PostFile ?? "";
+
+                        image = GlideImageLoader.NormalizeImageUrl(image);
+
                         switch (string.IsNullOrEmpty(image))
                         {
                             case false when image.Contains("file://") || image.Contains("content://") || image.Contains("storage") || image.Contains("/data/user/0/"):
@@ -82,7 +87,8 @@ namespace Facesofnaija.Activities.Album.Adapters
                         }
 
                         holder.TxtTitle.Text = Methods.FunString.DecodeString(item.AlbumName);
-                        holder.TxtCounter.Text = item.PhotoAlbum.Count + " " + ActivityContext.GetText(Resource.String.Lbl_Photos);
+                        var photoCount = item.PhotoAlbum?.Count > 0 ? item.PhotoAlbum.Count : (item.PhotoMulti?.Count > 0 ? item.PhotoMulti.Count : (string.IsNullOrEmpty(image) ? 0 : 1));
+                        holder.TxtCounter.Text = photoCount + " " + ActivityContext.GetText(Resource.String.Lbl_Photos);
                     }
                 }
             }

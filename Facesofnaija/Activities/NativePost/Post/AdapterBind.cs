@@ -2299,7 +2299,8 @@ namespace Facesofnaija.Activities.NativePost.Post
                             UserId = UserDetails.UserId,
                             Avatar = initAvatar,
                             Type = "Your",
-                            Username = ActivityContext.GetText(Resource.String.Lbl_YourStory),
+                            Username = ActivityContext.GetText(Resource.String.Lbl_AddStory),
+                            Stories = new List<StoryDataObject.Story>()
                         });
                         break;
                     default:
@@ -2328,58 +2329,91 @@ namespace Facesofnaija.Activities.NativePost.Post
                                 dataOwner.Avatar = myAvatar;
                             }
 
-                            dataOwner.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
-
-                            // Keep "Your Story" as pure add-button — no stories attached
+                            dataOwner.Username = ActivityContext.GetText(Resource.String.Lbl_AddStory);
+                            dataOwner.Stories = new List<StoryDataObject.Story>();
 
                             break;
                         }
                 }
                 var currentUserId = NormalizeUserId(UserDetails.UserId);
                 var yourEntry = holder.StoryAdapter.StoryList.FirstOrDefault(a => string.Equals(a?.Type, "Your", StringComparison.OrdinalIgnoreCase));
-                var selfGroups = holder.StoryAdapter.StoryList
-                    .Where(a => a != null && IsSameUser(a.UserId, currentUserId))
-                    .ToList();
 
-                if (yourEntry == null && selfGroups.Count > 0)
+                if (yourEntry == null)
                 {
-                    yourEntry = selfGroups.First();
-                    yourEntry.Type = "Your";
-                    yourEntry.UserId = currentUserId;
+                    var myAvatar = UserDetails.Avatar;
+                    if (IsPlaceholderAvatar(myAvatar))
+                        myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.Avatar;
+                    if (IsPlaceholderAvatar(myAvatar))
+                        myAvatar = ListUtils.MyProfileList?.FirstOrDefault()?.AvatarFull;
+                    if (IsPlaceholderAvatar(myAvatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
+                        myAvatar = cachedSelfGroup.Avatar;
+
+                    yourEntry = new StoryDataObject
+                    {
+                        UserId = currentUserId,
+                        Avatar = myAvatar ?? string.Empty,
+                        Type = "Your",
+                        Username = ActivityContext.GetText(Resource.String.Lbl_AddStory),
+                        Stories = new List<StoryDataObject.Story>()
+                    };
+                    holder.StoryAdapter.StoryList.Insert(0, yourEntry);
                 }
 
-                if (yourEntry != null)
-                {
-                    yourEntry.Type = "Your";
-                    yourEntry.UserId = currentUserId;
-                    yourEntry.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
-                    yourEntry.Stories = new List<StoryDataObject.Story>();
+                yourEntry.Type = "Your";
+                yourEntry.UserId = currentUserId;
+                yourEntry.Username = ActivityContext.GetText(Resource.String.Lbl_AddStory);
+                yourEntry.Stories = new List<StoryDataObject.Story>();
 
-                    var seenStoryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var story in yourEntry.Stories)
+                // Keep "Add Story" as pure add-button - no stories attached
+                if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
+                    yourEntry.Avatar = cachedSelfGroup.Avatar;
+                if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
+                    yourEntry.Avatar = cachedSelfStoryThumb;
+
+                var yourIndex = holder.StoryAdapter.StoryList.IndexOf(yourEntry);
+                if (yourIndex > 0)
+                {
+                    holder.StoryAdapter.StoryList.RemoveAt(yourIndex);
+                    holder.StoryAdapter.StoryList.Insert(0, yourEntry);
+                }
+
+                // Keep the user's own story as a separate frame at index 1 (like web).
+                var userStoryEntry = holder.StoryAdapter.StoryList.FirstOrDefault(a =>
+                    a != null
+                    && !ReferenceEquals(a, yourEntry)
+                    && IsSameUser(a.UserId, currentUserId));
+
+                if (cachedSelfGroup?.Stories?.Count > 0)
+                {
+                    if (userStoryEntry == null)
                     {
-                        var storyId = story?.Id?.Trim();
-                        if (!string.IsNullOrWhiteSpace(storyId))
-                            seenStoryIds.Add(storyId);
+                        userStoryEntry = new StoryDataObject
+                        {
+                            UserId = currentUserId,
+                            Type = "Story",
+                            Username = ActivityContext.GetText(Resource.String.Lbl_YourStory),
+                            Avatar = cachedSelfGroup.Avatar,
+                            Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories),
+                            DurationsList = cachedSelfGroup.DurationsList != null ? new List<long>(cachedSelfGroup.DurationsList) : new List<long>(),
+                        };
+                        var insertPos = holder.StoryAdapter.StoryList.Count > 1 ? 1 : holder.StoryAdapter.StoryList.Count;
+                        holder.StoryAdapter.StoryList.Insert(insertPos, userStoryEntry);
                     }
-
-                    // Keep "Your Story" as pure add-button - no stories attached
-                    if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfGroup?.Avatar))
-                        yourEntry.Avatar = cachedSelfGroup.Avatar;
-                    if (IsPlaceholderAvatar(yourEntry.Avatar) && !IsPlaceholderAvatar(cachedSelfStoryThumb))
-                        yourEntry.Avatar = cachedSelfStoryThumb;
-                }
-
-                // Keep the user's own story as a separate frame in the list (like web).
-                // Do NOT remove it - it should appear alongside the "Your Story" button.
-
-                if (yourEntry != null)
-                {
-                    var yourIndex = holder.StoryAdapter.StoryList.IndexOf(yourEntry);
-                    if (yourIndex > 0)
+                    else
                     {
-                        holder.StoryAdapter.StoryList.RemoveAt(yourIndex);
-                        holder.StoryAdapter.StoryList.Insert(0, yourEntry);
+                        userStoryEntry.Type = "Story";
+                        userStoryEntry.Username = ActivityContext.GetText(Resource.String.Lbl_YourStory);
+                        if (userStoryEntry.Stories == null || userStoryEntry.Stories.Count == 0)
+                            userStoryEntry.Stories = new List<StoryDataObject.Story>(cachedSelfGroup.Stories);
+                        if (!string.IsNullOrWhiteSpace(cachedSelfGroup.Avatar) && IsPlaceholderAvatar(userStoryEntry.Avatar))
+                            userStoryEntry.Avatar = cachedSelfGroup.Avatar;
+
+                        var pos = holder.StoryAdapter.StoryList.IndexOf(userStoryEntry);
+                        if (pos != 1 && holder.StoryAdapter.StoryList.Count > 1)
+                        {
+                            holder.StoryAdapter.StoryList.RemoveAt(pos);
+                            holder.StoryAdapter.StoryList.Insert(1, userStoryEntry);
+                        }
                     }
                 }
 

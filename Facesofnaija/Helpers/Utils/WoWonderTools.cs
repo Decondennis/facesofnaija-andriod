@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Gms.Maps.Model;
 using Android.Graphics;
@@ -1080,7 +1080,7 @@ namespace Facesofnaija.Helpers.Utils
                     var s = await client.GetStreamAsync(new Uri(url));
                     if (s.CanRead)
                     {
-                        await using FileStream fs = new FileStream(mediaFile, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
+                        await using FileStream fs = new FileStream(mediaFile, FileMode.Create, FileAccess.Write, FileShare.Read);
                         await s.CopyToAsync(fs);
                     }
 
@@ -1387,6 +1387,7 @@ namespace Facesofnaija.Helpers.Utils
                 };
 
                 var dbDatabase = new SqLiteDatabase();
+                string prevFollowing = item.IsFollowing;
                 switch (item.IsFollowing)
                 {
                     case "0": // Add Or request friends
@@ -1408,7 +1409,38 @@ namespace Facesofnaija.Helpers.Utils
                                 dbDatabase.Insert_Or_Replace_OR_Delete_UsersContact(item, "Insert");
                             }
 
-                            PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                            Task.Run(async () =>
+                            {
+                                var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "follow");
+                                activity?.RunOnUiThread(() =>
+                                {
+                                    if (status == 200)
+                                    {
+                                        var db = new SqLiteDatabase();
+                                        if (followStatus == "requested")
+                                        {
+                                            item.IsFollowing = "2";
+                                            btnAddUser.Tag = "request";
+                                            db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Update");
+                                        }
+                                        else if (followStatus == "followed")
+                                        {
+                                            item.IsFollowing = "1";
+                                            btnAddUser.Tag = "friends";
+                                            db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Insert");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        item.IsFollowing = prevFollowing;
+                                        btnAddUser.Tag = "Add";
+                                        btnAddUser.Visibility = ViewStates.Visible;
+                                        var db = new SqLiteDatabase();
+                                        db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Delete");
+                                        ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                    }
+                                });
+                            });
 
                             btnAddUser.Visibility = ViewStates.Invisible;
                             ToastUtils.ShowToast(activity, activity.GetString(Resource.String.Lbl_YouAreNowFollowing) + " " + GetNameFinal(item), ToastLength.Short);
@@ -1430,7 +1462,21 @@ namespace Facesofnaija.Helpers.Utils
 
                                     dbDatabase.Insert_Or_Replace_OR_Delete_UsersContact(item, "Delete");
 
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                                    Task.Run(async () =>
+                                    {
+                                        var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "unfollow");
+                                        if (status != 200)
+                                        {
+                                            activity?.RunOnUiThread(() =>
+                                            {
+                                                item.IsFollowing = prevFollowing;
+                                                btnAddUser.Tag = "friends";
+                                                var db = new SqLiteDatabase();
+                                                db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Insert");
+                                                ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                            });
+                                        }
+                                    });
                                 }
                                 catch (Exception e)
                                 {
@@ -1456,7 +1502,21 @@ namespace Facesofnaija.Helpers.Utils
                                     dbDatabase = new SqLiteDatabase();
                                     dbDatabase.Insert_Or_Replace_OR_Delete_UsersContact(item, "Delete");
 
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                                    Task.Run(async () =>
+                                    {
+                                        var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "unfollow");
+                                        if (status != 200)
+                                        {
+                                            activity?.RunOnUiThread(() =>
+                                            {
+                                                item.IsFollowing = prevFollowing;
+                                                btnAddUser.Tag = "request";
+                                                var db = new SqLiteDatabase();
+                                                db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Update");
+                                                ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                            });
+                                        }
+                                    });
                                 }
                                 catch (Exception e)
                                 {
@@ -1489,6 +1549,7 @@ namespace Facesofnaija.Helpers.Utils
 
                 var dbDatabase = new SqLiteDatabase();
                 string isFollowing;
+                string prevFollowing = item.IsFollowing;
                 switch (item.IsFollowing)
                 {
                     case "0": // Add Or request friends
@@ -1512,7 +1573,38 @@ namespace Facesofnaija.Helpers.Utils
 
                             SetAddFriendCondition(item, isFollowing, btnAddUser, reels);
 
-                            PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                            Task.Run(async () =>
+                            {
+                                var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "follow");
+                                activity?.RunOnUiThread(() =>
+                                {
+                                    if (status == 200)
+                                    {
+                                        var db = new SqLiteDatabase();
+                                        if (followStatus == "requested")
+                                        {
+                                            item.IsFollowing = "2";
+                                            SetAddFriendCondition(item, "2", btnAddUser, reels);
+                                            db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Update");
+                                        }
+                                        else if (followStatus == "followed")
+                                        {
+                                            item.IsFollowing = "1";
+                                            SetAddFriendCondition(item, "1", btnAddUser, reels);
+                                            db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Insert");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Revert on failure
+                                        item.IsFollowing = prevFollowing;
+                                        SetAddFriendCondition(item, prevFollowing, btnAddUser, reels);
+                                        var db = new SqLiteDatabase();
+                                        db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Delete");
+                                        ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                    }
+                                });
+                            });
 
                             if (reels)
                             {
@@ -1538,7 +1630,21 @@ namespace Facesofnaija.Helpers.Utils
 
                                     SetAddFriendCondition(item, isFollowing, btnAddUser, reels);
 
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                                    Task.Run(async () =>
+                                    {
+                                        var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "unfollow");
+                                        if (status != 200)
+                                        {
+                                            activity?.RunOnUiThread(() =>
+                                            {
+                                                item.IsFollowing = prevFollowing;
+                                                SetAddFriendCondition(item, prevFollowing, btnAddUser, reels);
+                                                var db = new SqLiteDatabase();
+                                                db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Insert");
+                                                ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                            });
+                                        }
+                                    });
                                 }
                                 catch (Exception e)
                                 {
@@ -1566,7 +1672,21 @@ namespace Facesofnaija.Helpers.Utils
 
                                     SetAddFriendCondition(item, isFollowing, btnAddUser, reels);
 
-                                    PollyController.RunRetryPolicyFunction(new List<Func<Task>> { () => RequestsAsync.Global.FollowUserAsync(item.UserId) });
+                                    Task.Run(async () =>
+                                    {
+                                        var (status, followStatus, error) = await CustomRequests.FollowUserDirectAsync(item.UserId, "unfollow");
+                                        if (status != 200)
+                                        {
+                                            activity?.RunOnUiThread(() =>
+                                            {
+                                                item.IsFollowing = prevFollowing;
+                                                SetAddFriendCondition(item, prevFollowing, btnAddUser, reels);
+                                                var db = new SqLiteDatabase();
+                                                db.Insert_Or_Replace_OR_Delete_UsersContact(item, "Update");
+                                                ToastUtils.ShowToast(activity, error ?? activity.GetString(Resource.String.Lbl_something_went_wrong), ToastLength.Short);
+                                            });
+                                        }
+                                    });
                                 }
                                 catch (Exception e)
                                 {

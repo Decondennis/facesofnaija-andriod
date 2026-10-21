@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.OS;
 using Android.Views;
 using Android.Widget;
@@ -13,9 +13,11 @@ using Facesofnaija.Activities.Articles;
 using Facesofnaija.Activities.Hashtag;
 using Facesofnaija.Activities.NativePost.Pages;
 using Facesofnaija.Activities.Tabbes.Adapters;
+using Facesofnaija.CustomApi.Requests;
 using Facesofnaija.Helpers.Controller;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
+using WoWonderClient.Classes.Global;
 
 namespace Facesofnaija.Activities.Tabbes.Fragment
 {
@@ -210,7 +212,70 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
             if (!Methods.CheckConnectivity())
                 ToastUtils.ShowToast(Context, Context.GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
             else
-                PollyController.RunRetryPolicyFunction(new List<Func<Task>> { ApiRequest.GetMyGroups, ApiRequest.GetMyPages, ApiRequest.GetLastArticles, GetWeatherApi });
+                PollyController.RunRetryPolicyFunction(new List<Func<Task>> { GetTrendingDataApi, ApiRequest.GetMyGroups, ApiRequest.GetMyPages, ApiRequest.GetLastArticles, GetWeatherApi });
+        }
+
+        private async Task GetTrendingDataApi()
+        {
+            try
+            {
+                if (!Methods.CheckConnectivity()) return;
+
+                var (apiStatus, respond) = await CustomRequests.GetGeneralDataDirectAsync(false, UserDetails.OnlineUsers, UserDetails.DeviceId, "", "trending_hashtag,promoted_pages");
+                if (apiStatus == 200 && respond is GetGeneralDataObject result)
+                {
+                    if (result.TrendingHashtag?.Count > 0)
+                    {
+                        ListUtils.HashTagList = new ObservableCollection<TrendingHashtag>(result.TrendingHashtag);
+
+                        Activity?.RunOnUiThread(() =>
+                        {
+                            try
+                            {
+                                var checkSection = MAdapter.TrendingList.FirstOrDefault(q => q.Type == Classes.ItemType.Section && q.SectionType == Classes.ItemType.HashTag);
+                                if (checkSection == null)
+                                {
+                                    MAdapter.TrendingList.Add(new Classes.TrendingClass
+                                    {
+                                        Id = 900,
+                                        Title = Activity.GetText(Resource.String.Lbl_TrendingHashTags),
+                                        SectionType = Classes.ItemType.HashTag,
+                                        Type = Classes.ItemType.Section,
+                                    });
+
+                                    var list = result.TrendingHashtag.Take(10).ToList();
+                                    foreach (var item in from item in list let check = MAdapter.TrendingList.FirstOrDefault(a => a.HashTags?.Id == item.Id && a.Type == Classes.ItemType.HashTag) where check == null select item)
+                                    {
+                                        long.TryParse(item.Id, out long id);
+                                        MAdapter.TrendingList.Add(new Classes.TrendingClass
+                                        {
+                                            Id = id,
+                                            HashTags = item,
+                                            Type = Classes.ItemType.HashTag
+                                        });
+                                    }
+
+                                    MAdapter.TrendingList.Add(new Classes.TrendingClass
+                                    {
+                                        Type = Classes.ItemType.Divider
+                                    });
+                                }
+
+                                MAdapter.NotifyDataSetChanged();
+                                ShowEmptyPage();
+                            }
+                            catch (Exception ex)
+                            {
+                                Methods.DisplayReportResultTrack(ex);
+                            }
+                        });
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Methods.DisplayReportResultTrack(e);
+            }
         }
 
         private async Task GetWeatherApi()

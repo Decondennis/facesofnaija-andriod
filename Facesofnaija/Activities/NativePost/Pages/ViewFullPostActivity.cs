@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Util;
@@ -21,6 +21,7 @@ using Facesofnaija.Activities.NativePost.Extra;
 using Facesofnaija.Activities.NativePost.Post;
 using Facesofnaija.Helpers.Ads;
 using Facesofnaija.Helpers.Controller;
+using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.Library.Anjo.IntegrationRecyclerView;
 using WoWonderClient.Classes.Comments;
@@ -67,12 +68,41 @@ namespace Facesofnaija.Activities.NativePost.Pages
                 // Create your application here
                 SetContentView(Resource.Layout.ViewFullPostLayout);
 
-                PostId = Intent?.GetStringExtra("Id") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(Current.AccessToken) && !string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                    Current.AccessToken = UserDetails.AccessToken;
+
+                PostId = Intent?.GetStringExtra("Id") ?? Intent?.GetStringExtra("PostId") ?? Intent?.GetStringExtra("post_id") ?? string.Empty;
+                if (!string.IsNullOrEmpty(PostId))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(PostId, @"^(\d+)");
+                    if (match.Success)
+                        PostId = match.Groups[1].Value;
+                }
 
                 //Get Value And Set Toolbar 
                 InitComponent();
                 InitToolbar();
                 SetRecyclerViewAdapters();
+
+                var dataItem = Intent?.GetStringExtra("DataItem");
+                if (!string.IsNullOrEmpty(dataItem))
+                {
+                    try
+                    {
+                        DataObject = Newtonsoft.Json.JsonConvert.DeserializeObject<PostDataObject>(dataItem);
+                        if (DataObject != null)
+                        {
+                            DataObject.GetPostComments ??= new List<GetCommentObject>();
+                            var combine = new FeedCombiner(DataObject, NativeFeedAdapter.ListDiffer, this);
+                            combine.CombineDefaultPostSections();
+                            NativeFeedAdapter.NotifyDataSetChanged();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Methods.DisplayReportResultTrack(ex);
+                    }
+                }
 
                 Task.Factory.StartNew(StartApiService);
 
@@ -236,6 +266,8 @@ namespace Facesofnaija.Activities.NativePost.Pages
             {
                 MainRecyclerView = FindViewById<WRecyclerView>(Resource.Id.Recyler);
                 NativeFeedAdapter = new NativePostAdapter(this, "", MainRecyclerView, NativeFeedType.Global);
+                MainRecyclerView.SetLayoutManager(new LinearLayoutManager(this));
+                MainRecyclerView.NestedScrollingEnabled = false;
                 MainRecyclerView.SetXAdapter(NativeFeedAdapter, SwipeRefreshLayout);
 
                 MAdapter = new CommentAdapter(this)
@@ -244,6 +276,7 @@ namespace Facesofnaija.Activities.NativePost.Pages
                 };
                 LayoutManager = new LinearLayoutManager(this);
                 MRecycler.SetLayoutManager(LayoutManager);
+                MRecycler.NestedScrollingEnabled = false;
                 MRecycler.HasFixedSize = true;
                 MRecycler.SetItemViewCacheSize(10);
                 MRecycler.GetLayoutManager().ItemPrefetchEnabled = true;
@@ -353,47 +386,85 @@ namespace Facesofnaija.Activities.NativePost.Pages
         private void StartApiService()
         {
             if (!Methods.CheckConnectivity())
+            {
+                RunOnUiThread(() =>
+                {
+                    if (SwipeRefreshLayout != null) SwipeRefreshLayout.Refreshing = false;
+                    ShowEmptyPage();
+                });
                 ToastUtils.ShowToast(this, GetString(Resource.String.Lbl_CheckYourInternetConnection), ToastLength.Short);
+            }
             else
+            {
                 PollyController.RunRetryPolicyFunction(new List<Func<Task>> { LoadPostDataAsync });
+            }
         }
 
         private async Task LoadPostDataAsync()
         {
-            var (apiStatus, respond) = await RequestsAsync.Posts.GetPostDataAsync(PostId, "post_data");
-            switch (apiStatus)
+            try
             {
-                case 200:
+                if (string.IsNullOrWhiteSpace(PostId))
+                {
+                    RunOnUiThread(ShowEmptyPage);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(Current.AccessToken) && !string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                    Current.AccessToken = UserDetails.AccessToken;
+
+                var (apiStatus, respond) = await RequestsAsync.Posts.GetPostDataAsync(PostId, "post_data");
+                GetPostDataObject result = respond as GetPostDataObject;
+
+                if (apiStatus != 200 || result?.PostData == null)
+                {
+                    var sessionId = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : Current.AccessToken;
+                    Android.Util.Log.Info("WoFallback", $"ViewFullPost SDK loading failed, trying web API fallback apiStatus={apiStatus}");
+                    (int fbStatus, dynamic fbRespond) = await CustomRequests.Posts.FetchPostDataWebApiAsync(sessionId, PostId, "post_data");
+                    if (fbStatus == 200 && fbRespond is GetPostDataObject fbResult && fbResult.PostData != null)
                     {
-                        switch (respond)
-                        {
-                            case GetPostDataObject result:
-                                {
-                                    DataObject = result.PostData;
-                                    if (DataObject != null)
-                                    {
-                                        DataObject.GetPostComments = new List<GetCommentObject>();
-
-                                        var combine = new FeedCombiner(DataObject, NativeFeedAdapter.ListDiffer, this);
-                                        combine.CombineDefaultPostSections();
-
-                                        await LoadDataComment();
-
-                                        RunOnUiThread(() => { NativeFeedAdapter.NotifyDataSetChanged(); });
-                                    }
-
-                                    break;
-                                }
-                        }
-
-                        break;
+                        apiStatus = 200;
+                        respond = fbResult;
+                        result = fbResult;
                     }
-                default:
-                    Methods.DisplayReportResult(this, respond);
-                    break;
-            }
+                }
 
-            RunOnUiThread(ShowEmptyPage);
+                if (apiStatus == 200 && result?.PostData != null)
+                {
+                    DataObject = result.PostData;
+                    DataObject.GetPostComments ??= new List<GetCommentObject>();
+
+                    RunOnUiThread(() =>
+                    {
+                        try
+                        {
+                            NativeFeedAdapter.ListDiffer.Clear();
+                            var combine = new FeedCombiner(DataObject, NativeFeedAdapter.ListDiffer, this);
+                            combine.CombineDefaultPostSections();
+                            NativeFeedAdapter.NotifyDataSetChanged();
+                            ShowEmptyPage();
+                        }
+                        catch (Exception ex)
+                        {
+                            Methods.DisplayReportResultTrack(ex);
+                        }
+                    });
+
+                    await LoadDataComment();
+                }
+                else
+                {
+                    Android.Util.Log.Warn("WoFallback", $"ViewFullPost failed to load post {PostId}, apiStatus={apiStatus}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Methods.DisplayReportResultTrack(ex);
+            }
+            finally
+            {
+                RunOnUiThread(ShowEmptyPage);
+            }
         }
 
         private void ShowEmptyPage()
@@ -449,8 +520,11 @@ namespace Facesofnaija.Activities.NativePost.Pages
 
             if (Methods.CheckConnectivity())
             {
+                if (string.IsNullOrWhiteSpace(Current.AccessToken) && !string.IsNullOrWhiteSpace(UserDetails.AccessToken))
+                    Current.AccessToken = UserDetails.AccessToken;
+
                 MainScrollEvent.IsLoading = true;
-                var sessionId = Current.AccessToken;
+                var sessionId = !string.IsNullOrWhiteSpace(UserDetails.AccessToken) ? UserDetails.AccessToken : Current.AccessToken;
                 var (apiStatus, respond) = await RequestsAsync.Comment.GetPostCommentsAsync(PostId, "10", offset);
                 CommentObject result = respond as CommentObject;
                 if (apiStatus != 200 || result?.CommentList == null)
@@ -472,34 +546,41 @@ namespace Facesofnaija.Activities.NativePost.Pages
                 }
                 else
                 {
-                    var respondList = result.CommentList?.Count;
-                    switch (respondList)
+                    var commentList = result.CommentList;
+                    if (commentList != null && commentList.Count > 0)
                     {
-                        case > 0:
+                        RunOnUiThread(() =>
+                        {
+                            try
                             {
-                                foreach (var item in result.CommentList)
+                                foreach (var item in commentList)
                                 {
                                     CommentObjectExtra check = MAdapter.CommentList.FirstOrDefault(a => a.Id == item.Id);
-                                    switch (check)
+                                    if (check == null)
                                     {
-                                        case null:
-                                            {
-                                                var db = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
-                                                if (db != null) MAdapter.CommentList.Add(db);
-                                                break;
-                                            }
-                                        default:
-                                            check = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
+                                        var db = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
+                                        if (db != null) MAdapter.CommentList.Add(db);
+                                    }
+                                    else
+                                    {
+                                        check = ClassMapper.Mapper?.Map<CommentObjectExtra>(item);
+                                        if (check != null)
+                                        {
                                             check.Replies = item.Replies;
                                             check.RepliesCount = item.RepliesCount;
-                                            break;
+                                        }
                                     }
                                 }
 
-                                RunOnUiThread(() => { MAdapter.NotifyDataSetChanged(); });
-                                break;
+                                MAdapter.NotifyDataSetChanged();
                             }
+                            catch (Exception ex)
+                            {
+                                Methods.DisplayReportResultTrack(ex);
+                            }
+                        });
                     }
+                    MainScrollEvent.IsLoading = false;
                 }
 
                 RunOnUiThread(ShowEmptyPage);

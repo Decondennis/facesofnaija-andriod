@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Content;
 using Android.Graphics;
 using Android.Views;
@@ -159,6 +159,8 @@ namespace Facesofnaija.Helpers.Utils
                         MainActivity.ViewPager.SetCurrentItem(1, false);
 
                         MainActivity.FloatingActionButton.Visibility = ViewStates.Gone;
+
+                        MainActivity.NotificationsTab?.OnTabVisible();
 
                         AdsGoogle.Ad_AppOpenManager(MainActivity);
                         break;

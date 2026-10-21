@@ -18,11 +18,14 @@ using System.Threading.Tasks;
 using Facesofnaija.Activities.Announcements.Adapters;
 using Facesofnaija.Activities.Base;
 using Facesofnaija.Helpers.Controller;
+using Facesofnaija.Helpers.Fonts;
 using Facesofnaija.Helpers.Model;
 using Facesofnaija.Helpers.Utils;
 using Facesofnaija.Library.Anjo.IntegrationRecyclerView;
 using WoWonderClient;
 using Toolbar = AndroidX.AppCompat.Widget.Toolbar;
+using AndroidX.AppCompat.Widget;
+using Com.Airbnb.Lottie;
 
 namespace Facesofnaija.Activities.Announcements
 {
@@ -173,16 +176,21 @@ namespace Facesofnaija.Activities.Announcements
                         if (Inflated != null)
                             Inflated.Visibility = ViewStates.Gone;
                     }
-                    else
+                    else if (result?.ApiStatus == "200")
                     {
                         Log.Warn("FON_ANNOUNCE", $"ApiStatus={result?.ApiStatus} Count={result?.Announcements?.Count}");
-                        ShowEmptyState();
+                        ShowEmptyState(false);
+                    }
+                    else
+                    {
+                        Log.Warn("FON_ANNOUNCE", $"ApiStatus={result?.ApiStatus} Error response");
+                        ShowEmptyState(true);
                     }
                 }
                 else
                 {
                     Log.Warn("FON_ANNOUNCE", $"HTTP {response.StatusCode}");
-                    ShowEmptyState();
+                    ShowEmptyState(true);
                 }
             }
             catch (Exception e)
@@ -192,6 +200,7 @@ namespace Facesofnaija.Activities.Announcements
                 Methods.DisplayReportResultTrack(e);
                 if (e.InnerException != null)
                     Log.Warn("FON_ANNOUNCE", $"Inner: {e.InnerException.Message}");
+                ShowEmptyState(true);
             }
             finally
             {
@@ -199,15 +208,58 @@ namespace Facesofnaija.Activities.Announcements
             }
         }
 
-        private void ShowEmptyState()
+        private void ShowEmptyState(bool isError = false)
         {
             try
             {
-                if (Inflated == null)
-                    Inflated = EmptyStateLayout?.Inflate();
-                MRecycler.Visibility = ViewStates.Gone;
+                if (Inflated == null && EmptyStateLayout != null)
+                    Inflated = EmptyStateLayout.Inflate();
+
                 if (Inflated != null)
+                {
+                    var headText = Inflated.FindViewById<TextView>(Resource.Id.headText);
+                    var secondaryText = Inflated.FindViewById<TextView>(Resource.Id.seconderyText);
+                    var button = Inflated.FindViewById<AppCompatButton>(Resource.Id.button);
+                    var animationView = Inflated.FindViewById<LottieAnimationView>(Resource.Id.animation_view);
+                    var emptyIcon = Inflated.FindViewById<TextView>(Resource.Id.emtyicon);
+                    var emptyImage = Inflated.FindViewById<ImageView>(Resource.Id.iv_empty);
+
+                    if (isError)
+                    {
+                        var infl = new EmptyStateInflater();
+                        infl.InflateLayout(Inflated, EmptyStateInflater.Type.NoConnection);
+                        if (infl.EmptyStateButton != null)
+                        {
+                            infl.EmptyStateButton.Visibility = ViewStates.Visible;
+                            if (!infl.EmptyStateButton.HasOnClickListeners)
+                            {
+                                infl.EmptyStateButton.Click += (s, e) => LoadAnnouncements();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (animationView != null) animationView.Visibility = ViewStates.Gone;
+                        if (emptyImage != null) emptyImage.Visibility = ViewStates.Gone;
+                        if (emptyIcon != null)
+                        {
+                            FontUtils.SetTextViewIcon(FontsIconFrameWork.FontAwesomeLight, emptyIcon, FontAwesomeIcon.Newspaper);
+                            emptyIcon.Visibility = ViewStates.Visible;
+                        }
+
+                        if (headText != null)
+                            headText.Text = GetText(Resource.String.Lbl_BreakingNews);
+                        if (secondaryText != null)
+                            secondaryText.Text = "There are no breaking news announcements at this time.";
+                        if (button != null)
+                            button.Visibility = ViewStates.Gone;
+                    }
+
                     Inflated.Visibility = ViewStates.Visible;
+                }
+
+                if (MRecycler != null)
+                    MRecycler.Visibility = ViewStates.Gone;
             }
             catch (Exception e)
             {
