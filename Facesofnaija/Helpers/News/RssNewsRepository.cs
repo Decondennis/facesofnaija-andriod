@@ -90,12 +90,31 @@ namespace Facesofnaija.Helpers.News
                 {
                     return FormatTicker(cached);
                 }
+                return FormatTicker(GetSeedHeadlines());
             }
             catch (Exception ex)
             {
                 Methods.DisplayReportResultTrack(ex);
             }
-            return string.Empty;
+            return FormatTicker(GetSeedHeadlines());
+        }
+
+        public static string GetCachedHtmlTicker()
+        {
+            try
+            {
+                var cached = LoadFromCache(ignoreExpiry: true);
+                if (cached != null && cached.Count > 0)
+                {
+                    return FormatHtmlTicker(cached);
+                }
+                return FormatHtmlTicker(GetSeedHeadlines());
+            }
+            catch (Exception ex)
+            {
+                Methods.DisplayReportResultTrack(ex);
+            }
+            return FormatHtmlTicker(GetSeedHeadlines());
         }
 
         public static async Task<string> GetTickerStringAsync(bool forceRefresh = false)
@@ -113,6 +132,59 @@ namespace Facesofnaija.Helpers.News
                 Methods.DisplayReportResultTrack(ex);
             }
             return string.Empty;
+        }
+
+        public static async Task<string> GetHtmlTickerStringAsync(bool forceRefresh = false)
+        {
+            try
+            {
+                var headlines = await GetHeadlinesAsync(forceRefresh);
+                if (headlines != null && headlines.Count > 0)
+                {
+                    return FormatHtmlTicker(headlines);
+                }
+            }
+            catch (Exception ex)
+            {
+                Methods.DisplayReportResultTrack(ex);
+            }
+            return string.Empty;
+        }
+
+        public static string FormatHtmlTicker(List<NewsItem> items)
+        {
+            if (items == null || items.Count == 0)
+                return string.Empty;
+
+            var parts = new List<string>();
+            foreach (var item in items)
+            {
+                var src = !string.IsNullOrWhiteSpace(item.Source) ? item.Source.ToUpperInvariant() : "NEWS";
+                var title = !string.IsNullOrWhiteSpace(item.Title) ? item.Title : item.Text;
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    var isNigerian = src.Contains("PUNCH") || src.Contains("VANGUARD") || src.Contains("PREMIUM") || src.Contains("CHANNELS");
+                    var badgeColor = isNigerian ? "#008751" : "#0288D1";
+                    var escapedTitle = System.Net.WebUtility.HtmlEncode(title.Trim());
+                    parts.Add($"<font color=\"{badgeColor}\"><b>[{src}]</b></font> <font color=\"#1E293B\">{escapedTitle}</font>");
+                }
+            }
+            return string.Join("   <font color=\"#4CAF50\"><b>•</b></font>   ", parts);
+        }
+
+        public static Android.Text.ISpanned ToSpanned(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+                return new Android.Text.SpannableString(string.Empty);
+
+            try
+            {
+                return AndroidX.Core.Text.HtmlCompat.FromHtml(html, AndroidX.Core.Text.HtmlCompat.FromHtmlModeLegacy);
+            }
+            catch
+            {
+                return new Android.Text.SpannableString(html);
+            }
         }
 
         public static async Task<List<NewsItem>> GetHeadlinesAsync(bool forceRefresh = false)
@@ -393,7 +465,7 @@ namespace Facesofnaija.Helpers.News
             return new List<NewsItem>();
         }
 
-        private static List<NewsItem> GetSeedHeadlines()
+        public static List<NewsItem> GetSeedHeadlines()
         {
             return new List<NewsItem>
             {

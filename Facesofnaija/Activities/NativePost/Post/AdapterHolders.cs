@@ -3525,6 +3525,8 @@ namespace Facesofnaija.Activities.NativePost.Post
             public TextView SubText { get; private set; }
             public View LineView { get; private set; }
             public RoundedImageView Image { get; private set; }
+            public ImageView GlobeImage { get; private set; }
+            public ImageView CloseButton { get; private set; }
             public NativePostAdapter Adapter { get; private set; }
             public AlertAdapterViewHolder(View itemView, NativePostAdapter adapter, PostModelType viewType) : base(itemView)
             {
@@ -3534,51 +3536,72 @@ namespace Facesofnaija.Activities.NativePost.Post
                     Adapter = adapter;
 
                     MianAlert = MainView.FindViewById<RelativeLayout>(Resource.Id.main);
-
                     LineView = MainView.FindViewById<View>(Resource.Id.lineview);
                     HeadText = MainView.FindViewById<TextView>(Resource.Id.HeadText);
                     SubText = MainView.FindViewById<TextView>(Resource.Id.subText);
                     Image = MainView.FindViewById<RoundedImageView>(Resource.Id.Image);
+                    GlobeImage = MainView.FindViewById<ImageView>(Resource.Id.globe_image);
+                    CloseButton = MainView.FindViewById<ImageView>(Resource.Id.close_button);
 
-                    switch (MianAlert.HasOnClickListeners)
+                    if (SubText != null)
+                        SubText.Selected = true;
+
+                    if (CloseButton != null)
                     {
-                        case false:
-                            MianAlert.Click += (sender, args) =>
+                        CloseButton.Click += (sender, args) =>
+                        {
+                            try
                             {
-                                try
+                                var data = Adapter.ListDiffer.FirstOrDefault(a => a.TypeView == viewType);
+                                if (data != null)
                                 {
-                                    switch (viewType)
+                                    var idx = Adapter.ListDiffer.IndexOf(data);
+                                    if (idx >= 0)
                                     {
-                                        case PostModelType.AlertBox:
-                                            {
-                                                var data = Adapter.ListDiffer.FirstOrDefault(a => a.TypeView == PostModelType.AlertBox);
-                                                if (data != null)
-                                                {
-                                                    TabbedMainActivity.GetInstance()?.NewsFeedTab.MainRecyclerView.RemoveByRowIndex(data);
-                                                }
-
-                                                break;
-                                            }
-                                        default:
-                                            {
-                                                var data = Adapter.ListDiffer.FirstOrDefault(a => a.TypeView == PostModelType.AlertBoxAnnouncement);
-                                                if (data != null)
-                                                {
-                                                    TabbedMainActivity.GetInstance()?.NewsFeedTab.MainRecyclerView.RemoveByRowIndex(data);
-                                                }
-
-                                                break;
-                                            }
+                                        Adapter.ListDiffer.RemoveAt(idx);
+                                        Adapter.NotifyItemRemoved(idx);
                                     }
+                                    try { TabbedMainActivity.GetInstance()?.NewsFeedTab?.MainRecyclerView?.RemoveByRowIndex(data); } catch { }
                                 }
-                                catch (Exception e)
-                                {
-                                    Methods.DisplayReportResultTrack(e);
-                                }
-                            };
-                            break;
+                            }
+                            catch (Exception e)
+                            {
+                                Methods.DisplayReportResultTrack(e);
+                            }
+                        };
                     }
 
+                    if (MianAlert != null && !MianAlert.HasOnClickListeners)
+                    {
+                        MianAlert.Click += (sender, args) =>
+                        {
+                            try
+                            {
+                                switch (viewType)
+                                {
+                                    case PostModelType.AlertBoxAnnouncement:
+                                    {
+                                        var intent = new Intent(Adapter.ActivityContext, typeof(AnnouncementsActivity));
+                                        Adapter.ActivityContext.StartActivity(intent);
+                                        break;
+                                    }
+                                    case PostModelType.AlertBox:
+                                    {
+                                        var data = Adapter.ListDiffer.FirstOrDefault(a => a.TypeView == PostModelType.AlertBox);
+                                        if (data != null)
+                                        {
+                                            TabbedMainActivity.GetInstance()?.NewsFeedTab.MainRecyclerView.RemoveByRowIndex(data);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Methods.DisplayReportResultTrack(e);
+                            }
+                        };
+                    }
                 }
                 catch (Exception e)
                 {

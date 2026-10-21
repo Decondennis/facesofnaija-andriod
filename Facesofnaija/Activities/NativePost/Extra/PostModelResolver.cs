@@ -1007,25 +1007,24 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
-                var announcement = await CustomRequests.GetAnnouncement();
-                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
-                string subText = !string.IsNullOrWhiteSpace(announcement)
-                    ? announcement.Replace("\n", " ")
-                    : (!string.IsNullOrWhiteSpace(cached) ? cached : "Stay informed — check back here for the latest news and updates.");
+                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedHtmlTicker();
+                string subText = !string.IsNullOrWhiteSpace(cached)
+                    ? cached
+                    : Facesofnaija.Helpers.News.RssNewsRepository.FormatHtmlTicker(Facesofnaija.Helpers.News.RssNewsRepository.GetSeedHeadlines());
 
                 var alertModel = new AlertModelClass
                 {
-                    TitleHead = "News",
+                    TitleHead = "NEWS",
                     SubText = subText,
-                    LinerColor = "#B71C1C",
-                    ImageDrawable = Resource.Drawable.icon_announcement_vector,
-                    IconImage = Resource.Drawable.icon_announcement_vector,
+                    LinerColor = "#4CAF50",
+                    ImageDrawable = Resource.Drawable.gif_globe,
+                    IconImage = Resource.Drawable.gif_globe,
                     TypeAlert = "Announcements"
                 };
 
                 return new AdapterModelsClass
                 {
-                    TypeView = PostModelType.AlertJoinBox,
+                    TypeView = PostModelType.AlertBoxAnnouncement,
                     AlertModel = alertModel,
                     Id = 333333355
                 };

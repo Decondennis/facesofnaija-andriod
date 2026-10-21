@@ -1839,17 +1839,33 @@ namespace Facesofnaija.Activities.NativePost.Post
                         }
                     case PostModelType.AlertBoxAnnouncement:
                         {
-                            holder.HeadText.Text = string.IsNullOrEmpty(item.AlertModel?.TitleHead) switch
+                            if (holder.HeadText != null)
                             {
-                                false => Methods.FunString.DecodeString(item.AlertModel?.TitleHead),
-                                _ => holder.HeadText.Text
-                            };
+                                holder.HeadText.Text = !string.IsNullOrEmpty(item.AlertModel?.TitleHead)
+                                    ? item.AlertModel.TitleHead
+                                    : "NEWS";
+                                holder.HeadText.SetTextColor(Color.ParseColor("#4CAF50"));
+                            }
 
-                            holder.SubText.Text = string.IsNullOrEmpty(item.AlertModel?.SubText) switch
+                            if (holder.SubText != null)
                             {
-                                false => Methods.FunString.DecodeString(item.AlertModel?.SubText),
-                                _ => holder.SubText.Text
-                            };
+                                var rawText = item.AlertModel?.SubText ?? string.Empty;
+                                holder.SubText.TextFormatted = Facesofnaija.Helpers.News.RssNewsRepository.ToSpanned(rawText);
+                                holder.SubText.SetHorizontallyScrolling(true);
+                                holder.SubText.Selected = true;
+                            }
+
+                            if (holder.GlobeImage != null)
+                            {
+                                try
+                                {
+                                    Bumptech.Glide.Glide.With(ActivityContext).AsGif().Load(Resource.Drawable.gif_globe).Into(holder.GlobeImage);
+                                }
+                                catch
+                                {
+                                    holder.GlobeImage.SetImageResource(Resource.Drawable.gif_globe);
+                                }
+                            }
                             break;
                         }
                 }
@@ -1922,16 +1938,15 @@ namespace Facesofnaija.Activities.NativePost.Post
                         }
                         break;
                     case "Announcements":
-                        // Classic announcement card without avatar/icon and with marquee text kept enabled.
-                        holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_Announcement_Bg);
-                        holder.ButtonView.Text = ActivityContext.GetString(Resource.String.Lbl_BreakingNews);
-                        holder.ButtonView.SetTextColor(Color.ParseColor("#8E5B14"));
-                        holder.ButtonView.SetBackgroundResource(Resource.Drawable.Shape_Classic_Button_Amber);
-                        holder.IconImageView.Visibility = ViewStates.Gone;
-                        holder.NormalImageView.SetImageResource(Resource.Drawable.icon_announcement_vector);
-                        var pulseAnim = Android.Views.Animations.AnimationUtils.LoadAnimation(ActivityContext, Resource.Animation.announcement_pulse);
-                        if (pulseAnim != null)
-                            holder.NormalImageView.StartAnimation(pulseAnim);
+                        holder.MainRelativeLayout.SetBackgroundResource(Resource.Drawable.Shape_News_Ticker_Bg);
+                        holder.HeadText.Text = "NEWS";
+                        holder.HeadText.SetTextColor(Color.ParseColor("#4CAF50"));
+                        holder.ButtonView.Visibility = ViewStates.Gone;
+                        holder.NormalImageView.Visibility = ViewStates.Gone;
+                        holder.IconImageView.Visibility = ViewStates.Visible;
+                        holder.IconImageView.SetImageResource(Resource.Drawable.gif_globe);
+                        var raw = item.AlertModel?.SubText ?? "";
+                        holder.SubText.TextFormatted = Facesofnaija.Helpers.News.RssNewsRepository.ToSpanned(raw);
                         holder.SubText.Selected = true;
                         break;
                 }

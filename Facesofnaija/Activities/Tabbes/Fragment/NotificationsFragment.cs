@@ -660,8 +660,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                                     {
                                         AnnouncementInflated = AnnouncementViewStub.Inflate();
 
-                                        var AnnouncementImage = (AppCompatButton)AnnouncementInflated.FindViewById(Resource.Id.announcementButton);
-                                        AnnouncementImage.Click += AnnouncementImageOnClick;
+                                        var AnnouncementImage = AnnouncementInflated.FindViewById<View>(Resource.Id.announcementButton) ?? AnnouncementInflated.FindViewById<View>(Resource.Id.main) ?? AnnouncementInflated;
+                                        if (AnnouncementImage != null)
+                                            AnnouncementImage.Click += AnnouncementImageOnClick;
                                     }
 
                                     TextAnnouncement = result.Announcement?.AnnouncementClass?.TextDecode;

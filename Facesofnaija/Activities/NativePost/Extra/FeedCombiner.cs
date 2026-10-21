@@ -1377,22 +1377,22 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
-                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
+                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedHtmlTicker();
                 var initialSubText = !string.IsNullOrWhiteSpace(cached)
                     ? cached
-                    : "Loading Nigerian & World headlines...";
+                    : Facesofnaija.Helpers.News.RssNewsRepository.FormatHtmlTicker(Facesofnaija.Helpers.News.RssNewsRepository.GetSeedHeadlines());
 
                 var item = new AdapterModelsClass
                 {
-                    TypeView = PostModelType.AlertJoinBox,
+                    TypeView = PostModelType.AlertBoxAnnouncement,
                     Id = 333333355,
                     AlertModel = new AlertModelClass
                     {
-                        TitleHead = "News",
+                        TitleHead = "NEWS",
                         SubText = initialSubText,
-                        LinerColor = "#B71C1C",
-                        ImageDrawable = Resource.Drawable.icon_announcement_vector,
-                        IconImage = Resource.Drawable.icon_announcement_vector,
+                        LinerColor = "#4CAF50",
+                        ImageDrawable = Resource.Drawable.gif_globe,
+                        IconImage = Resource.Drawable.gif_globe,
                         TypeAlert = "Announcements"
                     }
                 };
@@ -1403,10 +1403,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
                 {
                     try
                     {
-                        var announcement = await CustomRequests.GetAnnouncement();
-                        if (!string.IsNullOrWhiteSpace(announcement))
+                        var htmlTicker = await Facesofnaija.Helpers.News.RssNewsRepository.GetHtmlTickerStringAsync();
+                        if (!string.IsNullOrWhiteSpace(htmlTicker))
                         {
-                            item.AlertModel.SubText = Methods.FunString.DecodeString(announcement).Replace("\n", " ");
+                            item.AlertModel.SubText = htmlTicker;
                             onAdded?.Invoke();
                         }
                     }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer subtle border matching web app (#e2e8f0) -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#E2E8F0" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <!-- White inner background (#ffffff) -->
+    <item android:left="1dp" android:top="1dp" android:right="1dp" android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFF" />
+            <corners android:radius="7dp" />
+        </shape>
+    </item>
+    <!-- 4dp solid Nigerian green left accent stripe (#4CAF50) -->
+    <item android:gravity="start" android:width="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#4CAF50" />
+            <corners
+                android:topLeftRadius="8dp"
+                android:bottomLeftRadius="8dp"
+                android:topRightRadius="0dp"
+                android:bottomRightRadius="0dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -1,61 +1,100 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
-                android:id="@+id/main"
-                android:layout_width="match_parent"
+<!-- News RSS Ticker Card — Exact replica of web app home-announcement div -->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
+    android:layout_marginEnd="10dp"
+    android:layout_marginTop="3dp"
+    android:layout_marginBottom="3dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="2dp"
+    app:cardUseCompatPadding="false">
+
+    <RelativeLayout
+        android:id="@+id/main"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/Shape_News_Ticker_Bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingEnd="10dp"
+        android:gravity="center_vertical">
+
+        <!-- Left Header: Spinning Globe + "NEWS" (matches web app announcement header) -->
+        <LinearLayout
+            android:id="@+id/news_badge_container"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_alignParentStart="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/globe_image"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:src="@drawable/gif_globe"
+                android:scaleType="centerInside" />
+
+            <TextView
+                android:id="@+id/HeadText"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="9dp"
-                android:layout_margin="10dp"
-                android:background="@drawable/round_button_pressed"
-                android:backgroundTint="#E8F5E9"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-  
-	<ImageView
-		android:layout_width="80dp"
-		android:layout_height="80dp"
-		android:layout_alignParentEnd="true"
-		android:layout_alignParentBottom="true"
-		android:scaleX="-1"  
-		android:tint="@color/AnnouncementColor"
-		android:src="@drawable/icon_announcement_vector"/>
+                android:layout_marginStart="6dp"
+                android:text="NEWS"
+                android:textColor="#4CAF50"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06" />
 
-	<LinearLayout
-		 android:layout_width="match_parent"
-		 android:layout_height="wrap_content"
-		 android:orientation="vertical">
+        </LinearLayout>
 
-		 <TextView
-			 android:layout_width="wrap_content"
-			 android:layout_height="wrap_content"
-			 android:text="@string/Lbl_Announcement"
-			 android:textSize="25sp"
-			 android:textStyle="bold"
-			 android:textColor="@color/gnt_black"/>
-	 
-		 <TextView
-			 android:layout_width="wrap_content"
-			 android:layout_height="wrap_content"
-			 android:text="@string/Lbl_Announcement_SubText"
-			 android:textSize="10sp" 
-			 android:textColor="@color/gnt_black"
-			 android:layout_marginTop="3dp"/>
+        <!-- Right Dismiss Close Button (matches web app close fa-remove) -->
+        <ImageView
+            android:id="@+id/close_button"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:padding="5dp"
+            android:src="@drawable/icon_close_vector"
+            android:tint="#94A3B8"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Dismiss" />
 
-		 <androidx.appcompat.widget.AppCompatButton
-			 android:id="@+id/announcementButton"
-			 android:layout_width="wrap_content"
-			 android:layout_height="35dp"
-			 android:background="@drawable/round_button_pressed" 
-			 android:backgroundTint="#1B5E20"
-			 android:layout_marginTop="18dp"
-			 android:text="@string/Lbl_Open" 
-			 android:textStyle="bold"
-			 android:textSize="13sp"
-			 android:textColor="@color/gnt_white"
-			 android:textAppearance="?android:attr/textAppearanceSmall"
-			 style="?android:attr/borderlessButtonStyle"/>
+        <!-- Continuous Smooth Scrolling Marquee Ticker with HTML Source Badges -->
+        <TextView
+            android:id="@+id/subText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/news_badge_container"
+            android:layout_toStartOf="@id/close_button"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="6dp"
+            android:singleLine="true"
+            android:scrollHorizontally="true"
+            android:ellipsize="marquee"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:clickable="false"
+            android:textSize="13sp"
+            android:textColor="#1E293B" />
 
+        <!-- Backward compatibility anchor for notification stub -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/announcementButton"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
 
-	 </LinearLayout>
-    
-</RelativeLayout>
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>

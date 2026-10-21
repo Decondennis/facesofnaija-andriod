@@ -273,9 +273,9 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
 
                 //combiner.AddPostBoxPostView("feed", -1);
 
-                combiner.AddGreetingAlertPostView();
-                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
                 combiner.AddAnnouncementAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
+                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
+                combiner.AddGreetingAlertPostView();
 
                 PostFeedAdapter?.NotifyDataSetChanged();
                 MainRecyclerView.MainScrollEvent.IsLoading = false;
@@ -318,11 +318,11 @@ namespace Facesofnaija.Activities.Tabbes.Fragment
                     _ = Task.Run(LoadStory);
                 }
 
-                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
-                Console.WriteLine("DEBUG LoadPost: Added CommunitiesAlertPostView");
-
                 combiner.AddAnnouncementAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
                 Console.WriteLine("DEBUG LoadPost: Added AnnouncementAlertPostView");
+
+                combiner.AddCommunitiesAlertPostView(() => Activity?.RunOnUiThread(() => PostFeedAdapter?.NotifyDataSetChanged()));
+                Console.WriteLine("DEBUG LoadPost: Added CommunitiesAlertPostView");
 
                 combiner.AddGreetingAlertPostView();
                 Console.WriteLine("DEBUG LoadPost: Added GreetingAlertPostView");
