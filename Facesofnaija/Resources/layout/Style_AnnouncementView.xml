@@ -13,12 +13,10 @@
     app:cardUseCompatPadding="true">
 
     <RelativeLayout
+        android:id="@+id/announcement_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="?attr/colorFill"
-        android:clickable="true"
-        android:focusable="true"
-        android:foreground="?attr/selectableItemBackground"
         android:padding="16dp">
 
         <ImageView

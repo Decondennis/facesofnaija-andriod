@@ -40,5 +40,17 @@ namespace Facesofnaija.Activities.Announcements
 
         [JsonProperty("is_viewed")]
         public object IsViewed { get; set; }
+
+        [JsonProperty("source")]
+        public string Source { get; set; }
+
+        [JsonProperty("url")]
+        public string Url { get; set; }
+
+        [JsonProperty("link")]
+        public string Link { get; set; }
+
+        [JsonProperty("type")]
+        public string Type { get; set; }
     }
 }

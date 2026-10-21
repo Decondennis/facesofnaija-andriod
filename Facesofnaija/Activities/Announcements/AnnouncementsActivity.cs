@@ -124,82 +124,102 @@ namespace Facesofnaija.Activities.Announcements
                 SwipeRefreshLayout.Refreshing = true;
 
                 var token = UserDetails.AccessToken ?? string.Empty;
-                var userId = UserDetails.UserId ?? string.Empty;
+                var baseUrl = AppSettings.SiteUrl?.TrimEnd('/');
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    baseUrl = "https://www.facesofnaija.ng";
 
-                if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(userId))
-                {
-                    Log.Warn("FON_ANNOUNCE", "No token/userId");
-                    SwipeRefreshLayout.Refreshing = false;
-                    return;
-                }
-
-                var baseUrl = AppSettings.SiteUrl;
                 var url = $"{baseUrl}/api-v2.php?type=get_announcements&access_token={token}&server_key={InitializeWoWonder.ServerKey ?? ""}";
 
-                using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(20) };
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
-                client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
-
-                var response = await client.GetAsync(url);
-                var json = await response.Content.ReadAsStringAsync();
-
-                Log.Warn("FON_ANNOUNCE", $"Status={response.StatusCode} Body={json}");
-
-                if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                bool loadedFromServer = false;
+                try
                 {
-                    var result = JsonConvert.DeserializeObject<AnnouncementsRootObject>(json);
-                    if (result?.ApiStatus == "200" && result.Announcements?.Count > 0)
+                    using var client = new HttpClient(new Xamarin.Android.Net.AndroidMessageHandler()) { Timeout = TimeSpan.FromSeconds(15) };
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+                    client.DefaultRequestHeaders.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+                    var response = await client.GetAsync(url);
+                    var json = await response.Content.ReadAsStringAsync();
+
+                    Log.Warn("FON_ANNOUNCE", $"Status={response.StatusCode} Body={json}");
+
+                    if (response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(json))
+                    {
+                        var result = JsonConvert.DeserializeObject<AnnouncementsRootObject>(json);
+                        if (result?.ApiStatus == "200" && result.Announcements?.Count > 0)
+                        {
+                            if (MAdapter != null)
+                            {
+                                MAdapter.AnnouncementList.Clear();
+                                foreach (var ann in result.Announcements)
+                                    MAdapter.AnnouncementList.Add(ann);
+                                MAdapter.NotifyDataSetChanged();
+                            }
+
+                            if (MRecycler != null)
+                                MRecycler.Visibility = ViewStates.Visible;
+                            try
+                            {
+                                if (Inflated == null && EmptyStateLayout != null)
+                                    Inflated = EmptyStateLayout.Inflate();
+                            }
+                            catch (Exception inflateEx)
+                            {
+                                Log.Warn("FON_ANNOUNCE", $"Inflate exception: {inflateEx.Message}");
+                            }
+                            if (Inflated != null)
+                                Inflated.Visibility = ViewStates.Gone;
+
+                            loadedFromServer = true;
+                        }
+                    }
+                }
+                catch (Exception netEx)
+                {
+                    Log.Warn("FON_ANNOUNCE", $"Network fetch warning: {netEx.Message}");
+                }
+
+                // Fallback to local / direct RSS repository if server call returned no announcements
+                if (!loadedFromServer)
+                {
+                    var headlines = await Facesofnaija.Helpers.News.RssNewsRepository.GetHeadlinesAsync();
+                    if (headlines != null && headlines.Count > 0)
                     {
                         if (MAdapter != null)
                         {
                             MAdapter.AnnouncementList.Clear();
-                            foreach (var ann in result.Announcements)
-                                MAdapter.AnnouncementList.Add(ann);
+                            foreach (var h in headlines)
+                            {
+                                MAdapter.AnnouncementList.Add(new AnnouncementDataObject
+                                {
+                                    Id = h.Id?.ToString() ?? "rss",
+                                    Text = $"[{h.Source}] {h.Title}",
+                                    TextDecode = h.Title,
+                                    Source = h.Source,
+                                    Url = h.Link,
+                                    Link = h.Link,
+                                    Time = h.Time.ToString(),
+                                    TimeText = !string.IsNullOrWhiteSpace(h.TimeText) ? h.TimeText : "Recent",
+                                    Active = "1"
+                                });
+                            }
                             MAdapter.NotifyDataSetChanged();
-                        }
-                        else
-                        {
-                            Log.Warn("FON_ANNOUNCE", "MAdapter is null");
                         }
 
                         if (MRecycler != null)
                             MRecycler.Visibility = ViewStates.Visible;
-                        try
-                        {
-                            if (Inflated == null && EmptyStateLayout != null)
-                                Inflated = EmptyStateLayout.Inflate();
-                        }
-                        catch (Exception inflateEx)
-                        {
-                            Log.Warn("FON_ANNOUNCE", $"Inflate exception: {inflateEx.Message}");
-                        }
                         if (Inflated != null)
                             Inflated.Visibility = ViewStates.Gone;
                     }
-                    else if (result?.ApiStatus == "200")
-                    {
-                        Log.Warn("FON_ANNOUNCE", $"ApiStatus={result?.ApiStatus} Count={result?.Announcements?.Count}");
-                        ShowEmptyState(false);
-                    }
                     else
                     {
-                        Log.Warn("FON_ANNOUNCE", $"ApiStatus={result?.ApiStatus} Error response");
-                        ShowEmptyState(true);
+                        ShowEmptyState(false);
                     }
-                }
-                else
-                {
-                    Log.Warn("FON_ANNOUNCE", $"HTTP {response.StatusCode}");
-                    ShowEmptyState(true);
                 }
             }
             catch (Exception e)
             {
                 Log.Warn("FON_ANNOUNCE", $"Exception: {e.Message}");
-                Log.Warn("FON_ANNOUNCE", $"StackTrace: {e.StackTrace}");
                 Methods.DisplayReportResultTrack(e);
-                if (e.InnerException != null)
-                    Log.Warn("FON_ANNOUNCE", $"Inner: {e.InnerException.Message}");
                 ShowEmptyState(true);
             }
             finally
@@ -284,6 +304,14 @@ namespace Facesofnaija.Activities.Announcements
                 if (e.Position >= 0 && e.Position < MAdapter.AnnouncementList.Count)
                 {
                     var item = MAdapter.AnnouncementList[e.Position];
+                    var targetUrl = !string.IsNullOrWhiteSpace(item.Url) ? item.Url : item.Link;
+
+                    if (!string.IsNullOrWhiteSpace(targetUrl) && (targetUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || targetUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        new IntentController(this).OpenBrowserFromApp(targetUrl);
+                        return;
+                    }
+
                     var intent = new Intent(this, typeof(AnnouncementDetailsActivity));
                     intent.PutExtra("AnnouncementId", item.Id);
                     intent.PutExtra("AnnouncementText", item.Text);

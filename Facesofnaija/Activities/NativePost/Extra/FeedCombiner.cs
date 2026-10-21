@@ -1377,6 +1377,11 @@ namespace Facesofnaija.Activities.NativePost.Extra
         {
             try
             {
+                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
+                var initialSubText = !string.IsNullOrWhiteSpace(cached)
+                    ? cached
+                    : "Loading Nigerian & World headlines...";
+
                 var item = new AdapterModelsClass
                 {
                     TypeView = PostModelType.AlertJoinBox,
@@ -1384,7 +1389,7 @@ namespace Facesofnaija.Activities.NativePost.Extra
                     AlertModel = new AlertModelClass
                     {
                         TitleHead = "News",
-                        SubText = "Loading news...",
+                        SubText = initialSubText,
                         LinerColor = "#B71C1C",
                         ImageDrawable = Resource.Drawable.icon_announcement_vector,
                         IconImage = Resource.Drawable.icon_announcement_vector,
@@ -1399,16 +1404,14 @@ namespace Facesofnaija.Activities.NativePost.Extra
                     try
                     {
                         var announcement = await CustomRequests.GetAnnouncement();
-                        item.AlertModel.SubText = !string.IsNullOrWhiteSpace(announcement)
-                            ? Methods.FunString.DecodeString(announcement).Replace("\n", " ")
-                            : "No announcement available.";
-
-                        onAdded?.Invoke();
+                        if (!string.IsNullOrWhiteSpace(announcement))
+                        {
+                            item.AlertModel.SubText = Methods.FunString.DecodeString(announcement).Replace("\n", " ");
+                            onAdded?.Invoke();
+                        }
                     }
                     catch (Exception e)
                     {
-                        item.AlertModel.SubText = "No announcement available.";
-                        onAdded?.Invoke();
                         Methods.DisplayReportResultTrack(e);
                     }
                 });

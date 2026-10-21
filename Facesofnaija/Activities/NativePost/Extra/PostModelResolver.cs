@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using Android.Graphics;
 using Android.Graphics.Drawables;
 using Android.Icu.Util;
@@ -1008,9 +1008,10 @@ namespace Facesofnaija.Activities.NativePost.Extra
             try
             {
                 var announcement = await CustomRequests.GetAnnouncement();
+                var cached = Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
                 string subText = !string.IsNullOrWhiteSpace(announcement)
                     ? announcement.Replace("\n", " ")
-                    : "Stay informed — check back here for the latest news and updates.";
+                    : (!string.IsNullOrWhiteSpace(cached) ? cached : "Stay informed — check back here for the latest news and updates.");
 
                 var alertModel = new AlertModelClass
                 {

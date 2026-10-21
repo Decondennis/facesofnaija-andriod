@@ -3706,6 +3706,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                         SubText.Selected = true;
 
                     ButtonView.SetOnClickListener(this);
+                    MainRelativeLayout?.SetOnClickListener(this);
                 }
                 catch (Exception e)
                 {
@@ -3719,7 +3720,7 @@ namespace Facesofnaija.Activities.NativePost.Post
                 {
                     if (BindingAdapterPosition != RecyclerView.NoPosition)
                     {
-                        if (v.Id == ButtonView.Id)
+                        if (v.Id == ButtonView.Id || (MainRelativeLayout != null && v.Id == MainRelativeLayout.Id))
                         {
                             var item = PostAdapter.ListDiffer[BindingAdapterPosition];
 

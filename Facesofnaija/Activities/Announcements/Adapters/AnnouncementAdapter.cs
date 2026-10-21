@@ -42,8 +42,17 @@ namespace Facesofnaija.Activities.Announcements.Adapters
                     var item = AnnouncementList[position];
                     if (item != null)
                     {
-                        holder.TitleText.Text = Methods.FunString.DecodeString(item.TextDecode);
-                        holder.DescriptionText.Text = Methods.FunString.DecodeString(item.TextDecode);
+                        var title = Methods.FunString.DecodeString(item.TextDecode);
+                        if (!string.IsNullOrWhiteSpace(item.Source) && !item.Source.Equals("announcement", StringComparison.OrdinalIgnoreCase))
+                        {
+                            holder.TitleText.Text = $"[{item.Source.ToUpper()}] {title}";
+                        }
+                        else
+                        {
+                            holder.TitleText.Text = title;
+                        }
+
+                        holder.DescriptionText.Text = title;
                         holder.TimeText.Text = item.TimeText ?? string.Empty;
 
                         if (!string.IsNullOrEmpty(item.TextDecode))
@@ -90,6 +99,14 @@ namespace Facesofnaija.Activities.Announcements.Adapters
             IconImage = itemView.FindViewById<ImageView>(Resource.Id.announcement_icon);
 
             itemView.Click += (sender, e) => clickListener(new AnnouncementAdapterClickEventArgs { View = itemView, Position = BindingAdapterPosition });
+            if (itemView is ViewGroup vg && vg.ChildCount > 0)
+            {
+                var child = vg.GetChildAt(0);
+                if (child != null)
+                {
+                    child.Click += (sender, e) => clickListener(new AnnouncementAdapterClickEventArgs { View = child, Position = BindingAdapterPosition });
+                }
+            }
         }
     }
 

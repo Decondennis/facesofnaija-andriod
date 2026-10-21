@@ -743,20 +743,32 @@ namespace Facesofnaija.CustomApi.Requests
         {
             try
             {
-                // Try SDK path first.
-                var (apiStatus, respond) = await GetGeneralDataDirectAsync(true, UserDetails.OnlineUsers, UserDetails.DeviceId, "0", "announcement");
-                if (apiStatus == 200)
+                // 1. Try SDK path first for admin announcements
+                try
                 {
-                    if (respond is GetGeneralDataObject result)
+                    var (apiStatus, respond) = await GetGeneralDataDirectAsync(true, UserDetails.OnlineUsers, UserDetails.DeviceId, "0", "announcement");
+                    if (apiStatus == 200 && respond is GetGeneralDataObject result)
                     {
-                        if (!string.IsNullOrEmpty(result.Announcement?.AnnouncementClass?.TextDecode))
+                        var textDecode = result.Announcement?.AnnouncementClass?.TextDecode;
+                        if (!string.IsNullOrEmpty(textDecode))
                         {
-                           return result.Announcement?.AnnouncementClass?.TextDecode;
+                            return textDecode;
                         }
                     }
                 }
+                catch (Exception ex)
+                {
+                    Methods.DisplayReportResultTrack(ex);
+                }
 
-                // Fallback: call the same endpoint style used by the web app and parse raw JSON.
+                // 2. Fetch live RSS news ticker (Nigerian & World News from Punch, Vanguard, ChannelsTV, etc.)
+                var newsTicker = await Facesofnaija.Helpers.News.RssNewsRepository.GetTickerStringAsync();
+                if (!string.IsNullOrWhiteSpace(newsTicker))
+                {
+                    return newsTicker;
+                }
+
+                // 3. Fallback: call the same endpoint style used by the web app and parse raw JSON.
                 foreach (var baseUrl in GetApiBaseCandidates())
                 {
                     var endpoint = $"{baseUrl}/api-v2.php?type=get-general-data&access_token={UserDetails.AccessToken}";
@@ -792,11 +804,11 @@ namespace Facesofnaija.CustomApi.Requests
                     }
                 }
 
-                return string.Empty;
+                return Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
             }
             catch (Exception e)
             {
-                return string.Empty;
+                return Facesofnaija.Helpers.News.RssNewsRepository.GetCachedTickerString();
             }
         }
 
